@@ -1,8 +1,8 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.framework.util.JSONUtils
-import java.util.concurrent._
 
+import java.util.concurrent._
 import org.ekstep.analytics.framework.util.JobLogger
 import org.ekstep.analytics.framework.Level._
 import org.ekstep.analytics.framework.JobConfig
@@ -10,8 +10,10 @@ import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
 import org.ekstep.analytics.kafka.consumer.JobConsumerV2Config
 import org.ekstep.analytics.kafka.consumer.JobConsumerV2
 import org.ekstep.analytics.framework.FrameworkContext
+
 import java.util.concurrent.atomic.AtomicBoolean
 import org.ekstep.analytics.framework.conf.AppConf
+import org.ekstep.analytics.framework.storage.CephS3AStorageService
 
 case class JobManagerConfig(jobsCount: Int, topic: String, bootStrapServer: String, zookeeperConnect: String, consumerGroup: String, slackChannel: String, slackUserName: String, tempBucket: String, tempFolder: String, runMode: String = "shutdown");
 
@@ -20,7 +22,7 @@ object JobManager extends optional.Application {
     implicit val className = "org.ekstep.analytics.job.JobManager";
     val storageType = AppConf.getConfig("cloud_storage_type")
     val storageService = if ("cephs3".equalsIgnoreCase(storageType)) {
-        StorageServiceFactory.getStorageService(
+        new CephS3AStorageService(
             StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(AppConf.getConfig("cephs3_storage_endpoint")))
         )
     } else {
