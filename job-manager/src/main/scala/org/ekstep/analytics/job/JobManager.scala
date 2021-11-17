@@ -19,7 +19,14 @@ object JobManager extends optional.Application {
 
     implicit val className = "org.ekstep.analytics.job.JobManager";
     val storageType = AppConf.getConfig("cloud_storage_type")
-    val storageService = StorageServiceFactory.getStorageService(StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config")))
+    val storageService = if ("cephs3".equalsIgnoreCase(storageType)) {
+        StorageServiceFactory.getStorageService(
+            StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(AppConf.getConfig("cephs3_storage_endpoint")))
+        )
+    } else {
+        StorageServiceFactory.getStorageService(StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config")))
+    }
+
 
     def main(config: String) {
         JobLogger.init("JobManager");
