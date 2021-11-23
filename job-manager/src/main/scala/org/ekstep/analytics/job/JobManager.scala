@@ -21,7 +21,7 @@ object JobManager extends optional.Application {
 
     implicit val className = "org.ekstep.analytics.job.JobManager";
     val storageType = AppConf.getConfig("cloud_storage_type")
-    val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint")
+    val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
     val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
         new CustomS3StorageService(
             StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(storageEndpoint))
