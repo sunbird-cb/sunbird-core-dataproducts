@@ -2,15 +2,16 @@ package org.ekstep.analytics.dashboard
 
 import java.io.Serializable
 import org.ekstep.analytics.framework.IBatchModelTemplate
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{avg, col, count, countDistinct, explode_outer, expr, from_json, last, max, udf}
+import org.apache.spark.sql.functions.{avg, col, countDistinct, explode_outer, expr, from_json, last, max, udf}
 import org.apache.spark.sql.types.{ArrayType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework._
 
 import scala.util.matching.Regex
 import DashboardUtil._
+import org.apache.spark.sql.expressions.UserDefinedFunction
 
 /*
 
@@ -635,43 +636,46 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     StructField("competencies", ArrayType(profileCompetencySchema), nullable = true)
   ))
 
-  val competencyLevelPattern: Regex = ".*[Ll]evel[ ]+?([0-9]+).*".r
-  /**
-   * match string against level pattern and return level or zero
-   * @param s string to parse
-   * @return level or zero
-   */
-  def parseCompetencyLevelString(s: String): Int = {
-    s match {
-      case competencyLevelPattern(level) => level.toInt
-      case _ => 0
-    }
-  }
+  object CompLevelParser extends Serializable {
 
-  /**
-   * get competency level from string value
-   * @param levelString level string
-   * @return level value as int
-   */
-  def getCompetencyLevel(levelString: String): Int = {
-    intOrZero(levelString) match {
-      case 0 => parseCompetencyLevelString(levelString)
-      case default => default
+    val competencyLevelPattern: Regex = ".*[Ll]evel[ ]+?([0-9]+).*".r
+    /**
+     * match string against level pattern and return level or zero
+     * @param s string to parse
+     * @return level or zero
+     */
+    def parseCompetencyLevelString(s: String): Int = {
+      s match {
+        case competencyLevelPattern(level) => level.toInt
+        case _ => 0
+      }
     }
-  }
+    /**
+     * get competency level from string value
+     * @param levelString level string
+     * @return level value as int
+     */
+    def getCompetencyLevel(levelString: String): Int = {
+      intOrZero(levelString) match {
+        case 0 => parseCompetencyLevelString(levelString)
+        case default => default
+      }
+    }
 
-  /**
-   * spark udf to infer competency level value, returns 1 if no value could be inferred
-   * @param csaLevel value of competencySelfAttestedLevel column
-   * @param csaLevelValue value of competencySelfAttestedLevelValue column
-   * @return level value as int
-   */
-  def compLevelParser(csaLevel: String, csaLevelValue: String): Int = {
-    for (levelString <- Seq(csaLevel, csaLevelValue)) {
-      val level = getCompetencyLevel(levelString)
-      if (level != 0) return level
+    /**
+     * spark udf to infer competency level value, returns 1 if no value could be inferred
+     * @param csaLevel value of competencySelfAttestedLevel column
+     * @param csaLevelValue value of competencySelfAttestedLevelValue column
+     * @return level value as int
+     */
+    def compLevelParser(csaLevel: String, csaLevelValue: String): Int = {
+      for (levelString <- Seq(csaLevel, csaLevelValue)) {
+        val level = getCompetencyLevel(levelString)
+        if (level != 0) return level
+      }
+      1 // return 1 as default
     }
-    1 // return 1 as default
+    val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
   }
 
   /**
@@ -691,9 +695,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     df = df.where(col("competency").isNotNull && col("competency.id").isNotNull)
 
     // use udf for competency level parsing, as the schema for competency level is broken
-    val compLevelParserUdf = udf(compLevelParser _)
     df = df.withColumn("declaredCompetencyLevel",
-      compLevelParserUdf(col("competency.competencySelfAttestedLevel"), col("competency.competencySelfAttestedLevelValue"))
+      CompLevelParser.compLevelParserUdf(col("competency.competencySelfAttestedLevel"), col("competency.competencySelfAttestedLevelValue"))
     ).na.fill(1, Seq("declaredCompetencyLevel"))  // if competency is listed without a level assume level 1
 
     // select useful columns

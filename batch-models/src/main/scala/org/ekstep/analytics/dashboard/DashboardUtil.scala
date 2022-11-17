@@ -31,7 +31,7 @@ trait DashboardConfig extends Serializable {
   val redisDB: Int
 }
 
-object DashboardUtil {
+object DashboardUtil extends Serializable {
 
   implicit var debug: Boolean = false
 
