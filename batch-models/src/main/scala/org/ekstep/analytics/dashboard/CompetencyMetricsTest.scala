@@ -40,6 +40,7 @@ object CompetencyMetricsTest extends Serializable {
         "allResources" -> "dev.dashboards.resource",
         "courseDetails" -> "dev.dashboards.course.details",
         "userCourseProgress" -> "dev.dashboards.user.course.progress",
+        "userCourseProgramProgress" -> "dev.dashboards.user.course.program.progress",
         "fracCompetency" -> "dev.dashboards.competency.frac",
         "courseCompetency" -> "dev.dashboards.competency.course",
         "expectedCompetency" -> "dev.dashboards.competency.expected",
