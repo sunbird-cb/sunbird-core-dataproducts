@@ -553,6 +553,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     // courseCompletionDF = DataFrame(userID, courseID, courseProgress, dbCompletionStatus)
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
+      .where(expr("active=true"))
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
