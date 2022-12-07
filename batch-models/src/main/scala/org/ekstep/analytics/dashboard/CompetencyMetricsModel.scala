@@ -5,7 +5,7 @@ import org.ekstep.analytics.framework.IBatchModelTemplate
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{avg, col, countDistinct, explode_outer, expr, from_json, last, max, udf}
+import org.apache.spark.sql.functions.{avg, col, count, countDistinct, explode_outer, expr, from_json, last, max, udf}
 import org.apache.spark.sql.types.{ArrayType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework._
 
@@ -115,6 +115,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
 
     // get all courses with name, status and org, dispatch to kafka to be ingested by druid data-source: dashboards-courses
     val allCourseProgramDF = allCourseProgramDataFrame()
+
+    // val allCourseDF = allCourseProgramDF.where(expr("category='Course'"))
+//    val countReviewed = allCourseDF.where(expr("courseStatus='Review' and courseReviewStatus='Reviewed'")).count()
+//    val counts = allCourseDF.groupBy("courseStatus").agg(countDistinct("courseID"))
+//    println("Under Publish: " + countReviewed)
+//    show(counts)
+
     kafkaDispatch(withTimestamp(allCourseProgramDF, timestamp), conf.allCourseTopic)
 
     // get all resources with status and org, dispatch to kafka to be ingested by druid data-source: dashboards-resources
@@ -140,7 +147,16 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     kafkaDispatch(withTimestamp(courseCompletionWithDetailsDF, timestamp), conf.userCourseProgressTopic)
 
     val allCourseProgramCompletionDF = userAllCourseProgramCompletionDataFrame(courseCompletionDF, allCourseProgramDF)
+
+    // userID, courseID, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID
+    // val counts = allCourseProgramCompletionDF.groupBy("dbCompletionStatus").agg(count("userID"))
+    // val uniqueCount = allCourseProgramCompletionDF.agg(countDistinct("userID").as("uniqueCount"))
+
     kafkaDispatch(withTimestamp(allCourseProgramCompletionDF, timestamp), conf.userCourseProgramProgressTopic)
+    // println("Unique users enrolled: ")
+    // show(uniqueCount)
+    // show(counts)
+
 
     // get user's expected competency data, dispatch to kafka to be ingested by druid data-source: dashboards-expected-user-competency
     val expectedCompetencyDF = expectedCompetencyDataFrame()
