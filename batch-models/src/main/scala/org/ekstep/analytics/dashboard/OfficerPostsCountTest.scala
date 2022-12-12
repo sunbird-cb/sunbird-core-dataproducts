@@ -7,6 +7,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 object OfficerPostsCountTest extends Serializable {
   def main(args: Array[String]): Unit = {
     implicit val mongoUri = testModelConfig().getOrElse("sparkMongoConnectionHost", "localhost").asInstanceOf[String]
+    val cassandraHost = testModelConfig().getOrElse("sparkCassandraConnectionHost", "localhost").asInstanceOf[String]
     implicit val spark: SparkSession =
       SparkSession
         .builder()
@@ -14,6 +15,8 @@ object OfficerPostsCountTest extends Serializable {
         .config("spark.master", "local[*]")
         .config("spark.mongodb.input.uri", mongoUri)
         .config("spark.mongodb.input.sampleSize", "50000")
+        .config("spark.cassandra.connection.host", cassandraHost)
+        .config("spark.cassandra.output.batch.size.rows", "10000")
         .config("spark.sql.legacy.json.allowEmptyString.enabled", "true")
         .getOrCreate()
     implicit val sc: SparkContext = spark.sparkContext
@@ -29,7 +32,10 @@ object OfficerPostsCountTest extends Serializable {
       "brokerList" -> "10.0.0.5:9092",
       "compression" -> "snappy",
       "topics" -> Map(
-        "postCount" -> "dev.dashboards.posts"
+        "postCount" -> "dev.dashboards.officer.posts",
+        "officerProfileViews" -> "dev.dashboards.officer.profileviews",
+        "averageProfileView" -> "dev.dashboards.officer.average.profileviews",
+        "upvotes" -> "dev.dashboards.officer.upvotes"
       )
     )
     val modelParams = Map(
@@ -43,6 +49,10 @@ object OfficerPostsCountTest extends Serializable {
       "redisHost" -> "10.0.0.6",
       "redisPort" -> "6379",
       "redisDB" -> "12",
+      "mongoPort" -> "27017",
+      "mongoHost" -> "10.0.0.7",
+      "mongoDB" -> "nodebb",
+      "mongoCollection" -> "objects",
       "sideOutput" -> sideOutput
     )
     modelParams
