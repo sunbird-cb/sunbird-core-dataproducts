@@ -627,7 +627,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
 
     df = df.join(userOrgDF, Seq("userID"), "left")
       .select("userID", "courseID", "courseProgress", "dbCompletionStatus", "category", "courseName",
-        "courseStatus", "courseReviewStatus", "courseOrgID", "userOrgID")
+        "courseStatus", "courseReviewStatus", "courseOrgID", "userOrgID", "firstName", "lastName", "maskedEmail")
 
     df
   }
