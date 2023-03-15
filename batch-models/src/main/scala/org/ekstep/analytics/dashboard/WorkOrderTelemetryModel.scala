@@ -10,7 +10,7 @@ import org.apache.spark.sql.types.{ArrayType, BooleanType, LongType, StringType,
 import org.ekstep.analytics.framework._
 import DashboardUtil._
 
-
+/*
 // input output case classes
 case class WODummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
 case class WODummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
@@ -52,243 +52,245 @@ case class EData(state: String, props: Array[String], cb_object: CBObject, cb_da
 case class Actor(id: String, `type`: String)
 case class Event(actor: Actor, eid: String, edata: EData, ver: String, ets: Long, context: EventContext, mid: String, `object`: EventObject)
 
-/**
- * Model for processing competency metrics
- */
-object WorkOrderTelemetryModel extends IBatchModelTemplate[String, WODummyInput, WODummyOutput, WODummyOutput] with Serializable {
-
-  implicit var debug: Boolean = false
-
-  implicit val className: String = "org.ekstep.analytics.dashboard.WorkOrderTelemetryModel"
-  override def name() = "WorkOrderTelemetryModel"
-
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyInput] = {
-    // we want this call to happen only once, so that timestamp is consistent for all data points
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(WODummyInput(executionTime)))
-  }
-
-  override def algorithm(data: RDD[WODummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyOutput] = {
-    val timestamp = data.first().timestamp  // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    generateWorkOrderEvents(timestamp, config)
-    sc.parallelize(Seq())  // return empty rdd
-  }
-
-  override def postProcess(data: RDD[WODummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyOutput] = {
-    sc.parallelize(Seq())  // return empty rdd
-  }
-
-  val competencyAdditionalPropertiesSchema: StructType = StructType(Seq(
-    StructField("competencyArea", StringType, nullable = true),
-    StructField("competencyType", StringType, nullable = true)
-  ))
-
-  val competencySchema: StructType = StructType(Seq(
-    StructField("type", StringType, nullable = false),
-    StructField("id", StringType, nullable = false),
-    StructField("name", StringType, nullable = true),
-    StructField("description", StringType, nullable = true),
-    StructField("source", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("level", StringType, nullable = true),
-    StructField("additionalProperties", competencyAdditionalPropertiesSchema, nullable = true),
-    StructField("children", StringType, nullable = true) // TODO
-  ))
-
-  val activitySchema: StructType = StructType(Seq(
-    StructField("type", StringType, nullable = false),
-    StructField("id", StringType, nullable = false),
-    StructField("name", StringType, nullable = true),
-    StructField("description", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("source", StringType, nullable = true),
-    StructField("parentRole", StringType, nullable = true),  // TODO
-    StructField("submittedFromId", StringType, nullable = true),
-    StructField("submittedToId", StringType, nullable = true),
-    StructField("level", StringType, nullable = true)  // TODO
-  ))
-
-  val roleSchema: StructType = StructType(Seq(
-    StructField("type", StringType, nullable = false),
-    StructField("id", StringType, nullable = false),
-    StructField("name", StringType, nullable = true),
-    StructField("description", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("source", StringType, nullable = true),
-    StructField("childNodes", ArrayType(activitySchema), nullable = true),
-    StructField("addedAt", LongType, nullable = true),
-    StructField("updatedAt", LongType, nullable = true),
-    StructField("updatedBy", StringType, nullable = true),
-    StructField("archivedAt", LongType, nullable = true),
-    StructField("archived", BooleanType, nullable = true)
-  ))
-
-  val roleCompetencySchema: StructType = StructType(Seq(
-    StructField("roleDetails", roleSchema, nullable = true),
-    StructField("competencyDetails", ArrayType(competencySchema), nullable = true)
-  ))
-
-  val workAllocSchema: StructType = StructType(Seq(
-    StructField("id", StringType, nullable = false),
-    StructField("userId", StringType, nullable = false),
-    StructField("roleCompetencyList", ArrayType(roleCompetencySchema), nullable = true),
-    StructField("unmappedActivities", ArrayType(activitySchema), nullable = true),
-    StructField("unmappedCompetencies", ArrayType(competencySchema), nullable = true),
-    StructField("userPosition", StringType, nullable = true),
-    StructField("positionId", StringType, nullable = true),
-    StructField("positionDescription", StringType, nullable = true),
-    StructField("workOrderId", StringType, nullable = true),
-    StructField("updatedAt", LongType, nullable = true),
-    StructField("updatedBy", StringType, nullable = true),
-    StructField("errorCount", LongType, nullable = true),
-    StructField("progress", LongType, nullable = true),
-    StructField("createdAt", LongType, nullable = true),
-    StructField("createdBy", StringType, nullable = true)
-  ))
-
-  val workOrderSchema: StructType = StructType(Seq(
-    StructField("id", StringType, nullable = false),
-    StructField("name", StringType, nullable = true),
-    StructField("deptId", StringType, nullable = true),
-    StructField("deptName", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("userIds", ArrayType(StringType), nullable = true),
-    StructField("createdBy", StringType, nullable = true),
-    StructField("createdAt", LongType, nullable = true),
-    StructField("updatedBy", StringType, nullable = true),
-    StructField("updatedAt", LongType, nullable = true),
-    StructField("progress", LongType, nullable = true),
-    StructField("errorCount", LongType, nullable = true),
-    StructField("rolesCount", LongType, nullable = true),
-    StructField("activitiesCount", LongType, nullable = true),
-    StructField("competenciesCount", LongType, nullable = true),
-    StructField("publishedPdfLink", StringType, nullable = true),
-    StructField("signedPdfLink", StringType, nullable = true)
-  ))
-
-  /**
-   * Master method, fetch all work orders from cassandra, add work allocations, remove PI info, dispatch to kafka
-   *
-   * Tables:
-   * sunbird:work_order (id*, data)
-   * sunbird:work_allocation (id*, data)
-   * sunbird:user_work_allocation_mapping (userid*, workallocationid*, status, workorderid)
-   *
-   * Steps:
-   * - get work order from sunbird:work_order, json parse $.data, remove createdByName, updatedByName, add mdo_name
-   * - get all work allocations ids for the work order from sunbird:user_work_allocation_mapping
-   * - collect $.data from sunbird:work_allocation for the above work allocations ids, json parse each
-   * - remove userName, userEmail, updatedByName, createdByName from above work allocations
-   * - remove roleCompetencyList[].roleDetails.childNodes[].(submittedFromName, submittedFromEmail, submittedToName, submittedToEmail) from work allocations
-   * - remove unmappedActivities[].(submittedFromName, submittedFromEmail, submittedToName, submittedToEmail) from work allocations
-   * - add list of above work orders as `users` field to work order
-   * - attach to a valid CB_AUDIT event and dispatch to kafka
-   *
-   * @param timestamp
-   * @param config
-   * @param spark
-   * @param sc
-   * @param fc
-   */
-  def generateWorkOrderEvents(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    // parse model config
-    println(config)
-    implicit val conf: WOConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-
-    val eventDS = workOrderEventDataSet()
-    kafkaDispatchDS(eventDS, conf.rawTelemetryTopic)
-  }
-
-  def workOrderEventDataSet()(implicit spark: SparkSession, conf: WOConfig): Dataset[Event] = {
-    val workOrderDS = workOrderDataSet()
-    eventDataSet(workOrderDS)
-  }
-
-  def workOrderDataSet()(implicit spark: SparkSession, conf: WOConfig): Dataset[WorkOrder] = {
-    import spark.implicits._
-
-    val workOrderDF = workOrderDataFrame()
-    val workAllocDF = workAllocationDataFrame()
-    val workOrderWithAllocDF = workOrderAllocationDataFrame(workOrderDF, workAllocDF)
-
-    workOrderWithAllocDF.as[WorkOrder]
-  }
-
-  def eventDataSet(workOrderAllocDS: Dataset[WorkOrder])(implicit spark: SparkSession, conf: WOConfig): Dataset[Event] = {
-    import spark.implicits._
-    val eventDS = workOrderAllocDS
-      .map(r => {
-        Event(
-          actor = Actor(r.createdBy, "User"),
-          eid = "CB_AUDIT",
-          edata = EData(r.status, Array("WAT"), CBObject(r.id, "WorkOrder", "1.0", r.name, r.deptName), CBData(r)),
-          ver = "3.0",
-          ets = r.updatedAt,
-          context = EventContext(r.deptId, PData("dev.mdo.portal", "mdo", "1.0"), "WAT"),
-          mid = s"CB.${java.util.UUID.randomUUID.toString}",
-          `object` = EventObject(r.id, "WorkOrder")
-        )
-      })
-
-    showDS(eventDS)
-    eventDS
-  }
-
-  def workOrderDataFrame()(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
-    val workOrderDF = cassandraTableAsDataFrame(conf.cassandraSunbirdKeyspace, conf.cassandraWorkOrderTable)
-      .withColumn("data", from_json(col("data"), workOrderSchema))
-
-    show(workOrderDF)
-    workOrderDF
-  }
-
-  def workAllocationDataFrame()(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
-    val workAllocDF = cassandraTableAsDataFrame(conf.cassandraSunbirdKeyspace, conf.cassandraWorkAllocationTable)
-      .withColumn("data", from_json(col("data"), workAllocSchema))
-
-    show(workAllocDF)
-    workAllocDF
-  }
-
-  def groupAllocationByWorkOrder(workAllocDF: DataFrame)(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
-    val workAllocGroupedDF = workAllocDF.withColumn("workOrderID", col("data.workOrderId"))
-      .groupBy("workOrderID")
-      .agg(collect_list("data").as("users"))
-
-    show(workAllocGroupedDF)
-    workAllocGroupedDF
-  }
-
-  def workOrderAllocationDataFrame(workOrderDF: DataFrame, workAllocDF: DataFrame)(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
-    val workAllocGroupedDF = groupAllocationByWorkOrder(workAllocDF)
-    val workOrderWithAllocDF = workOrderDF.join(workAllocGroupedDF, col("id") === col("workOrderID"), "left")
-      .select("data.*", "users")
-      .withColumn("mdo_name", col("deptName"))
-
-    show(workOrderWithAllocDF)
-    workOrderWithAllocDF
-  }
-
-  /* Config functions */
-
-  def parseConfig(config: Map[String, AnyRef]): WOConfig = {
-    WOConfig(
-      debug = getConfigModelParam(config, "debug"),
-      broker = getConfigSideBroker(config),
-      compression = getConfigSideBrokerCompression(config),
-      redisHost = getConfigModelParam(config, "redisHost"),
-      redisPort = getConfigModelParam(config, "redisPort").toInt,
-      redisDB = getConfigModelParam(config, "redisDB").toInt,
-      rawTelemetryTopic = getConfigSideTopic(config, "rawTelemetryTopic"),
-      sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
-      cassandraSunbirdKeyspace = getConfigModelParam(config, "cassandraSunbirdKeyspace"),
-      cassandraWorkOrderTable = getConfigModelParam(config, "cassandraWorkOrderTable"),
-      cassandraWorkAllocationTable = getConfigModelParam(config, "cassandraWorkAllocationTable"),
-      cassandraUserWorkAllocationMappingTable = getConfigModelParam(config, "cassandraUserWorkAllocationMappingTable")
-    )
-  }
-
-
-}
+*/
+//
+///**
+// * Model for processing competency metrics
+// */
+//object WorkOrderTelemetryModel extends IBatchModelTemplate[String, WODummyInput, WODummyOutput, WODummyOutput] with Serializable {
+//
+//  implicit var debug: Boolean = false
+//
+//  implicit val className: String = "org.ekstep.analytics.dashboard.WorkOrderTelemetryModel"
+//  override def name() = "WorkOrderTelemetryModel"
+//
+//  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyInput] = {
+//    // we want this call to happen only once, so that timestamp is consistent for all data points
+//    val executionTime = System.currentTimeMillis()
+//    sc.parallelize(Seq(WODummyInput(executionTime)))
+//  }
+//
+//  override def algorithm(data: RDD[WODummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyOutput] = {
+//    val timestamp = data.first().timestamp  // extract timestamp from input
+//    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
+//    generateWorkOrderEvents(timestamp, config)
+//    sc.parallelize(Seq())  // return empty rdd
+//  }
+//
+//  override def postProcess(data: RDD[WODummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WODummyOutput] = {
+//    sc.parallelize(Seq())  // return empty rdd
+//  }
+//
+//  val competencyAdditionalPropertiesSchema: StructType = StructType(Seq(
+//    StructField("competencyArea", StringType, nullable = true),
+//    StructField("competencyType", StringType, nullable = true)
+//  ))
+//
+//  val competencySchema: StructType = StructType(Seq(
+//    StructField("type", StringType, nullable = false),
+//    StructField("id", StringType, nullable = false),
+//    StructField("name", StringType, nullable = true),
+//    StructField("description", StringType, nullable = true),
+//    StructField("source", StringType, nullable = true),
+//    StructField("status", StringType, nullable = true),
+//    StructField("level", StringType, nullable = true),
+//    StructField("additionalProperties", competencyAdditionalPropertiesSchema, nullable = true),
+//    StructField("children", StringType, nullable = true) // TODO
+//  ))
+//
+//  val activitySchema: StructType = StructType(Seq(
+//    StructField("type", StringType, nullable = false),
+//    StructField("id", StringType, nullable = false),
+//    StructField("name", StringType, nullable = true),
+//    StructField("description", StringType, nullable = true),
+//    StructField("status", StringType, nullable = true),
+//    StructField("source", StringType, nullable = true),
+//    StructField("parentRole", StringType, nullable = true),  // TODO
+//    StructField("submittedFromId", StringType, nullable = true),
+//    StructField("submittedToId", StringType, nullable = true),
+//    StructField("level", StringType, nullable = true)  // TODO
+//  ))
+//
+//  val roleSchema: StructType = StructType(Seq(
+//    StructField("type", StringType, nullable = false),
+//    StructField("id", StringType, nullable = false),
+//    StructField("name", StringType, nullable = true),
+//    StructField("description", StringType, nullable = true),
+//    StructField("status", StringType, nullable = true),
+//    StructField("source", StringType, nullable = true),
+//    StructField("childNodes", ArrayType(activitySchema), nullable = true),
+//    StructField("addedAt", LongType, nullable = true),
+//    StructField("updatedAt", LongType, nullable = true),
+//    StructField("updatedBy", StringType, nullable = true),
+//    StructField("archivedAt", LongType, nullable = true),
+//    StructField("archived", BooleanType, nullable = true)
+//  ))
+//
+//  val roleCompetencySchema: StructType = StructType(Seq(
+//    StructField("roleDetails", roleSchema, nullable = true),
+//    StructField("competencyDetails", ArrayType(competencySchema), nullable = true)
+//  ))
+//
+//  val workAllocSchema: StructType = StructType(Seq(
+//    StructField("id", StringType, nullable = false),
+//    StructField("userId", StringType, nullable = false),
+//    StructField("roleCompetencyList", ArrayType(roleCompetencySchema), nullable = true),
+//    StructField("unmappedActivities", ArrayType(activitySchema), nullable = true),
+//    StructField("unmappedCompetencies", ArrayType(competencySchema), nullable = true),
+//    StructField("userPosition", StringType, nullable = true),
+//    StructField("positionId", StringType, nullable = true),
+//    StructField("positionDescription", StringType, nullable = true),
+//    StructField("workOrderId", StringType, nullable = true),
+//    StructField("updatedAt", LongType, nullable = true),
+//    StructField("updatedBy", StringType, nullable = true),
+//    StructField("errorCount", LongType, nullable = true),
+//    StructField("progress", LongType, nullable = true),
+//    StructField("createdAt", LongType, nullable = true),
+//    StructField("createdBy", StringType, nullable = true)
+//  ))
+//
+//  val workOrderSchema: StructType = StructType(Seq(
+//    StructField("id", StringType, nullable = false),
+//    StructField("name", StringType, nullable = true),
+//    StructField("deptId", StringType, nullable = true),
+//    StructField("deptName", StringType, nullable = true),
+//    StructField("status", StringType, nullable = true),
+//    StructField("userIds", ArrayType(StringType), nullable = true),
+//    StructField("createdBy", StringType, nullable = true),
+//    StructField("createdAt", LongType, nullable = true),
+//    StructField("updatedBy", StringType, nullable = true),
+//    StructField("updatedAt", LongType, nullable = true),
+//    StructField("progress", LongType, nullable = true),
+//    StructField("errorCount", LongType, nullable = true),
+//    StructField("rolesCount", LongType, nullable = true),
+//    StructField("activitiesCount", LongType, nullable = true),
+//    StructField("competenciesCount", LongType, nullable = true),
+//    StructField("publishedPdfLink", StringType, nullable = true),
+//    StructField("signedPdfLink", StringType, nullable = true)
+//  ))
+//
+//  /**
+//   * Master method, fetch all work orders from cassandra, add work allocations, remove PI info, dispatch to kafka
+//   *
+//   * Tables:
+//   * sunbird:work_order (id*, data)
+//   * sunbird:work_allocation (id*, data)
+//   * sunbird:user_work_allocation_mapping (userid*, workallocationid*, status, workorderid)
+//   *
+//   * Steps:
+//   * - get work order from sunbird:work_order, json parse $.data, remove createdByName, updatedByName, add mdo_name
+//   * - get all work allocations ids for the work order from sunbird:user_work_allocation_mapping
+//   * - collect $.data from sunbird:work_allocation for the above work allocations ids, json parse each
+//   * - remove userName, userEmail, updatedByName, createdByName from above work allocations
+//   * - remove roleCompetencyList[].roleDetails.childNodes[].(submittedFromName, submittedFromEmail, submittedToName, submittedToEmail) from work allocations
+//   * - remove unmappedActivities[].(submittedFromName, submittedFromEmail, submittedToName, submittedToEmail) from work allocations
+//   * - add list of above work orders as `users` field to work order
+//   * - attach to a valid CB_AUDIT event and dispatch to kafka
+//   *
+//   * @param timestamp
+//   * @param config
+//   * @param spark
+//   * @param sc
+//   * @param fc
+//   */
+//  def generateWorkOrderEvents(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+//    // parse model config
+//    println(config)
+//    implicit val conf: WOConfig = parseConfig(config)
+//    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
+//
+//    val eventDS = workOrderEventDataSet()
+//    kafkaDispatchDS(eventDS, conf.rawTelemetryTopic)
+//  }
+//
+//  def workOrderEventDataSet()(implicit spark: SparkSession, conf: WOConfig): Dataset[Event] = {
+//    val workOrderDS = workOrderDataSet()
+//    eventDataSet(workOrderDS)
+//  }
+//
+//  def workOrderDataSet()(implicit spark: SparkSession, conf: WOConfig): Dataset[WorkOrder] = {
+//    import spark.implicits._
+//
+//    val workOrderDF = workOrderDataFrame()
+//    val workAllocDF = workAllocationDataFrame()
+//    val workOrderWithAllocDF = workOrderAllocationDataFrame(workOrderDF, workAllocDF)
+//
+//    workOrderWithAllocDF.as[WorkOrder]
+//  }
+//
+//  def eventDataSet(workOrderAllocDS: Dataset[WorkOrder])(implicit spark: SparkSession, conf: WOConfig): Dataset[Event] = {
+//    import spark.implicits._
+//    val eventDS = workOrderAllocDS
+//      .map(r => {
+//        Event(
+//          actor = Actor(r.createdBy, "User"),
+//          eid = "CB_AUDIT",
+//          edata = EData(r.status, Array("WAT"), CBObject(r.id, "WorkOrder", "1.0", r.name, r.deptName), CBData(r)),
+//          ver = "3.0",
+//          ets = r.updatedAt,
+//          context = EventContext(r.deptId, PData("dev.mdo.portal", "mdo", "1.0"), "WAT"),
+//          mid = s"CB.${java.util.UUID.randomUUID.toString}",
+//          `object` = EventObject(r.id, "WorkOrder")
+//        )
+//      })
+//
+//    showDS(eventDS)
+//    eventDS
+//  }
+//
+//  def workOrderDataFrame()(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
+//    val workOrderDF = cassandraTableAsDataFrame(conf.cassandraSunbirdKeyspace, conf.cassandraWorkOrderTable)
+//      .withColumn("data", from_json(col("data"), workOrderSchema))
+//
+//    show(workOrderDF)
+//    workOrderDF
+//  }
+//
+//  def workAllocationDataFrame()(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
+//    val workAllocDF = cassandraTableAsDataFrame(conf.cassandraSunbirdKeyspace, conf.cassandraWorkAllocationTable)
+//      .withColumn("data", from_json(col("data"), workAllocSchema))
+//
+//    show(workAllocDF)
+//    workAllocDF
+//  }
+//
+//  def groupAllocationByWorkOrder(workAllocDF: DataFrame)(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
+//    val workAllocGroupedDF = workAllocDF.withColumn("workOrderID", col("data.workOrderId"))
+//      .groupBy("workOrderID")
+//      .agg(collect_list("data").as("users"))
+//
+//    show(workAllocGroupedDF)
+//    workAllocGroupedDF
+//  }
+//
+//  def workOrderAllocationDataFrame(workOrderDF: DataFrame, workAllocDF: DataFrame)(implicit spark: SparkSession, conf: WOConfig): DataFrame = {
+//    val workAllocGroupedDF = groupAllocationByWorkOrder(workAllocDF)
+//    val workOrderWithAllocDF = workOrderDF.join(workAllocGroupedDF, col("id") === col("workOrderID"), "left")
+//      .select("data.*", "users")
+//      .withColumn("mdo_name", col("deptName"))
+//
+//    show(workOrderWithAllocDF)
+//    workOrderWithAllocDF
+//  }
+//
+//  /* Config functions */
+//
+//  def parseConfig(config: Map[String, AnyRef]): WOConfig = {
+//    WOConfig(
+//      debug = getConfigModelParam(config, "debug"),
+//      broker = getConfigSideBroker(config),
+//      compression = getConfigSideBrokerCompression(config),
+//      redisHost = getConfigModelParam(config, "redisHost"),
+//      redisPort = getConfigModelParam(config, "redisPort").toInt,
+//      redisDB = getConfigModelParam(config, "redisDB").toInt,
+//      rawTelemetryTopic = getConfigSideTopic(config, "rawTelemetryTopic"),
+//      sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
+//      cassandraSunbirdKeyspace = getConfigModelParam(config, "cassandraSunbirdKeyspace"),
+//      cassandraWorkOrderTable = getConfigModelParam(config, "cassandraWorkOrderTable"),
+//      cassandraWorkAllocationTable = getConfigModelParam(config, "cassandraWorkAllocationTable"),
+//      cassandraUserWorkAllocationMappingTable = getConfigModelParam(config, "cassandraUserWorkAllocationMappingTable")
+//    )
+//  }
+//
+//
+//}

@@ -49,7 +49,7 @@ object WorkOrderTelemetryTest extends Serializable {
   def test()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     val timestamp = System.currentTimeMillis()
     val config = testModelConfig()
-    WorkOrderTelemetryModel.generateWorkOrderEvents(timestamp, config)
+    // WorkOrderTelemetryModel.generateWorkOrderEvents(timestamp, config)
   }
 
   def time[R](block: => R): (Long, R) = {
