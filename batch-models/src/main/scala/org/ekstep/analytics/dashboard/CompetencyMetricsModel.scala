@@ -118,8 +118,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
     // get course details, attach rating info, dispatch to kafka to be ingested by druid data-source: dashboards-courses
-    val allCourseProgramDF = allCourseProgramDataFrame(orgDF)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF)
+    val allCourseProgramDetailsWithCompDF = allCourseProgramDataFrame(orgDF)
     val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
     val courseRatingDF = courseRatingSummaryDataFrame()
     val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
@@ -309,8 +308,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
   }
 
   def elasticSearchCourseProgramDataFrame()(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
-    val query = """{"_source":["identifier","name","primaryCategory","status","reviewStatus","channel"],"query":{"bool":{"should":[{"match":{"primaryCategory.raw":"Course"}},{"match":{"primaryCategory.raw":"Program"}}]}}}"""
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel")
+    val query = """{"_source":["identifier","name","primaryCategory","status","reviewStatus","channel","competencies_v3"],"query":{"bool":{"should":[{"match":{"primaryCategory.raw":"Course"}},{"match":{"primaryCategory.raw":"Program"}}]}}}"""
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "competencies_v3")
     elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields)
   }
 
@@ -424,7 +423,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
   /**
    * All courses/programs from elastic search api
    * @param orgDF DataFrame(orgID, orgName, orgStatus)
-   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus)
+   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
+   *         courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
    */
   def allCourseProgramDataFrame(orgDF: DataFrame)(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     var df = elasticSearchCourseProgramDataFrame()
@@ -436,9 +436,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
       col("name").alias("courseName"),
       col("status").alias("courseStatus"),
       col("reviewStatus").alias("courseReviewStatus"),
-      col("channel").alias("courseOrgID")
+      col("channel").alias("courseOrgID"),
+      col("duration").alias("courseDuration"),
+      col("leafNodesCount").alias("courseResourceCount"),
+      col("competencies_v3").alias("competenciesJson")
     )
     df = df.dropDuplicates("courseID")
+    df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
 
     show(df, "allCourseProgramDataFrame - before join")
 
@@ -490,43 +494,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     df
   }
 
-  /* schema definitions for courseDetailsDataFrame */
-  val courseHierarchySchema: StructType = StructType(Seq(
-    StructField("name", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("channel", StringType, nullable = true),
-    StructField("duration", StringType, nullable = true),
-    StructField("leafNodesCount", IntegerType, nullable = true),
-    StructField("competencies_v3", StringType, nullable = true)
-  ))
-  /**
-   * course details with competencies json from cassandra dev_hierarchy_store:content_hierarchy
-   * @param allCourseProgramDF Dataframe(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus)
-   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
-   */
-  def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame)(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
-    val rawCourseDF = cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
-      .select(col("identifier").alias("courseID"), col("hierarchy"))
-
-    // inner join so that we only retain live courses
-    var df = allCourseProgramDF.join(rawCourseDF, Seq("courseID"), "left")
-
-    df = df.na.fill("{}", Seq("hierarchy"))
-    df = df.withColumn("data", from_json(col("hierarchy"), courseHierarchySchema))
-    df = df.select(
-      col("courseID"), col("category"), col("courseName"), col("courseStatus"),
-      col("courseReviewStatus"), col("courseOrgID"), col("courseOrgName"), col("courseOrgStatus"),
-
-      col("data.duration").cast(FloatType).alias("courseDuration"),
-      col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.competencies_v3").alias("competenciesJson")
-    )
-    df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
-
-    show(df, "allCourseProgramDetailsWithCompetenciesJsonDataFrame() = (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)")
-    df
-  }
-
   /**
    * course details without competencies json
    * @param allCourseProgramDetailsWithCompDF course details with competencies json
@@ -544,7 +511,16 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
   /* schema definitions for courseCompetencyDataFrame */
   val courseCompetenciesSchema: ArrayType = ArrayType(StructType(Seq(
     StructField("id",  StringType, nullable = true),
-    StructField("selectedLevelLevel",  StringType, nullable = true)
+    StructField("name",  StringType, nullable = true),
+    StructField("description",  StringType, nullable = true),
+    StructField("source",  StringType, nullable = true),
+    StructField("competencyType",  StringType, nullable = true),
+    StructField("competencyArea",  StringType, nullable = true),
+    StructField("selectedLevelId",  StringType, nullable = true),
+    StructField("selectedLevelName",  StringType, nullable = true),
+    StructField("selectedLevelSource",  StringType, nullable = true),
+    StructField("selectedLevelLevel",  StringType, nullable = true),
+    StructField("selectedLevelDescription",  StringType, nullable = true)
   )))
   /**
    * course competency mapping data from cassandra dev_hierarchy_store:content_hierarchy
@@ -552,7 +528,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
    *                                          DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID,
    *                                          courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
-   *         courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyLevel)
+   *         courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyName, competencyType, competencyLevel)
    */
   def allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF: DataFrame)(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     var df = allCourseProgramDetailsWithCompDF.filter(col("competenciesJson").isNotNull)
@@ -573,26 +549,28 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
       col("courseReviewStatus"), col("courseOrgID"), col("courseOrgName"), col("courseOrgStatus"),
       col("courseDuration"), col("courseResourceCount"),
       col("competency.id").alias("competencyID"),
+      col("competency.name").alias("competencyName"),
+      col("competency.competencyType").alias("competencyType"),
       col("competencyLevel")
     )
 
-    show(df, "allCourseProgramCompetencyDataFrame (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyLevel)")
+    show(df, "allCourseProgramCompetencyDataFrame (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyName, competencyType, competencyLevel)")
     df
   }
 
   /**
    *
    * @param allCourseProgramCompetencyDF DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
-   *                                     courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyLevel)
+   *                                     courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyName, competencyType, competencyLevel)
    * @return DataFrame(courseID, courseName, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount,
-   *         competencyID, competencyLevel)
+   *         competencyID, competencyName, competencyType, competencyLevel)
    */
   def liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF: DataFrame)(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     val df = allCourseProgramCompetencyDF.where(expr("courseStatus='Live' AND category='Course'"))
       .select("courseID", "courseName", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
-        "courseResourceCount", "competencyID", "competencyLevel")
+        "courseResourceCount", "competencyID", "competencyName", "competencyType", "competencyLevel")
 
-    show(df, "liveCourseCompetencyDataFrame (courseID, courseName, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyLevel)")
+    show(df, "liveCourseCompetencyDataFrame (courseID, courseName, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyName, competencyType, competencyLevel)")
     df
   }
 
@@ -901,13 +879,18 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
 
     // add expected officer count
     val fcExpectedCountDF = fracCompetencyWithCourseCountDF.join(expectedCompetencyDF, Seq("competencyID"), "leftouter")
-      .groupBy("competencyID", "competencyName", "competencyStatus", "liveCourseCount")
+      .groupBy("competencyID", "competencyName", "competencyStatus")
       .agg(countDistinct("userID").alias("officerCountExpected"))
 
     // add declared officer count
-    val df = fcExpectedCountDF.join(declaredCompetencyDF, Seq("competencyID"), "leftouter")
-      .groupBy("competencyID", "competencyName", "competencyStatus", "liveCourseCount", "officerCountExpected")
+    val fcExpectedDeclaredCountDF = fcExpectedCountDF.join(declaredCompetencyDF, Seq("competencyID"), "leftouter")
+      .groupBy("competencyID", "competencyName", "competencyStatus", "officerCountExpected")
       .agg(countDistinct("userID").alias("officerCountDeclared"))
+
+    val df = fracCompetencyWithCourseCountDF.join(fcExpectedDeclaredCountDF, Seq("competencyID", "competencyName", "competencyStatus"), "left")
+
+    show(df)
+    df
 
     show(df)
     df
