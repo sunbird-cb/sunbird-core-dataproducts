@@ -125,6 +125,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
+
     // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
     val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
@@ -658,14 +659,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
 
   /**
    *
-   * @return DataFrame(userID, courseID, courseProgress, dbCompletionStatus)
+   * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    */
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
-      .where(expr("active=true"))
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
+        col("batchid").alias("batchID"),
+        col("completedon").alias("courseCompletedTimestamp"),
+        col("enrolled_date").alias("courseEnrolledTimestamp"),
+        col("lastcontentaccesstime").alias("lastContentAccessTimestamp"),
         col("progress").alias("courseProgress"),
         col("status").alias("dbCompletionStatus")
       ).na.fill(0, Seq("courseProgress"))
@@ -676,23 +680,24 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
 
   /**
    * get course completion data with details attached
-   * @param userCourseProgramCompletionDF  DataFrame(userID, courseID, courseProgress, dbCompletionStatus)
+   * @param userCourseProgramCompletionDF  DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    * @param allCourseProgramDetailsDF course details data frame -
    *                                  DataFrame(courseID, category, courseName, courseStatus,
    *                                  courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount)
    * @param userOrgDF DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userOrgID, userOrgName, userOrgStatus)
-   * @return DataFrame(userID, courseID, courseProgress, dbCompletionStatus, category, courseName, courseStatus,
-   *         courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount,
-   *         firstName, lastName, maskedEmail, userStatus, userOrgID, userOrgName, userOrgStatus, completionPercentage,
-   *         completionStatus)
+   * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp,
+   *         courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID,
+   *         courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, firstName, lastName, maskedEmail, userStatus,
+   *         userOrgID, userOrgName, userOrgStatus, completionPercentage, completionStatus)
    */
   def allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
-    // userID, courseID, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
     var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "left")
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
-      .select("userID", "courseID", "courseProgress", "dbCompletionStatus", "category", "courseName",
+      .select("userID", "courseID", "batchID", "courseCompletedTimestamp", "courseEnrolledTimestamp",
+        "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
         "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
         "courseResourceCount", "firstName", "lastName", "maskedEmail", "userStatus", "userOrgID", "userOrgName", "userOrgStatus")
     df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
