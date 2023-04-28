@@ -134,7 +134,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
-
+/*
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
     // get user's expected competency data, dispatch to kafka to be ingested by druid data-source: dashboards-expected-user-competency
@@ -247,7 +247,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     show(orgCompetencyGapAvgClosedRateDF, "OL13")
     redisDispatchDataFrame[Double](conf.redisOrgCompetencyGapClosedRate, orgCompetencyGapAvgClosedRateDF, "orgID", "rate")
 
+
+ */
     closeRedisConnect()
+
   }
 
   /**
@@ -664,15 +667,18 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: CMConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
+      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
+      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
+      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
         col("batchid").alias("batchID"),
-        col("completedon").alias("courseCompletedTimestamp"),
-        col("enrolled_date").alias("courseEnrolledTimestamp"),
-        col("lastcontentaccesstime").alias("lastContentAccessTimestamp"),
         col("progress").alias("courseProgress"),
-        col("status").alias("dbCompletionStatus")
+        col("status").alias("dbCompletionStatus"),
+        col("courseCompletedTimestamp"),
+        col("courseEnrolledTimestamp"),
+        col("lastContentAccessTimestamp")
       ).na.fill(0, Seq("courseProgress"))
 
     show(df)
