@@ -134,7 +134,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
-/*
+
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
     // get user's expected competency data, dispatch to kafka to be ingested by druid data-source: dashboards-expected-user-competency
@@ -247,8 +247,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
     show(orgCompetencyGapAvgClosedRateDF, "OL13")
     redisDispatchDataFrame[Double](conf.redisOrgCompetencyGapClosedRate, orgCompetencyGapAvgClosedRateDF, "orgID", "rate")
 
-
- */
     closeRedisConnect()
 
   }
