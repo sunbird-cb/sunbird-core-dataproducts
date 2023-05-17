@@ -484,7 +484,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, 
         col("updateddate").alias("userUpdatedTimestamp")
       ).na.fill("", Seq("userOrgID"))
 
-    userDF
+    userDF = userDF
       .withColumn("userCreatedTimestamp", to_timestamp(col("userCreatedTimestamp"), "yyyy-MM-dd HH:mm:ss:SSSZ"))
       .withColumn("userCreatedTimestamp", col("userCreatedTimestamp").cast("long"))
       .withColumn("userUpdatedTimestamp", to_timestamp(col("userUpdatedTimestamp"), "yyyy-MM-dd HH:mm:ss:SSSZ"))
