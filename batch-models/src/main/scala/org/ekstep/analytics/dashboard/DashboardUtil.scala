@@ -23,8 +23,9 @@ import scala.collection.mutable.ListBuffer
 
 
 trait DashboardConfig extends Serializable {
-  val broker: String
   val debug: String
+  val validation: String
+  val broker: String
   val compression: String
   val redisHost: String
   val redisPort: Int
@@ -34,6 +35,7 @@ trait DashboardConfig extends Serializable {
 object DashboardUtil extends Serializable {
 
   implicit var debug: Boolean = false
+  implicit var validation: Boolean = false
 
   /* Util functions */
   def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {
@@ -67,6 +69,38 @@ object DashboardUtil extends Serializable {
       redisConnect.close()
       redisConnect = null
     }
+  }
+  def redisUpdate(key: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
+  }
+  def redisUpdate(db: Int, key: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisUpdate(conf.redisHost, conf.redisPort, db, key, data)
+  }
+  def redisUpdate(host: String, port: Int, db: Int, key: String, data: String): Unit = {
+    try {
+      redisUpdateWithoutRetry(host, port, db, key, data)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisUpdateWithoutRetry(host, port, db, key, data)
+    }
+  }
+  def redisUpdateWithoutRetry(host: String, port: Int, db: Int, key: String, data: String): Unit = {
+    var cleanedData = ""
+    if (data == null || data.isEmpty) {
+      println(s"WARNING: data is empty, setting data='' for redis key=${key}")
+      cleanedData = ""
+    } else {
+      cleanedData = data
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
+      return
+    }
+
+    if (jedis.getDB != db) jedis.select(db)
+    jedis.set(key, cleanedData)
   }
   def redisDispatch(key: String, data: util.Map[String, String])(implicit conf: DashboardConfig): Unit = {
     redisDispatch(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
@@ -275,6 +309,30 @@ object DashboardUtil extends Serializable {
       s.toInt
     } catch {
       case e: Exception => 0
+    }
+  }
+
+  /***
+   * Validate if return value from one code block is equal to the return value from other block. Uses blocks so that the
+   * spark code in blocks is only executed if validation=true
+   *
+   * @param msg info on what is being validated
+   * @tparam T return type from the blocks
+   * @throws AssertionError if values from blocks do not match
+   */
+  @throws[AssertionError]
+  def validate[T](block1: => T, block2: => T, msg: String = ""): Unit = {
+    if (validation) {
+      val r1 = block1
+      val r2 = block2
+      if (r1.equals(r2)) {
+        println(s"VALIDATION PASSED: ${msg}")
+        println(s"  - value = ${r1}")
+      } else {
+        println(s"VALIDATION FAILED: ${msg}")
+        println(s"  - value ${r1} does not equal value ${r2}")
+        throw new AssertionError("Validation Failed")
+      }
     }
   }
 
