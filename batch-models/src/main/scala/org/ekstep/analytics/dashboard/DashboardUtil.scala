@@ -15,8 +15,6 @@ import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
-import com.mongodb.spark.sql._
-import com.mongodb.spark.config.ReadConfig
 
 import java.util
 import scala.util.Try
@@ -243,14 +241,6 @@ object DashboardUtil {
     df
   }
 
-  def mongoDbDataFrame(host: String, port: Int, database: String, collection: String)(implicit spark: SparkSession): DataFrame = {
-    val uri = s"mongodb://$host:$port"
-    val configMap = Map(
-      "uri" -> uri,
-      "database" -> database,
-      "collection" -> collection)
-    spark.read.mongo(ReadConfig(configMap))
-  }
 
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
