@@ -241,7 +241,6 @@ object DashboardUtil {
     df
   }
 
-
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
     val path = key.split('.')
