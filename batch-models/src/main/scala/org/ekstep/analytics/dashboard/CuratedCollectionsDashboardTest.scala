@@ -45,6 +45,8 @@ object CuratedCollectionsDashboardTest extends Serializable {
       "sparkElasticsearchConnectionHost" -> "10.0.0.7",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
+      "cassandraOrgKeyspace" -> "sunbird",
+      "cassandraOrgTable" -> "organisation",
       "redisHost" -> "10.0.0.6",
       "redisPort" -> "6379",
       "redisDB" -> "12",

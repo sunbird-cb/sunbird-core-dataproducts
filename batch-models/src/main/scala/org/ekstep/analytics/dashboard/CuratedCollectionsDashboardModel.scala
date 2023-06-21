@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, explode, from_json}
+import org.apache.spark.sql.functions.{col, explode, expr, from_json}
 import org.apache.spark.sql.types.{ArrayType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import DashboardUtil._
@@ -17,7 +17,7 @@ case class CCConfig(debug: String, broker: String, compression: String,
                      redisHost: String, redisPort: Int, redisDB: Int,
                      sparkElasticsearchConnectionHost: String, sparkCassandraConnectionHost: String,
                      cassandraHierarchyStoreKeyspace: String, cassandraContentHierarchyTable: String, sparkDruidRouterHost: String,
-                     curatedCollectionKafkaTopic: String
+                     curatedCollectionKafkaTopic: String, cassandraOrgKeyspace: String, cassandraOrgTable: String
                    ) extends DashboardConfig
 
 /**
@@ -69,16 +69,18 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
    */
   def curatedCollectionEsDf()(implicit spark: SparkSession, conf: CCConfig): DataFrame = {
     val query =
-      """{"_source":["identifier","name","primaryCategory","status","channel","source","duration"],
+      """{"_source":["identifier","name","primaryCategory","status","channel","duration"],
         |"query":{"bool":{"must":[{"match":{"primaryCategory.raw":"CuratedCollections"}}, {"exists": {"field": "contentTypesCount"}}]}}}""".stripMargin
 
-    val fields = Seq("name", "primaryCategory", "identifier", "status", "channel", "source", "duration")
+    val fields = Seq("name", "primaryCategory", "identifier", "status", "channel", "duration")
     var df = elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields)
 
+    df = df.join(organisationDataDbDf(), df("channel") === organisationDataDbDf().select("org_id"), "inner")
+
     df = df.select(col("identifier").alias("collectionID"),col("name").alias("collectionName"),
-      col("channel").alias("collectionOrgID"), col("source").alias("collectionOrgName"),
+      col("channel").alias("collectionOrgID"), col("org_name").alias("collectionOrgName"),
       col("primaryCategory").alias("collectionCategory"), col("status").alias("collectionStatus"),
-      col("duration").alias("collectionDuration"))
+      col("duration").alias("collectionDuration"), col("org_status").alias("collectionOrgStatus"))
 
     show(df, "Curated Collections data from Elasticsearch")
     df
@@ -104,7 +106,6 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
     StructField("channel", StringType, nullable = true),
     StructField("duration", StringType, nullable = true),
     StructField("leafNodesCount", IntegerType, nullable = true),
-    StructField("source", StringType, nullable = true),
     StructField("primaryCategory", StringType, nullable = true),
     StructField("reviewStatus", StringType, nullable = true)
   ))
@@ -137,7 +138,8 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
     var df = cassandraTableAsDataFrame("dev_hierarchy_store", "content_hierarchy")
       .select(col("identifier").alias("courseID"), col("hierarchy"))
     df = curatedCollectionsDbDf().join(df, Seq("courseID"), "inner")
-    df = df.filter(col("hierarchy").isNotNull)
+    df = df.filter(col(
+"hierarchy").isNotNull)
     df = df.withColumn("data", from_json(col("hierarchy"), courseHierarchySchema))
     df = df.select(
       col("courseID"),
@@ -146,11 +148,30 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
       col("data.duration").cast(FloatType).alias("courseDuration"),
       col("data.leafNodesCount").alias("courseResourceCount"),
       col("data.channel").alias("courseOrgID"),
-      col("data.source").alias("courseOrgName"),
+      col("data.primaryCategory").alias("courseCategory"),
+      col("data.reviewStatus").alias("courseReviewStatus")
+    )
+    df = df.join(organisationDataDbDf(), df("courseOrgID") === organisationDataDbDf().select("org_id"), "inner")
+    df = df.select(
+      col("courseID"),
+      col("courseName"),
+      col("courseStatus"),
+      col("courseDuration"),
+      col("courseResourceCount"),
+      col("courseOrgID"),
+      col("org_name").alias("courseOrgName"),
+      col("org_status").alias("courseOrgStatus"),
       col("data.primaryCategory").alias("courseCategory"),
       col("data.reviewStatus").alias("courseReviewStatus")
     )
     show(df, "Course data")
+    df
+  }
+
+  def organisationDataDbDf()(implicit spark: SparkSession, config: CCConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(config.cassandraOrgKeyspace, config.cassandraOrgTable)
+      .select(col("rootOrgID").alias("org_id"), col("orgname").alias("org_name"),
+        col("status").alias("org_status"))
     df
   }
 
@@ -187,7 +208,9 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
       cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
       sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
-      curatedCollectionKafkaTopic = getConfigModelParam(config, "curatedCollections")
+      curatedCollectionKafkaTopic = getConfigModelParam(config, "curatedCollections"),
+      cassandraOrgKeyspace = getConfigModelParam(config, "cassandraOrgKeyspace"),
+      cassandraOrgTable = getConfigModelParam(config, "cassandraOrgTable")
     )
   }
 }
