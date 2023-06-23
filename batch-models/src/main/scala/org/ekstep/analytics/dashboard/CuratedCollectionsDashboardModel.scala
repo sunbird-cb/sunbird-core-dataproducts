@@ -75,12 +75,15 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
     val fields = Seq("name", "primaryCategory", "identifier", "status", "channel", "duration")
     var df = elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields)
 
-    df = df.join(organisationDataDbDf(), df("channel") === organisationDataDbDf().select("org_id"), "inner")
+    df = df.select(col("identifier").alias("collection_id"),col("name").alias("collection_name"),
+      col("channel").alias("rootorgid"), col("primaryCategory").alias("collection_category"),
+      col("status").alias("collection_status"), col("duration").alias("collection_duration"))
 
-    df = df.select(col("identifier").alias("collectionID"),col("name").alias("collectionName"),
-      col("channel").alias("collectionOrgID"), col("org_name").alias("collectionOrgName"),
-      col("primaryCategory").alias("collectionCategory"), col("status").alias("collectionStatus"),
-      col("duration").alias("collectionDuration"), col("org_status").alias("collectionOrgStatus"))
+    df = df.join(organisationDataDbDf(), Seq("rootorgid"), "inner")
+    df = df.select(col("collection_id"), col("collection_name"),
+      col("rootorgid").alias("collection_org_id"), col("orgname").alias("collection_org_name"),
+      col("org_status").alias("collection_org_status"), col("collection_category"),
+      col("collection_status"), col("collection_duration"))
 
     show(df, "Curated Collections data from Elasticsearch")
     df
@@ -112,57 +115,57 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
 
   /**
    * Extract all courseIDs related to collection ids from cassandra table dev_hierarchy_store/content_hierarchy
-   * @return dataframe with columns - collectionID, courseID
+   * @return dataframe with columns - collection_id, course_id
    */
   def curatedCollectionsDbDf()(implicit spark: SparkSession, config: CCConfig): DataFrame = {
     var df1 = curatedCollectionEsDf().distinct()
     var df = cassandraTableAsDataFrame("dev_hierarchy_store", "content_hierarchy")
-      .select(col("identifier").alias("collectionID"), col("hierarchy"))
-    df = df1.join(df, Seq("collectionID"), "inner")
+      .select(col("identifier").alias("collection_id"), col("hierarchy"))
+    df = df1.join(df, Seq("collection_id"), "inner")
     df = df.filter(col("hierarchy").isNotNull)
     df = df.withColumn("jsonData", from_json(col("hierarchy"), hierarchySchema))
-    df = df.select("jsonData.*", "collectionID")
+    df = df.select("jsonData.*", "collection_id")
 
-    df = df.withColumn("courseID", explode(df.col("children.identifier")))
-    df = df.select(col("collectionID"), col("courseID"))
+    df = df.withColumn("course_id", explode(df.col("children.identifier")))
+    df = df.select(col("collection_id"), col("course_id"))
     show(df, "Curated Collections Course IDs")
     df
   }
 
   /**
    * Get course details from cassandra table dev_hierarchy_store/content_hierarchy
-   * @return course dataframe with columns - courseID, courseName, courseStatus, courseDuration, courseResourceCount,
-   *         courseOrgID, courseOrgName, courseCategory, courseReviewStatus
+   * @return course dataframe with columns - course_id, course_name, course_status, course_duration, course_resource_count,
+   *         course_org_id, course_org_name, course_org_status, course_category, course_review_status
    */
   def courseDbDf()(implicit spark:SparkSession, config: CCConfig): DataFrame = {
     var df = cassandraTableAsDataFrame("dev_hierarchy_store", "content_hierarchy")
-      .select(col("identifier").alias("courseID"), col("hierarchy"))
-    df = curatedCollectionsDbDf().join(df, Seq("courseID"), "inner")
+      .select(col("identifier").alias("course_id"), col("hierarchy"))
+    df = curatedCollectionsDbDf().join(df, Seq("course_id"), "inner")
     df = df.filter(col(
 "hierarchy").isNotNull)
     df = df.withColumn("data", from_json(col("hierarchy"), courseHierarchySchema))
     df = df.select(
-      col("courseID"),
-      col("data.name").alias("courseName"),
-      col("data.status").alias("courseStatus"),
-      col("data.duration").cast(FloatType).alias("courseDuration"),
-      col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.channel").alias("courseOrgID"),
-      col("data.primaryCategory").alias("courseCategory"),
-      col("data.reviewStatus").alias("courseReviewStatus")
+      col("course_id"),
+      col("data.name").alias("course_name"),
+      col("data.status").alias("course_status"),
+      col("data.duration").cast(FloatType).alias("course_duration"),
+      col("data.leafNodesCount").alias("course_resource_count"),
+      col("data.channel").alias("rootorgid"),
+      col("data.primaryCategory").alias("course_category"),
+      col("data.reviewStatus").alias("course_review_status")
     )
-    df = df.join(organisationDataDbDf(), df("courseOrgID") === organisationDataDbDf().select("org_id"), "inner")
+    df = df.join(organisationDataDbDf(), Seq("rootorgid"), "inner")
     df = df.select(
-      col("courseID"),
-      col("courseName"),
-      col("courseStatus"),
-      col("courseDuration"),
-      col("courseResourceCount"),
-      col("courseOrgID"),
-      col("org_name").alias("courseOrgName"),
-      col("org_status").alias("courseOrgStatus"),
-      col("data.primaryCategory").alias("courseCategory"),
-      col("data.reviewStatus").alias("courseReviewStatus")
+      col("course_id"),
+      col("course_name"),
+      col("course_status"),
+      col("course_duration"),
+      col("course_resource_count"),
+      col("rootorgid").alias("course_org_id"),
+      col("orgname").alias("course_org_name"),
+      col("org_status").alias("course_org_status"),
+      col("course_category"),
+      col("course_review_status")
     )
     show(df, "Course data")
     df
@@ -170,7 +173,7 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
 
   def organisationDataDbDf()(implicit spark: SparkSession, config: CCConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(config.cassandraOrgKeyspace, config.cassandraOrgTable)
-      .select(col("rootOrgID").alias("org_id"), col("orgname").alias("org_name"),
+      .select(col("rootorgid"), col("orgname"),
         col("status").alias("org_status"))
     df
   }
@@ -180,18 +183,9 @@ object CuratedCollectionsDashboardModel extends IBatchModelTemplate[String, CCDu
    */
   def curatedCollectionsCourseDataDf()(implicit spark: SparkSession, config: CCConfig): DataFrame = {
     var df = courseDbDf().distinct()
-    df = df.join(curatedCollectionsDbDf(), Seq("courseID"))
-    df = df.join(curatedCollectionEsDf(), "collectionID")
+    df = df.join(curatedCollectionsDbDf(), Seq("course_id"))
+    df = df.join(curatedCollectionEsDf(), "collection_id")
     show(df, "Curated collection with course details")
-    df
-  }
-
-  def courseDataDf()(implicit spark: SparkSession, config: CCConfig): DataFrame = {
-    val query =
-      """SELECT __time,courseID,courseName,dbCompletionStatus FROM \"dashboards-user-course-program-progress\"""".stripMargin
-    var df = druidDFOption(query, config.sparkDruidRouterHost).orNull
-    df = df.join(curatedCollectionsCourseDataDf(), Seq("courseID"), "inner")
-    show(df, "after join with cassandra data")
     df
   }
 
