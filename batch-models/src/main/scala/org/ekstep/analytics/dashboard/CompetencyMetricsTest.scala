@@ -36,34 +36,42 @@ object CompetencyMetricsTest extends Serializable {
       "brokerList" -> "10.0.0.5:9092",
       "compression" -> "snappy",
       "topics" -> Map(
+        "roleUserCount" -> "dev.dashboards.role.count",
+        "orgRoleUserCount" -> "dev.dashboards.org.role.count",
         "allCourses" -> "dev.dashboards.course",
-        "allResources" -> "dev.dashboards.resource",
-        "courseDetails" -> "dev.dashboards.course.details",
-        "userCourseProgress" -> "dev.dashboards.user.course.progress",
+        "userCourseProgramProgress" -> "dev.dashboards.user.course.program.progress",
         "fracCompetency" -> "dev.dashboards.competency.frac",
         "courseCompetency" -> "dev.dashboards.competency.course",
         "expectedCompetency" -> "dev.dashboards.competency.expected",
         "declaredCompetency" -> "dev.dashboards.competency.declared",
-        "competencyGap" -> "dev.dashboards.competency.gap"
+        "competencyGap" -> "dev.dashboards.competency.gap",
+        "userOrg" -> "dev.dashboards.user.org"
       )
     )
     val modelParams = Map(
       "debug" -> "true",
+      "validation" -> "true",
+
+      "redisHost" -> "10.0.0.6",
+      "redisPort" -> "6379",
+      "redisDB" -> "12",
+
       "sparkCassandraConnectionHost" -> "10.0.0.7",
       "sparkDruidRouterHost" -> "10.0.0.13",
       "sparkElasticsearchConnectionHost" -> "10.0.0.7",
       "fracBackendHost" -> "frac-dictionary-backend.igot-dev.in",
+
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
+
       "cassandraUserTable" -> "user",
+      "cassandraUserRolesTable" -> "user_roles",
       "cassandraOrgTable" -> "organisation",
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
-      "redisHost" -> "10.0.0.6",
-      "redisPort" -> "6379",
-      "redisDB" -> "12",
+
       "sideOutput" -> sideOutput
     )
     modelParams

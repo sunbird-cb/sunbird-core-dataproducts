@@ -29,6 +29,7 @@ case class WorkflowOutput(index: WorkflowIndex, summaries: Buffer[MeasuredEvent]
 case class WorkflowIndex(did: String, channel: String, pdataId: String)
 case class WorkFlowIndexEvent(eid: String, context: V3Context)
 
+
 object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
 
     implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel"
@@ -61,22 +62,24 @@ object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, M
         
         val idleTime = config.getOrElse("idleTime", 600).asInstanceOf[Int];
         val sessionBreakTime = config.getOrElse("sessionBreakTime", 30).asInstanceOf[Int];
-        
+
         val outputEventsCount = fc.outputEventsCount;
-        
+
         data.map({ f =>
             var summEvents: Buffer[MeasuredEvent] = Buffer();
+
             val events = f.events.map{f =>
                 try {
                     JSONUtils.deserialize[WFSInputEvent](f)
-                }
-                catch {
+                } catch {
                     case ex: Exception =>
                         JobLogger.log(ex.getMessage, None, INFO)
                         null.asInstanceOf[WFSInputEvent]
                 }
             }.filter(f => null != f)
+
             val sortedEvents = events.sortBy { x => x.ets }
+
             var rootSummary: org.ekstep.analytics.util.Summary = null
             var currSummary: org.ekstep.analytics.util.Summary = null
             var prevEvent: WFSInputEvent = sortedEvents.head

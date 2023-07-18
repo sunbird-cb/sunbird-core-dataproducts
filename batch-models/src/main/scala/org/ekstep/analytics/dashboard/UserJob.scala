@@ -1,5 +1,4 @@
 package org.ekstep.analytics.dashboard
-
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.DataFrame
 import org.ekstep.analytics.dashboard.UserModel.getReportingFrameworkContext
@@ -15,18 +14,21 @@ import org.apache.spark.sql.functions.current_timestamp
 
 object UserJob extends IJob {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.UserAssessmentJob"
-  val jobName = "UserAssessmentJob"
+  implicit val className: String = "org.ekstep.analytics.dashboard.UserJob"
+  val jobName = "UserJob"
 
   override def main(config: String)(implicit sc: Option[SparkContext] = None, fc: Option[FrameworkContext] = None): Unit = {
     JobLogger.init(jobName)
     JobLogger.start(s"$jobName started executing", Option(Map("config" -> config, "model" -> jobName)))
     implicit val jobConfig: JobConfig = JSONUtils.deserialize[JobConfig](config)
-//        implicit val frameworkContext: FrameworkContext = getReportingFrameworkContext()
+    //    implicit val frameworkContext: FrameworkContext = getReportingFrameworkContext()
     //    init()
+
     val result = UserModel.processData(config)
-    println("got result:")
+
     result.show()
+    //result.repartition(1).write.partitionBy("user_org_id").format("csv").option("header" ,"true").save(s"/home/analytics/reports/assessmentreport-${getDate}")
+
     saveToBlob(result, jobConfig)
 
     JobLogger.log("Completed User Assessment Job")
@@ -34,15 +36,25 @@ object UserJob extends IJob {
 
   def saveToBlob(reportData: DataFrame, jobConfig: JobConfig): DataFrame = {
     val modelParams = jobConfig.modelParams.get
-//    val reportPath: String = modelParams.getOrElse("reportPath", "user-assessment-reports/").asInstanceOf[String]
     val timestamp = current_timestamp()
-    val objectKey = AppConf.getConfig("collection.exhaust.store.prefix")
+    val objectKey = "assessment-report/"
     val storageConfig = getStorageConfig(jobConfig,objectKey)
     JobLogger.log(s"Uploading reports to blob storage", None, INFO)
-    reportData.repartition(1).saveToBlobStore(storageConfig, "csv",
-      s"report-${timestamp}",
-      Option(Map("header" -> "true")), Option(Seq("user_org_id")), None, Option(false) , None, None)
+    println("Uploading reports to blob storage")
+    reportData.repartition(1).saveToBlobStore(storageConfig, "csv", s"report-${getDate}",
+      Option(Map("header" -> "true")), Option(Seq("user_org_id")),  None, Option(false) , None, None)
+    println("Completed upload to blob ")
     reportData
+  }
+
+  def getStorageConfig(config: JobConfig, key: String): StorageConfig = {
+
+    val modelParams = config.modelParams.getOrElse(Map[String, Option[AnyRef]]());
+    val container = "igotbm"
+    val storageKey = modelParams.getOrElse("storageKeyConfig", "reports_storage_key").asInstanceOf[String];
+    val storageSecret = modelParams.getOrElse("storageSecretConfig", "reports_storage_secret").asInstanceOf[String];
+    val store = modelParams.getOrElse("store", "local").asInstanceOf[String]
+    StorageConfig(store, container, key, Option(storageKey), Option(storageSecret));
   }
 
   def getDate: String = {
