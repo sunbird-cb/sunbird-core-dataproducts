@@ -24,15 +24,42 @@ import scala.collection.mutable.ListBuffer
 case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
 case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
 
-trait DashboardConfig extends Serializable {
-  val debug: String
-  val validation: String
-  val broker: String
-  val compression: String
-  val redisHost: String
-  val redisPort: Int
-  val redisDB: Int
-}
+case class DashboardConfig(
+    debug: String,
+    validation: String,
+    // kafka connection config
+    broker: String,
+    compression: String,
+    // redis connection config
+    redisHost: String,
+    redisPort: Int,
+    redisDB: Int,
+    // other hosts connection config
+    sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
+    sparkElasticsearchConnectionHost: String, fracBackendHost: String,
+    // kafka topics
+    roleUserCountTopic: String, orgRoleUserCountTopic: String,
+    allCourseTopic: String, userCourseProgramProgressTopic: String,
+    fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
+    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
+    // cassandra key spaces
+    cassandraUserKeyspace: String,
+    cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+    // cassandra table details
+    cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
+    cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
+    cassandraRatingSummaryTable: String,
+    // redis keys
+    redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
+    redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
+    redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
+    redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
+    redisUserCompetencyGapCount: String, redisUserCourseEnrollmentCount: String,
+    redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
+    redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
+    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String
+)
+
 
 object DashboardUtil extends Serializable {
 
@@ -40,6 +67,10 @@ object DashboardUtil extends Serializable {
   implicit var validation: Boolean = false
 
   /* Util functions */
+  def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
+    df.coalesce(fileCount).write.format("csv").option("header", header.toString).save(path)
+  }
+
   def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {
     df.withColumn("timestamp", lit(timestamp))
   }
@@ -288,6 +319,65 @@ object DashboardUtil extends Serializable {
   def getConfigSideBroker(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.brokerList", "")
   def getConfigSideBrokerCompression(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.compression", "snappy")
   def getConfigSideTopic(config: Map[String, AnyRef], key: String): String = getConfig[String](config, s"sideOutput.topics.${key}", "")
+
+  def parseConfig(config: Map[String, AnyRef]): DashboardConfig = {
+    DashboardConfig(
+      debug = getConfigModelParam(config, "debug"),
+      validation = getConfigModelParam(config, "validation"),
+      // kafka connection config
+      broker = getConfigSideBroker(config),
+      compression = getConfigSideBrokerCompression(config),
+      // redis connection config
+      redisHost = getConfigModelParam(config, "redisHost"),
+      redisPort = getConfigModelParam(config, "redisPort").toInt,
+      redisDB = getConfigModelParam(config, "redisDB").toInt,
+      // other hosts connection config
+      sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
+      sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
+      sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
+      fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
+      // kafka topics
+      roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
+      orgRoleUserCountTopic = getConfigSideTopic(config, "orgRoleUserCount"),
+      allCourseTopic = getConfigSideTopic(config, "allCourses"),
+      userCourseProgramProgressTopic = getConfigSideTopic(config, "userCourseProgramProgress"),
+      fracCompetencyTopic = getConfigSideTopic(config, "fracCompetency"),
+      courseCompetencyTopic = getConfigSideTopic(config, "courseCompetency"),
+      expectedCompetencyTopic = getConfigSideTopic(config, "expectedCompetency"),
+      declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
+      competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
+      userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      // cassandra key spaces
+      cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
+      cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
+      cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      // cassandra table details
+      cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
+      cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
+      cassandraOrgTable = getConfigModelParam(config, "cassandraOrgTable"),
+      cassandraUserEnrolmentsTable = getConfigModelParam(config, "cassandraUserEnrolmentsTable"),
+      cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
+      cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
+      // redis keys
+      redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
+      redisTotalOfficerCountKey = "mdo_total_officer_count",
+      redisOrgNameKey = "mdo_name_by_org",
+      redisTotalRegisteredOfficerCountKey = "mdo_total_registered_officer_count",
+      redisTotalOrgCountKey = "mdo_total_org_count",
+      redisExpectedUserCompetencyCount = "dashboard_expected_user_competency_count",
+      redisDeclaredUserCompetencyCount = "dashboard_declared_user_competency_count",
+      redisUserCompetencyDeclarationRate = "dashboard_user_competency_declaration_rate",
+      redisOrgCompetencyDeclarationRate = "dashboard_org_competency_declaration_rate",
+      redisUserCompetencyGapCount = "dashboard_user_competency_gap_count",
+      redisUserCourseEnrollmentCount = "dashboard_user_course_enrollment_count",
+      redisUserCompetencyGapEnrollmentRate = "dashboard_user_competency_gap_enrollment_rate",
+      redisOrgCompetencyGapEnrollmentRate = "dashboard_org_competency_gap_enrollment_rate",
+      redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
+      redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
+      redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
+      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate"
+    )
+  }
   /* Config functions end */
 
   def checkAvailableColumns(df: DataFrame, expectedColumnsInput: List[String]) : DataFrame = {
