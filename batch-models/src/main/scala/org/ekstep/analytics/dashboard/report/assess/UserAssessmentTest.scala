@@ -13,7 +13,7 @@ object UserAssessmentTest extends Serializable {
     implicit val spark: SparkSession =
       SparkSession
         .builder()
-        .appName("CompetencyMetricsTest")
+        .appName("UserAssessmentTest")
         .config("spark.master", "local[*]")
         .config("spark.cassandra.connection.host", cassandraHost)
         .config("spark.cassandra.output.batch.size.rows", "10000")

@@ -14,7 +14,7 @@ import java.io.Serializable
 
 object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.CourseMetricsModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.click.CourseMetricsModel"
   override def name() = "CourseMetricsModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
