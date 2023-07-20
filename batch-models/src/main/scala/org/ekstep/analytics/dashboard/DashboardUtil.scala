@@ -49,6 +49,7 @@ case class DashboardConfig(
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String,
+
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
     redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,

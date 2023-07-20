@@ -34,7 +34,7 @@ object UserAssessmentTest extends Serializable {
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
       "brokerList" -> "",
-      "compression" -> "snappy",
+      "compression" -> "",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
         "orgRoleUserCount" -> "dev.dashboards.org.role.count",
@@ -52,7 +52,7 @@ object UserAssessmentTest extends Serializable {
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "10.0.0.6",
+      "redisHost" -> "",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 

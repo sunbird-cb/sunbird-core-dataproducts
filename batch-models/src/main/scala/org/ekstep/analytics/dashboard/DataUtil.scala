@@ -279,12 +279,14 @@ object DataUtil extends Serializable {
   }
 
   /* schema definitions for courseDetailsDataFrame */
-  val courseHierarchySchema: StructType = StructType(Seq(
+  val hierarchySchema
+  val hierarchySchema: StructType = StructType(Seq(
     StructField("name", StringType, nullable = true),
     StructField("status", StringType, nullable = true),
     StructField("channel", StringType, nullable = true),
     StructField("duration", StringType, nullable = true),
     StructField("leafNodesCount", IntegerType, nullable = true),
+    StructField("children", ArrayType(StructType(Seq())), nullable = true),
     StructField("competencies_v3", StringType, nullable = true)
   ))
   /**
@@ -821,21 +823,55 @@ object DataUtil extends Serializable {
 
     var df = cassandraTableAsDataFrame("sunbird", "user_assessment_data")
       .select(
-        col("userid").alias("assessUserID"),
         col("assessmentid").alias("assessID"),
+        col("starttime").alias("assessStartTime"),
+        col("endtime").alias("assessEndTime"),
+        col("status").alias("assessStatus"),
+        col("userid").alias("userID"),
+        col("assessmentreadresponse"),
         col("submitassessmentresponse"),
         col("submitassessmentrequest")
       )
-    df = df.withColumn("requestData", from_json(col("submitassessmentrequest"), submitAssessmentRequestSchema))
-    df = df.withColumn("responseData", from_json(col("submitassessmentresponse"), submitAssessmentResponseSchema))
+      .withColumn("assessStartTime", col("assessStartTime").cast("long"))
+      .withColumn("assessEndTime", col("assessEndTime").cast("long"))
+      .withColumn("readResponseData", from_json(col("assessmentreadresponse"), submitAssessmentRequestSchema))
+      .withColumn("submitRequestData", from_json(col("submitassessmentrequest"), submitAssessmentRequestSchema))
+      .withColumn("submitResponseData", from_json(col("submitassessmentresponse"), submitAssessmentResponseSchema))
 
     df = df.select(
-      col("assessUserID"),
       col("assessID"),
-      col("requestData.primaryCategory").alias("assessType"),
-      col("requestData.courseId").alias("assessCourseID"),
-      col("responseData.pass").alias("assessPass"),
-      col("responseData.result").alias("assessPercentageScore")
+      col("assessStartTime"),
+      col("assessEndTime"),
+      col("assessStatus"),
+      col("userID"),
+
+      col("readResponseData.totalQuestions").alias("assessTotalQuestions"),
+      col("readResponseData.maxQuestions").alias("assessMaxQuestions"),
+      col("readResponseData.expectedDuration").alias("assessExpectedDuration"),
+      col("readResponseData.version").alias("assessVersion"),
+      col("readResponseData.objectType").alias("assessObjectType"),
+      col("readResponseData.name").alias("assessName"),
+      col("readResponseData.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
+      col("readResponseData.status").alias("assessReadStatus"),
+
+      col("submitRequestData.batchId").alias("assessBatchID"),
+      col("submitRequestData.primaryCategory").alias("assessPrimaryCategory"),
+      col("submitRequestData.courseId").alias("courseID"),
+      col("submitRequestData.isAssessment").alias("assessIsAssessment"),
+      col("submitRequestData.timeLimit").alias("assessTimeLimit"),
+
+      col("submitResponseData.result").alias("assessResult"),
+      col("submitResponseData.total").alias("assessTotal"),
+      col("submitResponseData.blank").alias("assessBlank"),
+      col("submitResponseData.correct").alias("assessCorrect"),
+      col("submitResponseData.incorrect").alias("assessIncorrect"),
+      col("submitResponseData.pass").alias("assessPass"),
+      col("submitResponseData.overallResult").alias("assessOverallResult"),
+      col("submitResponseData.passPercentage").alias("assessPassPercentage"),
+
+
+
+      col("submitResponseData.pass").alias("assessPass")
     )
 
     show(df)

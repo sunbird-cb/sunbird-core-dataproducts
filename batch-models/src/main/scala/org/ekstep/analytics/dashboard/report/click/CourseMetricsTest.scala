@@ -32,14 +32,14 @@ object CourseMetricsTest extends Serializable {
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
-      "brokerList" -> "10.0.0.5:9092",
-      "compression" -> "snappy"
+      "brokerList" -> "",
+      "compression" -> ""
     )
     val modelParams = Map(
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "10.0.0.6",
+      "redisHost" -> "",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
