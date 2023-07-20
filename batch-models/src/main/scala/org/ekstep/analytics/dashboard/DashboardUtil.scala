@@ -21,6 +21,8 @@ import scala.util.Try
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 
+case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
+case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
 
 trait DashboardConfig extends Serializable {
   val debug: String

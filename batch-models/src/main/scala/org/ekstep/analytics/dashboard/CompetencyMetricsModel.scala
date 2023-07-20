@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework._
 
 import scala.util.matching.Regex
 import java.util
-import DashboardUtil._
+import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.apache.spark.sql.expressions.UserDefinedFunction
 
 /*
@@ -53,9 +53,6 @@ C1.09   5       Scorecard           No. of CBPs mapped (by competency)
 
 */
 
-case class CMDummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
-case class CMDummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
-
 case class CMConfig(
                      debug: String, validation: String,
                      // kafka connection config
@@ -91,25 +88,25 @@ case class CMConfig(
 /**
  * Model for processing competency metrics
  */
-object CompetencyMetricsModel extends IBatchModelTemplate[String, CMDummyInput, CMDummyOutput, CMDummyOutput] with Serializable {
+object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.CompetencyMetricsModel"
   override def name() = "CompetencyMetricsModel"
 
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[CMDummyInput] = {
+  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
     val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(CMDummyInput(executionTime)))
+    sc.parallelize(Seq(DummyInput(executionTime)))
   }
 
-  override def algorithm(data: RDD[CMDummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[CMDummyOutput] = {
+  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
     val timestamp = data.first().timestamp  // extract timestamp from input
     implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
     processCompetencyMetricsData(timestamp, config)
     sc.parallelize(Seq())  // return empty rdd
   }
 
-  override def postProcess(data: RDD[CMDummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[CMDummyOutput] = {
+  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
     sc.parallelize(Seq())  // return empty rdd
   }
 
