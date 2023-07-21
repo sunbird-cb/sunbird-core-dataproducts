@@ -48,11 +48,23 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    // obtain user org data
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
+    userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
+
+    // get course details, with rating info
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
+      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+
     val userAssessmentDF = userAssessmentDataFrame()
 
-    // do course de-norm
-    // do user de-norm
+    // do user + course de-norm
+    val userAssessmentDetailsDF = userAssessmentDetailsDataFrame(userAssessmentDF, allCourseProgramDetailsWithRatingDF, userOrgDF)
     // kafka dispatch to dashboard.assess
+    kafkaDispatch(withTimestamp(userAssessmentDetailsDF, timestamp), conf.userAssessmentTopic)
+    // add hierarchy info
+
 
     // explode children info also
     // kafka dispatch to dashboard.assess.content
@@ -60,58 +72,27 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     // filter what is needed in the report
     // write report to blob store
 
-    // obtain and save user org data
-    val orgDF = orgDataFrame()
-    var userDF = userDataFrame()
-    var userOrgDF = userOrgDataFrame(orgDF, userDF)
-    // validate userDF and userOrgDF counts
-    validate({userDF.count()}, {userOrgDF.count()}, "userDF.count() should equal userOrgDF.count()")
 
-    userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-    userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
 
-    // org user count
-    val orgUserCountDF = orgUserCountDataFrame(orgDF, userDF)
-    // validate activeOrgCount and orgUserCountDF count
-    validate({orgUserCountDF.count()},
-      {userOrgDF.filter(expr("userStatus=1 AND userOrgID IS NOT NULL AND userOrgStatus=1")).select("userOrgID").distinct().count()},
-      "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
-
-    // get course details, attach rating info, dispatch to kafka to be ingested by druid data-source: dashboards-courses
-    val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program", "CuratedCollections"))
-    val allCourseProgramDF = allCourseProgramDataFrame(allCourseProgramESDF, orgDF)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF)
-    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
-    val courseRatingDF = courseRatingSummaryDataFrame()
-    val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
-    // validate that no rows are getting dropped b/w allCourseProgramESDF and allCourseProgramDetailsWithRatingDF
-    validate({allCourseProgramESDF.count()}, {allCourseProgramDetailsWithRatingDF.count()}, "ES course count should equal final DF with rating count")
-    // validate that # of rows with ratingSum > 0 in the final DF is equal to # of rows in courseRatingDF from cassandra
-    validate(
-      {courseRatingDF.where(expr("categoryLower IN ('course', 'program') AND ratingSum > 0")).count()},
-      {allCourseProgramDetailsWithRatingDF.where(expr("LOWER(category) IN ('course', 'program') AND ratingSum > 0")).count()},
-      "number of ratings in cassandra table for courses and programs with ratingSum > 0 should equal those in final druid datasource")
-    // validate rating data, sanity check
-    Seq(1, 2, 3, 4, 5).foreach(i => {
-      validate(
-        {courseRatingDF.where(expr(s"categoryLower IN ('course', 'program') AND ratingAverage <= ${i}")).count()},
-        {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN ('course', 'program') AND ratingAverage <= ${i}")).count()},
-        s"Rating data row count for courses and programs should equal final DF for ratingAverage <= ${i}"
-      )
-    })
-    kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
-
-    // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
-    val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
-    kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
-
-    // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
-    validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
-    kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
-
-    val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
+//    // org user count
+//    val orgUserCountDF = orgUserCountDataFrame(orgDF, userDF)
+//    // validate activeOrgCount and orgUserCountDF count
+//    validate({orgUserCountDF.count()},
+//      {userOrgDF.filter(expr("userStatus=1 AND userOrgID IS NOT NULL AND userOrgStatus=1")).select("userOrgID").distinct().count()},
+//      "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
+//
+//
+//    // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
+//    val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
+//    kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
+//
+//    // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
+//    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+//    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+//    validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
+//    kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
+//
+//    val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
     closeRedisConnect()
 

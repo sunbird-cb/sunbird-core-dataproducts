@@ -48,31 +48,11 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     // obtain and save user org data
-    val orgDF = orgDataFrame()
-    val userDF = userDataFrame()
-    val userOrgDF = userOrgDataFrame(orgDF, userDF)
-    // validate userDF and userOrgDF counts
-    validate({userDF.count()}, {userOrgDF.count()}, "userDF.count() should equal userOrgDF.count()")
-    // kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     // get course details, attach rating info, dispatch to kafka to be ingested by druid data-source: dashboards-courses
-    val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program", "CuratedCollections"))
-    val allCourseProgramDF = allCourseProgramDataFrame(allCourseProgramESDF, orgDF)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF)
-    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
-    val courseRatingDF = courseRatingSummaryDataFrame()
-    val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
-    // validate that no rows are getting dropped b/w allCourseProgramESDF and allCourseProgramDetailsWithRatingDF
-    validate({allCourseProgramESDF.count()}, {allCourseProgramDetailsWithRatingDF.count()}, "ES course count should equal final DF with rating count")
-
-    // click by id
-    // click by provider
-    // click by course duration
-    // click by course rating
-    // click by competencies
-    // click by enrollments
-    // click by completions
-    // click by in-progress
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
+      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, getCuratedCollections = true)
 
     val readLoc = "/home/analytics/click-stream-data/"
     val loc = "/home/analytics/click-stream-data/gen/"

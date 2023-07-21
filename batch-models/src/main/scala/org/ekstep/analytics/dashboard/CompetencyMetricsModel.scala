@@ -104,11 +104,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     // obtain and save user org data
-    val orgDF = orgDataFrame()
-    var userDF = userDataFrame()
-    var userOrgDF = userOrgDataFrame(orgDF, userDF)
-    // validate userDF and userOrgDF counts
-    validate({userDF.count()}, {userOrgDF.count()}, "userDF.count() should equal userOrgDF.count()")
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
     userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
@@ -131,28 +127,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       {userOrgDF.filter(expr("userStatus=1 AND userOrgID IS NOT NULL AND userOrgStatus=1")).select("userOrgID").distinct().count()},
       "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
-    // get course details, attach rating info, dispatch to kafka to be ingested by druid data-source: dashboards-courses
-    val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program"))
-    val allCourseProgramDF = allCourseProgramDataFrame(allCourseProgramESDF, orgDF)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF)
-    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
-    val courseRatingDF = courseRatingSummaryDataFrame()
-    val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
-    // validate that no rows are getting dropped b/w allCourseProgramESDF and allCourseProgramDetailsWithRatingDF
-    validate({allCourseProgramESDF.count()}, {allCourseProgramDetailsWithRatingDF.count()}, "ES course count should equal final DF with rating count")
-    // validate that # of rows with ratingSum > 0 in the final DF is equal to # of rows in courseRatingDF from cassandra
-    validate(
-      {courseRatingDF.where(expr("categoryLower IN ('course', 'program') AND ratingSum > 0")).count()},
-      {allCourseProgramDetailsWithRatingDF.where(expr("LOWER(category) IN ('course', 'program') AND ratingSum > 0")).count()},
-      "number of ratings in cassandra table for courses and programs with ratingSum > 0 should equal those in final druid datasource")
-    // validate rating data, sanity check
-    Seq(1, 2, 3, 4, 5).foreach(i => {
-      validate(
-        {courseRatingDF.where(expr(s"categoryLower IN ('course', 'program') AND ratingAverage <= ${i}")).count()},
-        {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN ('course', 'program') AND ratingAverage <= ${i}")).count()},
-        s"Rating data row count for courses and programs should equal final DF for ratingAverage <= ${i}"
-      )
-    })
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
+      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
     // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency

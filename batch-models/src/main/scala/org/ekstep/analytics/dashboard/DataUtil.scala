@@ -7,9 +7,11 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
+import org.json4s.scalap.scalasig.Children
 
 import java.io.Serializable
 import java.util
+import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
 
 
@@ -279,30 +281,50 @@ object DataUtil extends Serializable {
   }
 
   /* schema definitions for courseDetailsDataFrame */
-  val hierarchySchema
-  val hierarchySchema: StructType = StructType(Seq(
-    StructField("name", StringType, nullable = true),
-    StructField("status", StringType, nullable = true),
-    StructField("channel", StringType, nullable = true),
-    StructField("duration", StringType, nullable = true),
-    StructField("leafNodesCount", IntegerType, nullable = true),
-    StructField("children", ArrayType(StructType(Seq())), nullable = true),
-    StructField("competencies_v3", StringType, nullable = true)
+  val hierarchyChildSchema: StructType = StructType(Seq(
+    StructField("identifier", StringType, nullable = true),
+    StructField("name", StringType, nullable = true)
   ))
+
+  def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
+    val fields = ListBuffer(
+      StructField("name", StringType, nullable = true),
+      StructField("status", StringType, nullable = true),
+      StructField("channel", StringType, nullable = true),
+      StructField("duration", StringType, nullable = true),
+      StructField("leafNodesCount", IntegerType, nullable = true)
+    )
+    if (children) {
+      fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
+    }
+    if (competencies) {
+      fields.append(StructField("competencies_v3", StringType, nullable = true))
+    }
+
+    StructType(fields)
+  }
+
+  def contentHierarchyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
+      .select(col("identifier"), col("hierarchy"))
+  }
+
+  def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
+                         children: Boolean = false, competencies: Boolean = false
+                        )(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val hierarchySchema = makeHierarchySchema(children, competencies)
+    df.join(hierarchyDF, df.col(idCol) === hierarchyDF.col("identifier"), "left")
+      .na.fill("{}", Seq("hierarchy"))
+      .withColumn(asCol, from_json(col("hierarchy"), hierarchySchema))
+  }
+
   /**
    * course details with competencies json from cassandra dev_hierarchy_store:content_hierarchy
    * @param allCourseProgramDF Dataframe(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus)
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
    */
-  def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val rawCourseDF = cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
-      .select(col("identifier").alias("courseID"), col("hierarchy"))
-
-    // inner join so that we only retain live courses
-    var df = allCourseProgramDF.join(rawCourseDF, Seq("courseID"), "left")
-
-    df = df.na.fill("{}", Seq("hierarchy"))
-    df = df.withColumn("data", from_json(col("hierarchy"), courseHierarchySchema))
+  def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = addHierarchyColumn(allCourseProgramDF, hierarchyDF, "courseID", "data", competencies = true)
     df = df.select(
       col("courseID"), col("category"), col("courseName"), col("courseStatus"),
       col("courseReviewStatus"), col("courseOrgID"), col("courseOrgName"), col("courseOrgStatus"),
@@ -342,6 +364,53 @@ object DataUtil extends Serializable {
     df
   }
 
+  def getOrgUserDataFrames()(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame) = {
+    // obtain and save user org data
+    val orgDF = orgDataFrame()
+    val userDF = userDataFrame()
+    val userOrgDF = userOrgDataFrame(orgDF, userDF)
+    // validate userDF and userOrgDF counts
+    validate({userDF.count()}, {userOrgDF.count()}, "userDF.count() should equal userOrgDF.count()")
+
+    (orgDF, userDF, userOrgDF)
+  }
+
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+    val primaryCategories = if (getCuratedCollections) {
+      Seq("Course", "Program", "CuratedCollections")
+    } else {
+      Seq("Course", "Program")
+    }
+
+    val hierarchyDF = contentHierarchyDataFrame()
+    val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
+    val allCourseProgramDF = allCourseProgramDataFrame(allCourseProgramESDF, orgDF)
+    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF, hierarchyDF)
+    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
+    val courseRatingDF = courseRatingSummaryDataFrame()
+    val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
+
+    if (runValidation) {
+      // validate that no rows are getting dropped b/w allCourseProgramESDF and allCourseProgramDetailsWithRatingDF
+      validate({allCourseProgramESDF.count()}, {allCourseProgramDetailsWithRatingDF.count()}, "ES course count should equal final DF with rating count")
+      // validate that # of rows with ratingSum > 0 in the final DF is equal to # of rows in courseRatingDF from cassandra
+      val pcLowerStr = primaryCategories.map(c => s"'${c.toLowerCase()}'").mkString(", ")
+      validate(
+        {courseRatingDF.where(expr(s"categoryLower IN (${pcLowerStr}) AND ratingSum > 0")).count()},
+        {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN (${pcLowerStr}) AND ratingSum > 0")).count()},
+        "number of ratings in cassandra table for courses and programs with ratingSum > 0 should equal those in final druid datasource")
+      // validate rating data, sanity check
+      Seq(1, 2, 3, 4, 5).foreach(i => {
+        validate(
+          {courseRatingDF.where(expr(s"categoryLower IN (${pcLowerStr}) AND ratingAverage <= ${i}")).count()},
+          {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN (${pcLowerStr}) AND ratingAverage <= ${i}")).count()},
+          s"Rating data row count for courses and programs should equal final DF for ratingAverage <= ${i}"
+        )
+      })
+    }
+
+    (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)
+  }
 
 
   /* schema definitions for courseCompetencyDataFrame */
@@ -807,21 +876,48 @@ object DataUtil extends Serializable {
     df
   }
 
-
   /***/
+  val assessmentReadResponseSchema: StructType = StructType(Seq(
+    StructField("name", StringType, nullable = false),
+    StructField("objectType", StringType, nullable = false),
+    StructField("version", IntegerType, nullable = false),
+    StructField("status", StringType, nullable = false),
+    StructField("totalQuestions", IntegerType, nullable = false),
+    StructField("maxQuestions", IntegerType, nullable = false),
+    StructField("expectedDuration", IntegerType, nullable = false),
+    StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
+  ))
   val submitAssessmentRequestSchema: StructType = StructType(Seq(
+    StructField("courseId", StringType, nullable = false),
+    StructField("batchId", StringType, nullable = false),
     StructField("primaryCategory", StringType, nullable = false),
-    StructField("courseId", StringType, nullable = false)
+    StructField("isAssessment", BooleanType, nullable = false),
+    StructField("timeLimit", IntegerType, nullable = false)
   ))
-
   val submitAssessmentResponseSchema: StructType = StructType(Seq(
+    StructField("result", FloatType, nullable = false),
+    StructField("total", IntegerType, nullable = false),
+    StructField("blank", IntegerType, nullable = false),
+    StructField("correct", IntegerType, nullable = false),
+    StructField("incorrect", IntegerType, nullable = false),
     StructField("pass", BooleanType, nullable = false),
-    StructField("result", StringType, nullable = false) // check the datatype
+    StructField("overallResult", FloatType, nullable = false),
+    StructField("passPercentage", FloatType, nullable = false)
   ))
 
-  def userAssessmentDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): DataFrame = {
+  /**
+   * gets user assessment data from cassandra
+   *
+   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessStatus,
+   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion, assessObjectType, assessName,
+   *         assessMaxRetakeAttempts, assessReadStatus,
+   *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
+   *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
+   *         assessPassPercentage)
+   */
+  def userAssessmentDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
 
-    var df = cassandraTableAsDataFrame("sunbird", "user_assessment_data")
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserAssessmentTable)
       .select(
         col("assessmentid").alias("assessID"),
         col("starttime").alias("assessStartTime"),
@@ -832,11 +928,12 @@ object DataUtil extends Serializable {
         col("submitassessmentresponse"),
         col("submitassessmentrequest")
       )
+      .na.fill("{}", Seq("submitassessmentresponse", "submitassessmentrequest"))
+      .withColumn("readResponse", from_json(col("assessmentreadresponse"), assessmentReadResponseSchema))
+      .withColumn("submitRequest", from_json(col("submitassessmentrequest"), submitAssessmentRequestSchema))
+      .withColumn("submitResponse", from_json(col("submitassessmentresponse"), submitAssessmentResponseSchema))
       .withColumn("assessStartTime", col("assessStartTime").cast("long"))
       .withColumn("assessEndTime", col("assessEndTime").cast("long"))
-      .withColumn("readResponseData", from_json(col("assessmentreadresponse"), submitAssessmentRequestSchema))
-      .withColumn("submitRequestData", from_json(col("submitassessmentrequest"), submitAssessmentRequestSchema))
-      .withColumn("submitResponseData", from_json(col("submitassessmentresponse"), submitAssessmentResponseSchema))
 
     df = df.select(
       col("assessID"),
@@ -845,36 +942,58 @@ object DataUtil extends Serializable {
       col("assessStatus"),
       col("userID"),
 
-      col("readResponseData.totalQuestions").alias("assessTotalQuestions"),
-      col("readResponseData.maxQuestions").alias("assessMaxQuestions"),
-      col("readResponseData.expectedDuration").alias("assessExpectedDuration"),
-      col("readResponseData.version").alias("assessVersion"),
-      col("readResponseData.objectType").alias("assessObjectType"),
-      col("readResponseData.name").alias("assessName"),
-      col("readResponseData.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
-      col("readResponseData.status").alias("assessReadStatus"),
+      col("readResponse.totalQuestions").alias("assessTotalQuestions"),
+      col("readResponse.maxQuestions").alias("assessMaxQuestions"),
+      col("readResponse.expectedDuration").alias("assessExpectedDuration"),
+      col("readResponse.version").alias("assessVersion"),
+      col("readResponse.objectType").alias("assessObjectType"),
+      col("readResponse.name").alias("assessName"),
+      col("readResponse.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
+      col("readResponse.status").alias("assessReadStatus"),
 
-      col("submitRequestData.batchId").alias("assessBatchID"),
-      col("submitRequestData.primaryCategory").alias("assessPrimaryCategory"),
-      col("submitRequestData.courseId").alias("courseID"),
-      col("submitRequestData.isAssessment").alias("assessIsAssessment"),
-      col("submitRequestData.timeLimit").alias("assessTimeLimit"),
+      col("submitRequest.batchId").alias("assessBatchID"),
+      col("submitRequest.primaryCategory").alias("assessPrimaryCategory"),
+      col("submitRequest.courseId").alias("courseID"),
+      col("submitRequest.isAssessment").alias("assessIsAssessment"),
+      col("submitRequest.timeLimit").alias("assessTimeLimit"),
 
-      col("submitResponseData.result").alias("assessResult"),
-      col("submitResponseData.total").alias("assessTotal"),
-      col("submitResponseData.blank").alias("assessBlank"),
-      col("submitResponseData.correct").alias("assessCorrect"),
-      col("submitResponseData.incorrect").alias("assessIncorrect"),
-      col("submitResponseData.pass").alias("assessPass"),
-      col("submitResponseData.overallResult").alias("assessOverallResult"),
-      col("submitResponseData.passPercentage").alias("assessPassPercentage"),
-
-
-
-      col("submitResponseData.pass").alias("assessPass")
+      col("submitResponse.result").alias("assessResult"),
+      col("submitResponse.total").alias("assessTotal"),
+      col("submitResponse.blank").alias("assessBlank"),
+      col("submitResponse.correct").alias("assessCorrect"),
+      col("submitResponse.incorrect").alias("assessIncorrect"),
+      col("submitResponse.pass").alias("assessPass"),
+      col("submitResponse.overallResult").alias("assessOverallResult"),
+      col("submitResponse.passPercentage").alias("assessPassPercentage")
     )
 
-    show(df)
+    show(df, "userAssessmentDataFrame")
+    df
+  }
+
+  /**
+   * gets user assessment data from cassandra
+   *
+   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessStatus,
+   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion, assessObjectType, assessName,
+   *         assessMaxRetakeAttempts, assessReadStatus,
+   *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
+   *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
+   *         assessPassPercentage,
+   *         category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
+   *         courseOrgStatus, courseDuration, courseResourceCount, ratingSum, ratingCount, ratingAverage
+   *         firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp, userOrgID,
+   *         userOrgName, userOrgStatus)
+   */
+  def userAssessmentDetailsDataFrame(userAssessmentDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame, userOrgDF: DataFrame): DataFrame = {
+
+    val courseDF = allCourseProgramDetailsWithRatingDF
+      .drop("count1Star", "count2Star", "count3Star", "count4Star", "count5Star")
+    val df = userAssessmentDF
+      .join(courseDF, Seq("courseID"), "left")
+      .join(userOrgDF, Seq("userID"), "left")
+
+    show(df, "userAssessmentDetailsDataFrame")
     df
   }
 

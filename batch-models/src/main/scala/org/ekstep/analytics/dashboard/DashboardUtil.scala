@@ -42,13 +42,14 @@ case class DashboardConfig(
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
     declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
+    userAssessmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
-    cassandraRatingSummaryTable: String,
+    cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -348,6 +349,7 @@ object DashboardUtil extends Serializable {
       declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
       competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
       userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
@@ -359,6 +361,7 @@ object DashboardUtil extends Serializable {
       cassandraUserEnrolmentsTable = getConfigModelParam(config, "cassandraUserEnrolmentsTable"),
       cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
       cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
+      cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
