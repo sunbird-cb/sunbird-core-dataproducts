@@ -50,8 +50,8 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-    userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
+    // userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
+    // userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,

@@ -45,7 +45,8 @@ object UserAssessmentTest extends Serializable {
         "expectedCompetency" -> "dev.dashboards.competency.expected",
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
-        "userOrg" -> "dev.dashboards.user.org"
+        "userOrg" -> "dev.dashboards.user.org",
+        "userAssessment" -> "dev.dashboards.user.assessment"
       )
     )
     val modelParams = Map(
@@ -71,6 +72,7 @@ object UserAssessmentTest extends Serializable {
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
+      "cassandraUserAssessmentTable" -> "user_assessment_data",
 
       "sideOutput" -> sideOutput
     )
