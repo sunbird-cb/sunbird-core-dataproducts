@@ -91,13 +91,22 @@ object DataUtil extends Serializable {
     orgDF
   }
 
+  def userGenericDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, orgID, userStatus
+    var userGenericDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+
+    show(userGenericDF, "User DataFrame")
+
+    userGenericDF
+  }
+
   /**
    * user data from cassandra
    * @return DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
    */
   def userDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, orgID, userStatus
-    var userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+    var userDF = userGenericDataFrame()
       .select(
         col("id").alias("userID"),
         col("firstname").alias("firstName"),
