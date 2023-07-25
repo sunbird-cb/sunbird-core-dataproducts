@@ -221,14 +221,11 @@ object DashboardUtil extends Serializable {
   def apiThrowException(method: String, url: String, body: String): String = {
     val request = method.toLowerCase() match {
       case "post" => new HttpPost(url)
-      case "get" => new HttpGet(url)
       case _ => throw new Exception(s"HTTP method '${method}' not supported")
     }
     request.setHeader("Content-type", "application/json")  // set the Content-type
-    if(method.toLowerCase() == "post"){
       request.setEntity(new StringEntity(body))  // add the JSON as a StringEntity
 
-    }
     val httpClient = HttpClientBuilder.create().build()  // create HttpClient
     val response = httpClient.execute(request)  // send the request
     val statusCode = response.getStatusLine.getStatusCode  // get status code

@@ -114,6 +114,7 @@ object DataUtil extends Serializable {
         col("maskedemail").alias("maskedEmail"),
         col("rootorgid").alias("userOrgID"),
         col("status").alias("userStatus"),
+        col("profiledetails").alias("userProfileDetails"),
         col("createddate").alias("userCreatedTimestamp"),
         col("updateddate").alias("userUpdatedTimestamp")
       ).na.fill("", Seq("userOrgID"))
@@ -128,6 +129,39 @@ object DataUtil extends Serializable {
 
     userDF
   }
+
+  /**
+   * User profile fields
+   */
+
+  def userProfileDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+
+    var df = userOrgDF
+    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+    df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+    df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
+    df = df.select(
+      col("professionalDetails.designation").alias("designation"),
+      col("professionalDetails.group").alias("group"),
+      col("additionalProperties.tag").alias("tag")
+    )
+    df
+  }
+
+  val professionalDetailsSchema: StructType = StructType(Seq(
+    StructField("designation", StringType, true),
+    StructField("group", StringType, true)
+  ))
+
+  val additionalPropertiesSchema: StructType = StructType(Seq(
+    StructField("tag", ArrayType(StringType), true)
+  ))
+
+  val profileDetailsSchema: StructType = StructType(Seq(
+    StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
+    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
+  ))
 
 
   /**
