@@ -100,6 +100,7 @@ object DataUtil extends Serializable {
     userGenericDF
   }
 
+
   /**
    * user data from cassandra
    * @return DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
