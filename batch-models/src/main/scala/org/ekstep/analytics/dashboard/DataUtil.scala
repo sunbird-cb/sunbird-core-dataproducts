@@ -529,17 +529,23 @@ object DataUtil extends Serializable {
     df
   }
 
+  def userEnrollmentDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
+      .where(expr("active=true"))
+      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
+      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
+      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
+
+    show(df)
+    df
+  }
 
   /**
    *
    * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    */
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
-      .where(expr("active=true"))
-      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
-      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
-      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
+    val df = userEnrollmentDataFrame()
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
