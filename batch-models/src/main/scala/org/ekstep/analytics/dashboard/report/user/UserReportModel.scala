@@ -2,13 +2,13 @@ package org.ekstep.analytics.dashboard.report.user
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, explode_outer, from_json, lit}
-import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
-import org.apache.spark.sql.{DataFrame, SparkSession, functions}
-import org.ekstep.analytics.dashboard.DashboardUtil.{debug, _}
-import org.ekstep.analytics.dashboard.DataUtil.{getOrgUserDataFrames, roleDataFrame}
+import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.apache.hadoop.fs._
 
 object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
@@ -51,46 +51,31 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    // get user org dataframe
-    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-
-    // create fullName column
-    userOrgDF = userOrgDF.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
-
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
+    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+    var df = userDataDF.join(userRolesDF, Seq("userID"), "inner")
 
-    var df = userOrgDF.join(userRolesDF, Seq("userID"), "inner")
-    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-    df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
-    df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
     df = df.select(
       col("fullName"),
-      col("userOrgName").alias("orgName"),
-      col("userUpdatedTimestamp").alias("createdDate"),
-      col("role").alias("roles"),
       col("professionalDetails.designation").alias("designation"),
+      col("userOrgName").alias("orgName"),
+      col("userOrgID").alias("mdoid"),
+      col("userUpdatedTimestamp").alias("createdDate"),
+      col("additionalProperties.tag").alias("tag"),
       col("professionalDetails.group").alias("group"),
-      col("additionalProperties.tag").alias("tag")
-//        External System Reference Id and External System REference colums
+      col("role").alias("roles"),
+      col("additionalProperties.externalSystemId"),
+      col("additionalProperties.externalSystem")
     )
-
     show(df)
 
+//    val fs = FileSystem.get(sc.hadoopConfiguration)
+//    fs.rename(new Path(s"/tmp/user-report/${getDate}/${mdoid}/part*"), new Path(s"/tmp/user-report/${getDate}/${mdoid}/"))
+
+    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
+      .save(s"/tmp/user-report/${getDate}/")
+
+    //filename
   }
-
-  val professionalDetailsSchema: StructType = StructType(Seq(
-    StructField("designation", StringType, true),
-    StructField("group", StringType, true)
-  ))
-
-  val additionalPropertiesSchema: StructType = StructType(Seq(
-    StructField("tag", ArrayType(StringType), true)
-  ))
-
-  val profileDetailsSchema: StructType = StructType(Seq(
-    StructField("professionalDetails", ArrayType(professionalDetailsSchema) , true),
-    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
-  ))
-
 }

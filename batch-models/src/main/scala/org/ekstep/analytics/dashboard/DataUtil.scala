@@ -7,6 +7,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
+import org.joda.time.DateTimeZone
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.json4s.scalap.scalasig.Children
 
 import java.io.Serializable
@@ -141,11 +143,6 @@ object DataUtil extends Serializable {
     df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
     df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
     df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
-    df = df.select(
-      col("professionalDetails.designation").alias("designation"),
-      col("professionalDetails.group").alias("group"),
-      col("additionalProperties.tag").alias("tag")
-    )
     df
   }
 
@@ -155,10 +152,12 @@ object DataUtil extends Serializable {
   ))
 
   val additionalPropertiesSchema: StructType = StructType(Seq(
-    StructField("tag", ArrayType(StringType), true)
+    StructField("tag", ArrayType(StringType), true),
+    StructField("externalSystemId", StringType, true),
+    StructField("externalSystem", StringType, true)
   ))
 
-  val profileDetailsSchema: StructType = StructType(Seq(
+  val userProfileDetailsSchema: StructType = StructType(Seq(
     StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
     StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
   ))
@@ -1050,6 +1049,11 @@ object DataUtil extends Serializable {
 
     show(df, "userAssessmentDetailsDataFrame")
     df
+  }
+
+  def getDate: String = {
+    val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
+    dateFormat.print(System.currentTimeMillis());
   }
 
 }
