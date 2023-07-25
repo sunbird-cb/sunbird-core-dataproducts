@@ -7,7 +7,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
-import org.json4s.scalap.scalasig.Children
 
 import java.io.Serializable
 import java.util

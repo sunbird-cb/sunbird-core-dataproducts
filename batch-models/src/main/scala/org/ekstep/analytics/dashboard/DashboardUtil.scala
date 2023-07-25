@@ -68,6 +68,44 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
+  object Test {
+    /**
+     * ONLY FOR TESTING!!, do not use to create spark context in model or job
+     * */
+    def getSessionAndContext(name: String, config: Map[String, AnyRef]): (SparkSession, SparkContext, FrameworkContext) = {
+      val cassandraHost = config.getOrElse("sparkCassandraConnectionHost", "localhost").asInstanceOf[String]
+      val esHost = config.getOrElse("sparkElasticsearchConnectionHost", "localhost").asInstanceOf[String]
+      val spark: SparkSession =
+        SparkSession
+          .builder()
+          .appName(name)
+          .config("spark.master", "local[*]")
+          .config("spark.cassandra.connection.host", cassandraHost)
+          .config("spark.cassandra.output.batch.size.rows", "10000")
+          //.config("spark.cassandra.read.timeoutMS", "60000")
+          .config("spark.sql.legacy.json.allowEmptyString.enabled", "true")
+          .config("spark.sql.caseSensitive", "true")
+          .config("es.nodes", esHost)
+          .config("es.port", "9200")
+          .config("es.index.auto.create", "false")
+          .config("es.nodes.wan.only", "true")
+          .config("es.nodes.discovery", "false")
+          .getOrCreate()
+      val sc: SparkContext = spark.sparkContext
+      val fc: FrameworkContext = new FrameworkContext()
+      sc.setLogLevel("WARN")
+      (spark, sc, fc)
+    }
+
+    def time[R](block: => R): (Long, R) = {
+      val t0 = System.currentTimeMillis()
+      val result = block // call-by-name
+      val t1 = System.currentTimeMillis()
+      ((t1 - t0), result)
+    }
+
+  }
+
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
     df.coalesce(fileCount).write.format("csv").option("header", header.toString).save(path)
@@ -293,8 +331,11 @@ object DashboardUtil extends Serializable {
   }
 
   def cassandraTableAsDataFrame(keySpace: String, table: String)(implicit spark: SparkSession): DataFrame = {
-    spark.read.format("org.apache.spark.sql.cassandra").option("inferSchema", "true")
-      .option("keyspace", keySpace).option("table", table).load().persist(StorageLevel.MEMORY_ONLY)
+    spark.read.format("org.apache.spark.sql.cassandra")
+      .option("inferSchema", "true")
+      .option("keyspace", keySpace)
+      .option("table", table)
+      .load().persist(StorageLevel.MEMORY_ONLY)
   }
 
   def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String])(implicit spark: SparkSession): DataFrame = {
@@ -303,7 +344,8 @@ object DashboardUtil extends Serializable {
       .option("es.nodes", host)
       .option("es.port", "9200")
       .option("es.index.auto.create", "false")
-      .option("es.nodes.wan.only", "false")
+      .option("es.nodes.wan.only", "true")
+      .option("es.nodes.discovery", "false")
       .option("query", query)
       .load(index)
     df = df.select(fields.map(f => col(f)):_*) // instead of fields
