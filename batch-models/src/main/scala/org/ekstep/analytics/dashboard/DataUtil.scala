@@ -30,6 +30,12 @@ object DataUtil extends Serializable {
     api("POST", url, requestBody)
   }
 
+  def userReadAPI(host: String): String = {
+    val url = s"https://${host}/graphql"
+    val requestBody = ""
+    api("GET", url, requestBody)
+  }
+
   def fracCompetencyDFOption(host: String)(implicit spark: SparkSession): Option[DataFrame] = {
     var result = fracCompetencyAPI(host)
     result = result.trim()

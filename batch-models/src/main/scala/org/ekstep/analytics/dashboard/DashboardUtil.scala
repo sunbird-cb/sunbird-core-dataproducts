@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard
 
 import redis.clients.jedis.Jedis
 import org.apache.spark.SparkContext
-import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.methods.{HttpGet, HttpPost}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
@@ -221,10 +221,14 @@ object DashboardUtil extends Serializable {
   def apiThrowException(method: String, url: String, body: String): String = {
     val request = method.toLowerCase() match {
       case "post" => new HttpPost(url)
+      case "get" => new HttpGet(url)
       case _ => throw new Exception(s"HTTP method '${method}' not supported")
     }
     request.setHeader("Content-type", "application/json")  // set the Content-type
-    request.setEntity(new StringEntity(body))  // add the JSON as a StringEntity
+    if(method.toLowerCase() == "post"){
+      request.setEntity(new StringEntity(body))  // add the JSON as a StringEntity
+
+    }
     val httpClient = HttpClientBuilder.create().build()  // create HttpClient
     val response = httpClient.execute(request)  // send the request
     val statusCode = response.getStatusLine.getStatusCode  // get status code
@@ -307,6 +311,19 @@ object DashboardUtil extends Serializable {
       .option("query", query)
       .load(index)
     df = df.select(fields.map(f => col(f)):_*) // instead of fields
+    df
+  }
+
+  def elasticSearchGenericDataFrame(host: String, index: String, fields: Seq[String])(implicit spark: SparkSession): DataFrame = {
+    var df = spark.read.format("org.elasticsearch.spark.sql")
+      .option("es.read.metadata", "false")
+      .option("es.nodes", host)
+      .option("es.port", "9200")
+      .option("es.index.auto.create", "false")
+      .option("es.nodes.wan.only", "false")
+      .load(index)
+
+    df = df.select(fields.map(f => col(f)): _*) // instead of fields
     df
   }
 
