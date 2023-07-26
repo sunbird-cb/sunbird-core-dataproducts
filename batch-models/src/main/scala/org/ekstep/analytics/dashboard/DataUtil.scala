@@ -323,7 +323,7 @@ object DataUtil extends Serializable {
 
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),
-        col("data.isExternal").alias("assessIsExternal"),
+        col("data.isExternal").cast(IntegerType).alias("assessIsExternal"),
         col("data.contentType").alias("assessContentType"),
         col("data.objectType").alias("assessObjectType"),
         col("data.userConsent").alias("assessUserConsent"),
@@ -334,7 +334,9 @@ object DataUtil extends Serializable {
         col("data.lastSubmittedOn").alias("assessLastSubmittedOn")
       )
 
-    df = timestampStringToLong(df, Seq("assessCreatedOn", "assessLastUpdatedOn", "assessLastPublishedOn", "assessLastSubmittedOn"))
+    df = timestampStringToLong(df,
+      Seq("assessCreatedOn", "assessLastUpdatedOn", "assessLastPublishedOn", "assessLastSubmittedOn"),
+      "yyyy-MM-dd'T'HH:mm:ss")
 
     show(df, "assessWithHierarchyDataFrame")
     df
@@ -1050,7 +1052,7 @@ object DataUtil extends Serializable {
       col("submitRequest.batchId").alias("assessBatchID"),
       col("submitRequest.primaryCategory").alias("assessPrimaryCategory"),
       col("submitRequest.courseId").alias("courseID"),
-      col("submitRequest.isAssessment").alias("assessIsAssessment"),
+      col("submitRequest.isAssessment").cast(IntegerType).alias("assessIsAssessment"),
       col("submitRequest.timeLimit").alias("assessTimeLimit"),
 
       col("submitResponse.result").alias("assessResult"),
@@ -1058,7 +1060,7 @@ object DataUtil extends Serializable {
       col("submitResponse.blank").alias("assessBlank"),
       col("submitResponse.correct").alias("assessCorrect"),
       col("submitResponse.incorrect").alias("assessIncorrect"),
-      col("submitResponse.pass").alias("assessPass"),
+      col("submitResponse.pass").cast(IntegerType).alias("assessPass"),
       col("submitResponse.overallResult").alias("assessOverallResult"),
       col("submitResponse.passPercentage").alias("assessPassPercentage")
     )
