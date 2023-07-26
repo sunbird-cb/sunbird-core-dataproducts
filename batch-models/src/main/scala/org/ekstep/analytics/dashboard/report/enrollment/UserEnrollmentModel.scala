@@ -1,5 +1,6 @@
 package org.ekstep.analytics.dashboard.report.enrollment
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
@@ -9,7 +10,7 @@ import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework.{IBatchModelTemplate, _}
 
-import java.io.Serializable
+import java.io.{File, Serializable}
 
 object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
 
@@ -58,6 +59,8 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     var df = allCourseData.join(userDataDF, Seq("userID"), "inner")
 
+    df = df.withColumn("rating", round(col("ratingAverage"), 1))
+
     df = df.select(
       col("fullName"),
       col("professionalDetails.designation").alias("designation"),
@@ -69,7 +72,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("courseName"),
       col("courseDuration").alias("duration"),
       col("courseOrgName"),
-      // last published on
+      col("lastPublishedOn"),
       col("courseStatus").alias("status"),
       col("courseProgress").alias("completionPercentage"),
       col("courseCompletedTimestamp").alias("completedOn"),
@@ -77,10 +80,27 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("courseOrgID").alias("courseorgid"),
       col("userOrgID").alias("userorgid")
     )
-
     df.show()
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("userorgid")
       .save(s"/tmp/user-enrollment-report/${getDate}/")
+
+    import spark.implicits._
+    val ids = df.select("userorgid").map(row => row.getString(0)).collect().toArray
+
+    for (id <- ids) {
+      val str = s"/tmp/user-enrollment-report/${getDate}/mdoid=${id}"
+      val tmpCsv = new File(str)
+      val customized = new File(s"/tmp/user-enrollment-report/${getDate}/mdoid=${id}/mdoid=${id}.csv")
+
+      val tempCsvFileOpt = tmpCsv.listFiles().find(file => file.getName.startsWith("part-"))
+
+      if (tempCsvFileOpt != None) {
+        val finalFile = tempCsvFileOpt.get
+        finalFile.renameTo(customized)
+      }
+    }
+
+    closeRedisConnect()
   }
 }

@@ -10,6 +10,8 @@ import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.apache.hadoop.fs._
 
+import java.io.File
+
 object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
   implicit var debug: Boolean = false
@@ -70,12 +72,30 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     )
     show(df)
 
-//    val fs = FileSystem.get(sc.hadoopConfiguration)
-//    fs.rename(new Path(s"/tmp/user-report/${getDate}/${mdoid}/part*"), new Path(s"/tmp/user-report/${getDate}/${mdoid}/"))
+    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
+      .save(s"/tmp/user-report/${getDate}/")
+
+    import spark.implicits._
+    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
       .save(s"/tmp/user-report/${getDate}/")
 
-    //filename
+    for (id <- ids) {
+      val str = s"/tmp/user-report/${getDate}/mdoid=${id}"
+      val tmpcsv = new File(str)
+      val customized = new File(s"/tmp/user-report/${getDate}/mdoid=${id}/mdoid=${id}.csv")
+
+      val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+
+      if (tempCsvFileOpt != None) {
+        val finalFile = tempCsvFileOpt.get
+        finalFile.renameTo(customized)
+      }
+    }
+
+
+
+    closeRedisConnect()
   }
 }

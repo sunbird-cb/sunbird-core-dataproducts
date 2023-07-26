@@ -21,8 +21,8 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val query = s"""{"_source":["identifier","name","primaryCategory","status","reviewStatus","channel","duration","leafNodesCount"],"query":{"bool":{"should":[${shouldClause}]}}}"""
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount")
+    val query = s"""{"_source":["identifier","name","primaryCategory","status","reviewStatus","channel","duration","leafNodesCount", "lastPublishedOn"],"query":{"bool":{"should":[${shouldClause}]}}}"""
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
     elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields)
   }
 
@@ -297,7 +297,8 @@ object DataUtil extends Serializable {
       col("name").alias("courseName"),
       col("status").alias("courseStatus"),
       col("reviewStatus").alias("courseReviewStatus"),
-      col("channel").alias("courseOrgID")
+      col("channel").alias("courseOrgID"),
+      col("lastPublishedOn")
       // col("duration").alias("courseDuration"),
       // col("leafNodesCount").alias("courseResourceCount")
     )
@@ -379,7 +380,8 @@ object DataUtil extends Serializable {
 
       col("data.duration").cast(FloatType).alias("courseDuration"),
       col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.competencies_v3").alias("competenciesJson")
+      col("data.competencies_v3").alias("competenciesJson"),
+      col("lastPublishedOn")
     )
     df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
 

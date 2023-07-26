@@ -2,37 +2,28 @@ package org.ekstep.analytics.dashboard.report.user
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
+import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-class UserReportTest extends Serializable{
+object UserReportTest extends Serializable{
+
   def main(args: Array[String]): Unit = {
-    val cassandraHost = testModelConfig().getOrElse("sparkCassandraConnectionHost", "localhost").asInstanceOf[String]
-    val esHost = testModelConfig().getOrElse("sparkElasticsearchConnectionHost", "localhost").asInstanceOf[String]
-    implicit val spark: SparkSession =
-      SparkSession
-        .builder()
-        .appName("UserAssessmentTest")
-        .config("spark.master", "local[*]")
-        .config("spark.cassandra.connection.host", cassandraHost)
-        .config("spark.cassandra.output.batch.size.rows", "10000")
-        //.config("spark.cassandra.read.timeoutMS", "60000")
-        .config("spark.sql.legacy.json.allowEmptyString.enabled", "true")
-        .config("spark.sql.caseSensitive", "true")
-        .config("es.nodes", esHost)
-        .config("es.port", "9200")
-        .getOrCreate()
-    implicit val sc: SparkContext = spark.sparkContext
-    implicit val fc: FrameworkContext = new FrameworkContext()
-    sc.setLogLevel("WARN")
-    val res = time(test());
+
+    val config = testModelConfig()
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("UserReportTest", config)
+    val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
+  }
+
+  def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+    UserReportModel.processUserReport(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
       "brokerList" -> "",
-      "compression" -> "",
+      "compression" -> "snappy",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
         "orgRoleUserCount" -> "dev.dashboards.org.role.count",
@@ -43,15 +34,14 @@ class UserReportTest extends Serializable{
         "expectedCompetency" -> "dev.dashboards.competency.expected",
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
-        "userOrg" -> "dev.dashboards.user.org",
-        "userAssessment" -> "dev.dashboards.user.assessment"
+        "userOrg" -> "dev.dashboards.user.org"
       )
     )
     val modelParams = Map(
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "",
+      "redisHost" -> "10.0.0.6",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
@@ -70,23 +60,9 @@ class UserReportTest extends Serializable{
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
-      "cassandraUserAssessmentTable" -> "user_assessment_data",
 
       "sideOutput" -> sideOutput
     )
     modelParams
-  }
-
-  def test()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    val timestamp = System.currentTimeMillis()
-    val config = testModelConfig()
-    UserReportModel.processUserReport(timestamp, config)
-  }
-
-  def time[R](block: => R): (Long, R) = {
-    val t0 = System.currentTimeMillis()
-    val result = block // call-by-name
-    val t1 = System.currentTimeMillis()
-    ((t1 - t0), result)
   }
 }

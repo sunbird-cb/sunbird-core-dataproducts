@@ -2,32 +2,22 @@ package org.ekstep.analytics.dashboard.report.enrollment
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
+import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
 object UserEnrollmentTest extends Serializable{
 
   def main(args: Array[String]): Unit = {
-    val cassandraHost = testModelConfig().getOrElse("sparkCassandraConnectionHost", "localhost").asInstanceOf[String]
-    val esHost = testModelConfig().getOrElse("sparkElasticsearchConnectionHost", "localhost").asInstanceOf[String]
-    implicit val spark: SparkSession =
-      SparkSession
-        .builder()
-        .appName("UserAssessmentTest")
-        .config("spark.master", "local[*]")
-        .config("spark.cassandra.connection.host", cassandraHost)
-        .config("spark.cassandra.output.batch.size.rows", "10000")
-        //.config("spark.cassandra.read.timeoutMS", "60000")
-        .config("spark.sql.legacy.json.allowEmptyString.enabled", "true")
-        .config("spark.sql.caseSensitive", "true")
-        .config("es.nodes", esHost)
-        .config("es.port", "9200")
-        .getOrCreate()
-    implicit val sc: SparkContext = spark.sparkContext
-    implicit val fc: FrameworkContext = new FrameworkContext()
-    sc.setLogLevel("WARN")
-    val res = time(test());
+
+    val config = testModelConfig()
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("UserEnrollmentTest", config)
+    val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
+  }
+
+  def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+    UserEnrollmentModel.processUserEnrollmentData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
@@ -76,16 +66,4 @@ object UserEnrollmentTest extends Serializable{
     modelParams
   }
 
-  def test()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    val timestamp = System.currentTimeMillis()
-    val config = testModelConfig()
-    UserEnrollmentModel.processUserEnrollmentData(timestamp, config)
-  }
-
-  def time[R](block: => R): (Long, R) = {
-    val t0 = System.currentTimeMillis()
-    val result = block // call-by-name
-    val t1 = System.currentTimeMillis()
-    ((t1 - t0), result)
-  }
 }
