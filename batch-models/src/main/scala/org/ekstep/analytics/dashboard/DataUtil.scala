@@ -1,7 +1,7 @@
 package org.ekstep.analytics.dashboard
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{col, countDistinct, explode_outer, expr, from_json, last, lit, lower, max, to_timestamp, udf}
+import org.apache.spark.sql.functions.{col, countDistinct, explode, explode_outer, expr, from_json, last, lit, lower, max, to_timestamp, udf}
 import DashboardUtil._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
@@ -1006,7 +1006,7 @@ object DataUtil extends Serializable {
   /**
    * gets user assessment data from cassandra
    *
-   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessUserStatus,
+   * @return DataFrame(courseID, userID, assessChildID, assessStartTime, assessEndTime, assessUserStatus,
    *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion
    *         assessMaxRetakeAttempts, assessReadStatus,
    *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
@@ -1017,7 +1017,7 @@ object DataUtil extends Serializable {
 
     var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserAssessmentTable)
       .select(
-        col("assessmentid").alias("assessID"),
+        col("assessmentid").alias("assessChildID"),
         col("starttime").alias("assessStartTime"),
         col("endtime").alias("assessEndTime"),
         col("status").alias("assessUserStatus"),
@@ -1034,7 +1034,7 @@ object DataUtil extends Serializable {
       .withColumn("assessEndTime", col("assessEndTime").cast("long"))
 
     df = df.select(
-      col("assessID"),
+      col("assessChildID"),
       col("assessStartTime"),
       col("assessEndTime"),
       col("assessUserStatus"),
@@ -1068,14 +1068,63 @@ object DataUtil extends Serializable {
   }
 
   /**
+   *
+   * @param assessWithHierarchyDF
+   * @return DataFrame(assessID, assessChildID, assessChildName, assessChildDuration, assessChildPrimaryCategory,
+   *         assessChildContentType, assessChildObjectType, assessChildShowTimer, assessChildAllowSkip)
+   */
+  def assessmentChildrenDataFrame(assessWithHierarchyDF: DataFrame): DataFrame = {
+    val df = assessWithHierarchyDF.select(
+      col("assessID"), explode(col("children")).alias("ch")
+    ).select(
+      col("assessID"),
+      col("ch.identifier").alias("assessChildID"),
+      col("ch.name").alias("assessChildName"),
+      col("ch.duration").cast(FloatType).alias("assessChildDuration"),
+      col("ch.primaryCategory").alias("assessChildPrimaryCategory"),
+      col("ch.contentType").alias("assessChildContentType"),
+      col("ch.objectType").alias("assessChildObjectType"),
+      col("ch.showTimer").alias("assessChildShowTimer"),
+      col("ch.allowSkip").alias("assessChildAllowSkip")
+    )
+
+    show(df)
+    df
+  }
+
+  /**
+   *
+   * @param userAssessmentDF
+   * @param assessChildrenDF
+   * @return DataFrame(courseID, userID, assessChildID, assessStartTime, assessEndTime, assessUserStatus,
+   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion
+   *         assessMaxRetakeAttempts, assessReadStatus,
+   *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
+   *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
+   *         assessPassPercentage,
+   *
+   *         assessID, assessChildName, assessChildDuration, assessChildPrimaryCategory,
+   *         assessChildContentType, assessChildObjectType, assessChildShowTimer, assessChildAllowSkip)
+   */
+  def userAssessmentChildrenDataFrame(userAssessmentDF: DataFrame, assessChildrenDF: DataFrame): DataFrame = {
+    val df = userAssessmentDF.join(assessChildrenDF, Seq("assessChildID"), "inner")
+
+    show(df)
+    df
+  }
+
+  /**
    * gets user assessment data from cassandra
    *
-   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessUserStatus,
+   * @return DataFrame(courseID, userID, assessChildID, assessStartTime, assessEndTime, assessUserStatus,
    *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion,
    *         assessMaxRetakeAttempts, assessReadStatus,
    *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
    *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
    *         assessPassPercentage,
+   *
+   *         assessID, assessChildName, assessChildDuration, assessChildPrimaryCategory,
+   *         assessChildContentType, assessChildObjectType, assessChildShowTimer, assessChildAllowSkip
    *
    *         assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID,
    *         assessOrgName, assessOrgStatus, assessDuration, assessChildCount,
@@ -1088,11 +1137,11 @@ object DataUtil extends Serializable {
    *         firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp, userOrgID,
    *         userOrgName, userOrgStatus)
    */
-  def userAssessmentDetailsDataFrame(userAssessmentDF: DataFrame, assessWithDetailsDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame, userOrgDF: DataFrame): DataFrame = {
+  def userAssessmentChildrenDetailsDataFrame(userAssessChildrenDF: DataFrame, assessWithDetailsDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame, userOrgDF: DataFrame): DataFrame = {
 
     val courseDF = allCourseProgramDetailsWithRatingDF
       .drop("count1Star", "count2Star", "count3Star", "count4Star", "count5Star")
-    val df = userAssessmentDF
+    val df = userAssessChildrenDF
       .join(assessWithDetailsDF, Seq("assessID"), "left")
       .join(courseDF, Seq("courseID"), "left")
       .join(userOrgDF, Seq("userID"), "left")

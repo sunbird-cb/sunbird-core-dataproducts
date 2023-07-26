@@ -61,18 +61,14 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     // kafka dispatch to dashboard.assessment
     kafkaDispatch(withTimestamp(assessWithDetailsDF, timestamp), conf.assessmentTopic)
 
+    val assessChildrenDF = assessmentChildrenDataFrame(assessWithHierarchyDF)
     val userAssessmentDF = userAssessmentDataFrame()
-    // do assess + user + course de-norm
-    val userAssessmentDetailsDF = userAssessmentDetailsDataFrame(userAssessmentDF, assessWithDetailsDF, allCourseProgramDetailsWithRatingDF, userOrgDF)
+    val userAssessChildrenDF = userAssessmentChildrenDataFrame(userAssessmentDF, assessChildrenDF)
+    val userAssessChildrenDetailsDF = userAssessmentChildrenDetailsDataFrame(userAssessChildrenDF, assessWithDetailsDF,
+      allCourseProgramDetailsWithRatingDF, userOrgDF)
     // kafka dispatch to dashboard.user.assessment
-    kafkaDispatch(withTimestamp(userAssessmentDetailsDF, timestamp), conf.userAssessmentTopic)
+    kafkaDispatch(withTimestamp(userAssessChildrenDetailsDF, timestamp), conf.userAssessmentTopic)
 
-
-    // explode children info also
-    // kafka dispatch to dashboard.assess.content
-
-    // filter what is needed in the report
-    // write report to blob store
 
     closeRedisConnect()
 
