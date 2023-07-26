@@ -319,18 +319,19 @@ object DataUtil extends Serializable {
         col("assessID"), col("assessCategory"), col("assessName"),
         col("assessStatus"), col("assessReviewStatus"), col("assessOrgID"),
         col("assessOrgName"), col("assessOrgStatus"), col("assessDuration"),
-        col("assessChildCount"), col("children"),
+        col("assessChildCount"),
 
-        col("publish_type").alias("assessPublishType"),
-        col("isExternal").alias("assessIsExternal"),
-        col("contentType").alias("assessContentType"),
-        col("objectType").alias("assessObjectType"),
-        col("userConsent").alias("assessUserConsent"),
-        col("visibility").alias("assessVisibility"),
-        col("createdOn").alias("assessCreatedOn"),
-        col("lastUpdatedOn").alias("assessLastUpdatedOn"),
-        col("lastPublishedOn").alias("assessLastPublishedOn"),
-        col("lastSubmittedOn").alias("assessLastSubmittedOn")
+        col("data.children").alias("children"),
+        col("data.publish_type").alias("assessPublishType"),
+        col("data.isExternal").alias("assessIsExternal"),
+        col("data.contentType").alias("assessContentType"),
+        col("data.objectType").alias("assessObjectType"),
+        col("data.userConsent").alias("assessUserConsent"),
+        col("data.visibility").alias("assessVisibility"),
+        col("data.createdOn").alias("assessCreatedOn"),
+        col("data.lastUpdatedOn").alias("assessLastUpdatedOn"),
+        col("data.lastPublishedOn").alias("assessLastPublishedOn"),
+        col("data.lastSubmittedOn").alias("assessLastSubmittedOn")
       )
 
     df = timestampStringToLong(df, Seq("assessCreatedOn", "assessLastUpdatedOn", "assessLastPublishedOn", "assessLastSubmittedOn"))
