@@ -16,6 +16,7 @@ import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
 
+import java.io.Serializable
 import java.util
 import scala.util.Try
 import scala.collection.JavaConversions._
@@ -24,7 +25,7 @@ import scala.collection.mutable.ListBuffer
 case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
 case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
 
-case class DashboardConfig(
+case class DashboardConfig (
     debug: String,
     validation: String,
     // kafka connection config
@@ -42,7 +43,7 @@ case class DashboardConfig(
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
     declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
-    userAssessmentTopic: String,
+    userAssessmentTopic: String, assessmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
@@ -60,7 +61,7 @@ case class DashboardConfig(
     redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String
-)
+) extends Serializable
 
 
 object DashboardUtil extends Serializable {
@@ -68,7 +69,7 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
-  object Test {
+  object Test extends Serializable {
     /**
      * ONLY FOR TESTING!!, do not use to create spark context in model or job
      * */
@@ -392,6 +393,7 @@ object DashboardUtil extends Serializable {
       competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
       userOrgTopic = getConfigSideTopic(config, "userOrg"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
+      assessmentTopic = getConfigSideTopic(config, "assessment"),
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),

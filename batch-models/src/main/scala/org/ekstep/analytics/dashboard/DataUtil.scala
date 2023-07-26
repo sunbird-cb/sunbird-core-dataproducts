@@ -18,8 +18,10 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val query = s"""{"_source":["identifier","name","primaryCategory","status","reviewStatus","channel","duration","leafNodesCount"],"query":{"bool":{"should":[${shouldClause}]}}}"""
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
+    val fieldsClause = fields.mkString(",")
+    val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
+
     elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields)
   }
 
@@ -66,6 +68,14 @@ object DataUtil extends Serializable {
     df.withColumn("completionStatus", expr(caseExpression))
   }
 
+  def timestampStringToLong(df: DataFrame, cols: Seq[String], format: String = "yyyy-MM-dd HH:mm:ss:SSSZ"): DataFrame = {
+    var resDF = df
+    cols.foreach(c => {
+      resDF = resDF.withColumn(c, to_timestamp(col(c), format))
+        .withColumn(c, col(c).cast("long"))
+    })
+    resDF
+  }
 
   /**
    * org data from cassandra
@@ -102,12 +112,7 @@ object DataUtil extends Serializable {
         col("updateddate").alias("userUpdatedTimestamp")
       ).na.fill("", Seq("userOrgID"))
 
-    userDF = userDF
-      .withColumn("userCreatedTimestamp", to_timestamp(col("userCreatedTimestamp"), "yyyy-MM-dd HH:mm:ss:SSSZ"))
-      .withColumn("userCreatedTimestamp", col("userCreatedTimestamp").cast("long"))
-      .withColumn("userUpdatedTimestamp", to_timestamp(col("userUpdatedTimestamp"), "yyyy-MM-dd HH:mm:ss:SSSZ"))
-      .withColumn("userUpdatedTimestamp", col("userUpdatedTimestamp").cast("long"))
-
+    userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
     show(userDF, "User DataFrame")
 
     userDF
@@ -260,6 +265,81 @@ object DataUtil extends Serializable {
   }
 
   /**
+   * All Stand-alone Assessments from elastic search api
+   * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
+   *         assessChildCount)
+   */
+  def assessmentESDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = elasticSearchCourseProgramDataFrame(Seq("Standalone Assessment"))
+
+    // now that error handling is done, proceed with business as usual
+    df = df.select(
+      col("identifier").alias("assessID"),
+      col("primaryCategory").alias("assessCategory"),
+      col("name").alias("assessName"),
+      col("status").alias("assessStatus"),
+      col("reviewStatus").alias("assessReviewStatus"),
+      col("channel").alias("assessOrgID"),
+      col("duration").cast(FloatType).alias("assessDuration"),
+      col("leafNodesCount").alias("assessChildCount")
+    )
+    df = df.dropDuplicates("assessID", "assessCategory")
+    df = df.na.fill(0.0, Seq("assessDuration")).na.fill(0, Seq("assessChildCount"))
+
+
+    show(df, "assessmentESDataFrame")
+    df
+  }
+
+  def assessWithOrgDataFrame(assessmentDF: DataFrame, orgDF: DataFrame): DataFrame = {
+    val assessOrgDF = orgDF.select(
+      col("orgID").alias("assessOrgID"),
+      col("orgName").alias("assessOrgName"),
+      col("orgStatus").alias("assessOrgStatus")
+    )
+    val df = assessmentDF.join(assessOrgDF, Seq("assessOrgID"), "left")
+
+    show(df, "assessWithOrgDataFrame")
+    df
+  }
+
+  /**
+   *
+   * @param assessmentWithOrgDF
+   * @param hierarchyDF
+   * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID,
+   *         assessOrgName, assessOrgStatus, assessDuration, assessChildCount, children,
+   *         assessPublishType, assessIsExternal, assessContentType, assessObjectType, assessUserConsent,
+   *         assessVisibility, assessCreatedOn, assessLastUpdatedOn, assessLastPublishedOn, assessLastSubmittedOn)
+   */
+  def assessWithHierarchyDataFrame(assessmentWithOrgDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+
+    var df = addHierarchyColumn(assessmentWithOrgDF, hierarchyDF, "assessID", "data", children = true)
+      .select(
+        col("assessID"), col("assessCategory"), col("assessName"),
+        col("assessStatus"), col("assessReviewStatus"), col("assessOrgID"),
+        col("assessOrgName"), col("assessOrgStatus"), col("assessDuration"),
+        col("assessChildCount"), col("children"),
+
+        col("publish_type").alias("assessPublishType"),
+        col("isExternal").alias("assessIsExternal"),
+        col("contentType").alias("assessContentType"),
+        col("objectType").alias("assessObjectType"),
+        col("userConsent").alias("assessUserConsent"),
+        col("visibility").alias("assessVisibility"),
+        col("createdOn").alias("assessCreatedOn"),
+        col("lastUpdatedOn").alias("assessLastUpdatedOn"),
+        col("lastPublishedOn").alias("assessLastPublishedOn"),
+        col("lastSubmittedOn").alias("assessLastSubmittedOn")
+      )
+
+    df = timestampStringToLong(df, Seq("assessCreatedOn", "assessLastUpdatedOn", "assessLastPublishedOn", "assessLastSubmittedOn"))
+
+    show(df, "assessWithHierarchyDataFrame")
+    df
+  }
+
+  /**
    * Attach org info to course/program data
    * @param allCourseProgramESDF DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID)
    * @param orgDF DataFrame(orgID, orgName, orgStatus)
@@ -282,7 +362,14 @@ object DataUtil extends Serializable {
   /* schema definitions for courseDetailsDataFrame */
   val hierarchyChildSchema: StructType = StructType(Seq(
     StructField("identifier", StringType, nullable = true),
-    StructField("name", StringType, nullable = true)
+    StructField("name", StringType, nullable = true),
+    StructField("channel", StringType, nullable = true),
+    StructField("duration", StringType, nullable = true),
+    StructField("primaryCategory", StringType, nullable = true),
+    StructField("contentType", StringType, nullable = true),
+    StructField("objectType", StringType, nullable = true),
+    StructField("showTimer", StringType, nullable = true),
+    StructField("allowSkip", StringType, nullable = true)
   ))
 
   def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
@@ -291,7 +378,18 @@ object DataUtil extends Serializable {
       StructField("status", StringType, nullable = true),
       StructField("channel", StringType, nullable = true),
       StructField("duration", StringType, nullable = true),
-      StructField("leafNodesCount", IntegerType, nullable = true)
+      StructField("leafNodesCount", IntegerType, nullable = true),
+      StructField("publish_type", StringType, nullable = true),
+      StructField("isExternal", BooleanType, nullable = true),
+      StructField("contentType", StringType, nullable = true),
+      StructField("objectType", StringType, nullable = true),
+      StructField("userConsent", StringType, nullable = true),
+      StructField("visibility", StringType, nullable = true),
+      StructField("createdOn", StringType, nullable = true),
+      StructField("lastUpdatedOn", StringType, nullable = true),
+      StructField("lastPublishedOn", StringType, nullable = true),
+      StructField("lastSubmittedOn", StringType, nullable = true)
+
     )
     if (children) {
       fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
@@ -907,8 +1005,8 @@ object DataUtil extends Serializable {
   /**
    * gets user assessment data from cassandra
    *
-   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessStatus,
-   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion, assessObjectType, assessName,
+   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessUserStatus,
+   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion
    *         assessMaxRetakeAttempts, assessReadStatus,
    *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
    *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
@@ -921,7 +1019,7 @@ object DataUtil extends Serializable {
         col("assessmentid").alias("assessID"),
         col("starttime").alias("assessStartTime"),
         col("endtime").alias("assessEndTime"),
-        col("status").alias("assessStatus"),
+        col("status").alias("assessUserStatus"),
         col("userid").alias("userID"),
         col("assessmentreadresponse"),
         col("submitassessmentresponse"),
@@ -938,15 +1036,13 @@ object DataUtil extends Serializable {
       col("assessID"),
       col("assessStartTime"),
       col("assessEndTime"),
-      col("assessStatus"),
+      col("assessUserStatus"),
       col("userID"),
 
       col("readResponse.totalQuestions").alias("assessTotalQuestions"),
       col("readResponse.maxQuestions").alias("assessMaxQuestions"),
       col("readResponse.expectedDuration").alias("assessExpectedDuration"),
       col("readResponse.version").alias("assessVersion"),
-      col("readResponse.objectType").alias("assessObjectType"),
-      col("readResponse.name").alias("assessName"),
       col("readResponse.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
       col("readResponse.status").alias("assessReadStatus"),
 
@@ -973,22 +1069,30 @@ object DataUtil extends Serializable {
   /**
    * gets user assessment data from cassandra
    *
-   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessStatus,
-   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion, assessObjectType, assessName,
+   * @return DataFrame(courseID, userID, assessID, assessStartTime, assessEndTime, assessUserStatus,
+   *         assessTotalQuestions, assessMaxQuestions, assessExpectedDuration, assessVersion,
    *         assessMaxRetakeAttempts, assessReadStatus,
    *         assessBatchID, assessPrimaryCategory, assessIsAssessment, assessTimeLimit,
    *         assessResult, assessTotal, assessBlank, assessCorrect, assessIncorrect, assessPass, assessOverallResult,
    *         assessPassPercentage,
+   *
+   *         assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID,
+   *         assessOrgName, assessOrgStatus, assessDuration, assessChildCount,
+   *         assessPublishType, assessIsExternal, assessContentType, assessObjectType, assessUserConsent,
+   *         assessVisibility, assessCreatedOn, assessLastUpdatedOn, assessLastPublishedOn, assessLastSubmittedOn,
+   *
    *         category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
-   *         courseOrgStatus, courseDuration, courseResourceCount, ratingSum, ratingCount, ratingAverage
+   *         courseOrgStatus, courseDuration, courseResourceCount, ratingSum, ratingCount, ratingAverage,
+   *
    *         firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp, userOrgID,
    *         userOrgName, userOrgStatus)
    */
-  def userAssessmentDetailsDataFrame(userAssessmentDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame, userOrgDF: DataFrame): DataFrame = {
+  def userAssessmentDetailsDataFrame(userAssessmentDF: DataFrame, assessWithDetailsDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame, userOrgDF: DataFrame): DataFrame = {
 
     val courseDF = allCourseProgramDetailsWithRatingDF
       .drop("count1Star", "count2Star", "count3Star", "count4Star", "count5Star")
     val df = userAssessmentDF
+      .join(assessWithDetailsDF, Seq("assessID"), "left")
       .join(courseDF, Seq("courseID"), "left")
       .join(userOrgDF, Seq("userID"), "left")
 

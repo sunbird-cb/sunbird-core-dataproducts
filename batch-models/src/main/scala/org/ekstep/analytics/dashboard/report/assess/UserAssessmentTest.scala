@@ -2,7 +2,6 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.ekstep.analytics.dashboard.CompetencyMetricsTest.testModelConfig
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
@@ -23,8 +22,8 @@ object UserAssessmentTest extends Serializable {
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
-      "brokerList" -> "",
-      "compression" -> "",
+      "brokerList" -> "192.168.3.249:9092",
+      "compression" -> "none",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
         "orgRoleUserCount" -> "dev.dashboards.org.role.count",
@@ -36,21 +35,22 @@ object UserAssessmentTest extends Serializable {
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
         "userOrg" -> "dev.dashboards.user.org",
-        "userAssessment" -> "dev.dashboards.user.assessment"
+        "userAssessment" -> "dev.dashboards.user.assessment",
+        "assessment" -> "dev.dashboards.assessment"
       )
     )
     val modelParams = Map(
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "",
+      "redisHost" -> "192.168.3.249",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
-      "sparkCassandraConnectionHost" -> "10.0.0.7",
-      "sparkDruidRouterHost" -> "10.0.0.13",
-      "sparkElasticsearchConnectionHost" -> "10.0.0.7",
-      "fracBackendHost" -> "frac-dictionary-backend.igot-dev.in",
+      "sparkCassandraConnectionHost" -> "192.168.3.211",
+      "sparkDruidRouterHost" -> "192.168.3.91",
+      "sparkElasticsearchConnectionHost" -> "192.168.3.211",
+      "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",

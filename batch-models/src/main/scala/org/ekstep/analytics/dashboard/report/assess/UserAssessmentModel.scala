@@ -2,7 +2,6 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
@@ -50,20 +49,23 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    // userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-    // userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
-    val userAssessmentDF = userAssessmentDataFrame()
+    val assessmentDF = assessmentESDataFrame()
+    val assessmentWithOrgDF = assessWithOrgDataFrame(assessmentDF, orgDF)
+    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentWithOrgDF, hierarchyDF)
+    val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
+    // kafka dispatch to dashboard.assessment
+    kafkaDispatch(withTimestamp(assessWithDetailsDF, timestamp), conf.assessmentTopic)
 
-    // do user + course de-norm
-    val userAssessmentDetailsDF = userAssessmentDetailsDataFrame(userAssessmentDF, allCourseProgramDetailsWithRatingDF, userOrgDF)
-    // kafka dispatch to dashboard.assess
+    val userAssessmentDF = userAssessmentDataFrame()
+    // do assess + user + course de-norm
+    val userAssessmentDetailsDF = userAssessmentDetailsDataFrame(userAssessmentDF, assessWithDetailsDF, allCourseProgramDetailsWithRatingDF, userOrgDF)
+    // kafka dispatch to dashboard.user.assessment
     kafkaDispatch(withTimestamp(userAssessmentDetailsDF, timestamp), conf.userAssessmentTopic)
-    // add hierarchy info
 
 
     // explode children info also
@@ -71,28 +73,6 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // filter what is needed in the report
     // write report to blob store
-
-
-
-//    // org user count
-//    val orgUserCountDF = orgUserCountDataFrame(orgDF, userDF)
-//    // validate activeOrgCount and orgUserCountDF count
-//    validate({orgUserCountDF.count()},
-//      {userOrgDF.filter(expr("userStatus=1 AND userOrgID IS NOT NULL AND userOrgStatus=1")).select("userOrgID").distinct().count()},
-//      "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
-//
-//
-//    // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
-//    val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
-//    kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
-//
-//    // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
-//    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-//    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
-//    validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
-//    kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
-//
-//    val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
     closeRedisConnect()
 

@@ -3,6 +3,7 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.FrameworkContext
+import org.ekstep.analytics.dashboard.CompetencyMetricsModel
 
 
 object CompetencyMetricsTest extends Serializable {
@@ -21,7 +22,7 @@ object CompetencyMetricsTest extends Serializable {
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
-      "brokerList" -> "",
+      "brokerList" -> "192.168.3.249:9092",
       "compression" -> "none",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
@@ -40,14 +41,14 @@ object CompetencyMetricsTest extends Serializable {
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "",
+      "redisHost" -> "192.168.3.249",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
-      "sparkCassandraConnectionHost" -> "10.0.0.7",
-      "sparkDruidRouterHost" -> "10.0.0.13",
-      "sparkElasticsearchConnectionHost" -> "10.0.0.7",
-      "fracBackendHost" -> "frac-dictionary-backend.igot-dev.in",
+      "sparkCassandraConnectionHost" -> "192.168.3.211",
+      "sparkDruidRouterHost" -> "192.168.3.91",
+      "sparkElasticsearchConnectionHost" -> "192.168.3.211",
+      "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
