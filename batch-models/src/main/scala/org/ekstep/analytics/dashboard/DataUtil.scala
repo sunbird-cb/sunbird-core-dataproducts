@@ -1152,4 +1152,32 @@ object DataUtil extends Serializable {
     df
   }
 
+  def userProfileDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+
+    var df = userOrgDF
+    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema1))
+    df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+    df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
+    df
+  }
+
+  val professionalDetailsSchema: StructType = StructType(Seq(
+    StructField("designation", StringType, true),
+    StructField("group", StringType, true)
+  ))
+
+  val additionalPropertiesSchema: StructType = StructType(Seq(
+    StructField("tag", StringType, true),
+    StructField("externalSystemId", StringType, true),
+    StructField("externalSystem", StringType, true)
+  ))
+
+  val profileDetailsSchema1: StructType = StructType(Seq(
+    StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
+    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
+  ))
+
+
+
 }

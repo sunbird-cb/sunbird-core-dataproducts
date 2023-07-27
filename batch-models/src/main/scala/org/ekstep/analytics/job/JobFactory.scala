@@ -2,6 +2,7 @@ package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
+import org.ekstep.analytics.dashboard.report.user.UserReportJob
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob
@@ -31,6 +32,8 @@ object JobFactory {
         CompetencyMetricsJob
       case "assessment-metrics" =>
         UserAssessmentJob
+      case "user-report-job" =>
+        UserReportJob
       case "video-streaming" =>
         VideoStreamingJob
       case "telemetry-replay" =>

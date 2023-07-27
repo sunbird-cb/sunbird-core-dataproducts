@@ -13,6 +13,8 @@ import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
+import org.joda.time.DateTimeZone
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
 
@@ -35,6 +37,11 @@ case class DashboardConfig (
     redisHost: String,
     redisPort: Int,
     redisDB: Int,
+    //
+    store: String,
+    container: String,
+    key: String,
+    secret: String,
     // other hosts connection config
     sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
     sparkElasticsearchConnectionHost: String, fracBackendHost: String,
@@ -105,6 +112,11 @@ object DashboardUtil extends Serializable {
       ((t1 - t0), result)
     }
 
+  }
+
+  def getDate: String = {
+    val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
+    dateFormat.print(System.currentTimeMillis());
   }
 
   /* Util functions */
@@ -376,7 +388,12 @@ object DashboardUtil extends Serializable {
       redisHost = getConfigModelParam(config, "redisHost"),
       redisPort = getConfigModelParam(config, "redisPort").toInt,
       redisDB = getConfigModelParam(config, "redisDB").toInt,
-      // other hosts connection config
+      //
+      store = getConfigModelParam(config, "store"),
+      container = getConfigModelParam(config, "container"),
+      key = getConfigModelParam(config, "key"),
+      secret = getConfigModelParam(config, "secret"),
+        // other hosts connection config
       sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
       sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
       sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
