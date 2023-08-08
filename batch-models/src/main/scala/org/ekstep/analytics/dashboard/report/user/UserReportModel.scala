@@ -4,15 +4,13 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
-
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.framework.StorageConfig
-
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.StorageUtil
-
+import org.ekstep.analytics.dashboard.StorageUtil.{removeFile, renameCSV}
 
 import java.io.File
 
@@ -85,39 +83,14 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
       .save(s"/tmp/user-report/${getDate}/")
 
-    for (id <- ids) {
-      val str = s"/tmp/user-report/${getDate}/mdoid=${id}"
-      val tmpcsv = new File(str)
-      val customized = new File(s"/tmp/user-report/${getDate}/mdoid=${id}/mdoid=${id}.csv")
-
-      val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
-
-      if (tempCsvFileOpt != None) {
-        val finalFile = tempCsvFileOpt.get
-        finalFile.renameTo(customized)
-      }
-    }
-
-
-    //    val storageService = StorageServiceFactory.getStorageService(config)
-    //    try {
-    //      storageService.upload(storageConfig.container, toCSVString(reportData.repartition(5)), s"${objectKey}report-${getDate}", Option(false), Option(5), Option(5))
-    //    } catch {
-    //      case e: Exception => println("max number of attempts ")
-    //    }
-
-
+    removeFile(s"/tmp/user-report/${getDate}/_SUCCESS")
+    renameCSV(ids, s"/tmp/user-report/${getDate}/")
 
     val storageConfig = new StorageConfig(conf.store, conf.container,s"/tmp/user-report/${getDate}")
-    //    val storageService = fc.getStorageService(storageConfig.store, storageConfig.accountKey.getOrElse(conf.key, ""),
-    //      storageConfig.secretKey.getOrElse(conf.secret,""));
-    println("config" + storageConfig.toString)
 
     val storageService = StorageUtil.getStorageService(conf)
-    val stg = storageService.upload(storageConfig.container, s"/tmp/user-report/${getDate}", "object_key", Some(true), Some(0), Some(3), None);
+    storageService.upload(storageConfig.container, s"/tmp/user-report/${getDate}", "object_key", Some(true), Some(0), Some(3), None);
 
-
-    println("response"+stg)
     closeRedisConnect()
   }
 }

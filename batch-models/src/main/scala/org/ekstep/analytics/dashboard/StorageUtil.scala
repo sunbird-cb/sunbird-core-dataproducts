@@ -3,9 +3,12 @@ package org.ekstep.analytics.dashboard
 import org.ekstep.analytics.dashboard.DashboardConfig
 import org.ekstep.analytics.framework.JobConfig
 import org.ekstep.analytics.framework.conf.AppConf
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.sunbird.cloud.storage.BaseStorageService
 import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
+import java.io.File
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 object StorageUtil {
 
@@ -29,6 +32,30 @@ object StorageUtil {
       )
     }
     storageService
+  }
+
+
+  def removeFile(path: String)(implicit spark: SparkSession): Unit = {
+    val successFile = new Path(path)
+    val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+    if (fs.exists(successFile)) {
+      fs.delete(successFile, true)
+    }
+
+  }
+
+  def renameCSV(ids: Array[String], path: String)(): Unit = {
+    for (id <- ids) {
+      val tmpcsv = new File(path + s"mdoid=${id}")
+      val customized = new File(path + s"mdoid=${id}/${id}.csv")
+
+      val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+
+      if (tempCsvFileOpt != None) {
+        val finalFile = tempCsvFileOpt.get
+        finalFile.renameTo(customized)
+      }
+    }
   }
 
 }
