@@ -7,11 +7,10 @@ import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil
-import org.ekstep.analytics.dashboard.StorageUtil.{removeFile, renameCSV}
-import org.ekstep.analytics.framework.{IBatchModelTemplate, _}
+import org.ekstep.analytics.dashboard.StorageUtil._
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 
-import java.io.{File, Serializable}
+import java.io.Serializable
 
 object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
 
@@ -83,22 +82,22 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df.show()
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/user-enrollment-report/${getDate}/")
+      .save(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     // remove _SUCCESS file
-    removeFile(s"/tmp/user-enrollment-report/${getDate}/_SUCCESS")
+    removeFile(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/_SUCCESS")
 
     // rename csv
-    renameCSV(ids, s"/tmp/user-enrollment-report/${getDate}/")
+    renameCSV(ids, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
 
     //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, s"/tmp/user-enrollment-report/${getDate}")
-    val storageService = StorageUtil.getStorageService(conf)
+    val storageConfig = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}")
+    val storageService = getStorageService(conf)
 
-    storageService.upload(storageConfig.container, s"/tmp/user-enrollment-report/${getDate}/",
+    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/",
       s"standalone-reports/user-enrollment-report/${getDate}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()

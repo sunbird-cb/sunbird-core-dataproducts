@@ -1,7 +1,5 @@
 package org.ekstep.analytics.dashboard
 
-import org.ekstep.analytics.dashboard.DashboardConfig
-import org.ekstep.analytics.framework.JobConfig
 import org.ekstep.analytics.framework.conf.AppConf
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.storage.CustomS3StorageService

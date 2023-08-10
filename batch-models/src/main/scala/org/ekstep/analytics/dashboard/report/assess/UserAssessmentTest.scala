@@ -5,7 +5,6 @@ import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-
 object UserAssessmentTest extends Serializable {
 
   def main(args: Array[String]): Unit = {
@@ -63,6 +62,11 @@ object UserAssessmentTest extends Serializable {
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraUserAssessmentTable" -> "user_assessment_data",
+
+      "store" -> "s3",
+      "container" -> "igot",
+      "key" -> "aws_storage_key",
+      "secret" -> "aws_storage_secret",
 
       "sideOutput" -> sideOutput
     )

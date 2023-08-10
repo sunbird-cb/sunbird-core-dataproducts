@@ -2,11 +2,13 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.framework.{IBatchModelTemplate, _}
+import org.ekstep.analytics.dashboard.StorageUtil._
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 
 import java.io.Serializable
 
@@ -69,6 +71,57 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     // kafka dispatch to dashboard.user.assessment
     kafkaDispatch(withTimestamp(userAssessChildrenDetailsDF, timestamp), conf.userAssessmentTopic)
 
+    userAssessChildrenDetailsDF.show()
+
+    var df = userAssessChildrenDetailsDF
+    df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+
+    df = df.select(
+      col("fullName"),
+      col("assessPrimaryCategory").alias("type"),
+      col("assessName").alias("assessmentName"),
+      col("assessStatus").alias("assessmentStatus"),
+      col("assessPassPercentage").alias("percentageScore"),
+      col("maskedEmail").alias("email"),
+      col("maskedPhone").alias("phone"),
+      col("userOrgName").alias("provider"),
+      col("userOrgID").alias("mdoid")
+    )
+
+    import spark.implicits._
+    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
+
+    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
+      .save(s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/")
+
+    // remove the _SUCCESS file
+    removeFile(s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/_SUCCESS")
+
+    //rename the csv file
+    renameCSV(ids, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/")
+
+    // upload mdo files - s3://{container}/standalone-reports/user-assessment-report-mdo/{date}/mdoid={mdoid}/{mdoid}.csv
+    val storageConfigMdo = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}")
+    val storageService = getStorageService(conf)
+
+    storageService.upload(storageConfigMdo.container, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/",
+      s"standalone-reports/user-assessment-report-mdo/${getDate}/", Some(true), Some(0), Some(3), None)
+
+
+    var dfCBP = df.drop("provider", "type")
+
+    val cbpids = dfCBP.select("mdoid").map(row => row.getString(0)).collect().toArray
+
+    dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
+      .save(s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/")
+
+    removeFile(s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/_SUCCESS")
+    renameCSV(cbpids, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/")
+
+    // upload cbp files - s3://{container}/standalone-reports/user-assessment-report-cbp/{date}/mdoid={mdoid}/{mdoid}.csv
+    val storageConfigCbp = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}")
+    storageService.upload(storageConfigCbp.container, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/",
+      s"standalone-reports/user-assessment-report-cbp/${getDate}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()
 
