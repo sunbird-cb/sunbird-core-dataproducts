@@ -381,8 +381,10 @@ object DataUtil extends Serializable {
     val fields = ListBuffer(
       StructField("name", StringType, nullable = true),
       StructField("status", StringType, nullable = true),
+      StructField("reviewStatus", StringType, nullable = true),
       StructField("channel", StringType, nullable = true),
       StructField("duration", StringType, nullable = true),
+      StructField("primaryCategory", StringType, nullable = true),
       StructField("leafNodesCount", IntegerType, nullable = true),
       StructField("publish_type", StringType, nullable = true),
       StructField("isExternal", BooleanType, nullable = true),
