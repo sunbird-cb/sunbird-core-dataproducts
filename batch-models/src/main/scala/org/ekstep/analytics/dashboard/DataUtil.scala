@@ -255,7 +255,7 @@ object DataUtil extends Serializable {
       col("status").alias("courseStatus"),
       col("reviewStatus").alias("courseReviewStatus"),
       col("channel").alias("courseOrgID"),
-      col("lastPublishedOn")
+      col("lastPublishedOn").alias("courseLastPublishedOn")
       // col("duration").alias("courseDuration"),
       // col("leafNodesCount").alias("courseResourceCount")
     )
@@ -434,7 +434,7 @@ object DataUtil extends Serializable {
       col("data.duration").cast(FloatType).alias("courseDuration"),
       col("data.leafNodesCount").alias("courseResourceCount"),
       col("data.competencies_v3").alias("competenciesJson"),
-      col("lastPublishedOn")
+      col("courseLastPublishedOn")
     )
     df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
 

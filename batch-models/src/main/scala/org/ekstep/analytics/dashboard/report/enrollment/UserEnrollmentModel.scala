@@ -72,7 +72,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("courseName"),
       col("courseDuration").alias("duration"),
       col("courseOrgName"),
-      col("lastPublishedOn"),
+      col("courseLastPublishedOn").alias("lastPublishedOn"),
       col("courseStatus").alias("status"),
       col("courseProgress").alias("completionPercentage"),
       col("courseCompletedTimestamp").alias("completedOn"),
