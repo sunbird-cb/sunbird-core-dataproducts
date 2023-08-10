@@ -4,17 +4,11 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
-
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
-import org.ekstep.analytics.framework.StorageConfig
-
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil
-
-
-import java.io.File
+import org.ekstep.analytics.dashboard.StorageUtil._
 
 object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
@@ -77,47 +71,23 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     show(df)
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/user-report/${getDate}/")
+      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/user-report/${getDate}/")
+      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
 
-    for (id <- ids) {
-      val str = s"/tmp/user-report/${getDate}/mdoid=${id}"
-      val tmpcsv = new File(str)
-      val customized = new File(s"/tmp/user-report/${getDate}/mdoid=${id}/mdoid=${id}.csv")
+    removeFile(s"/tmp/standalone-reports/user-report/${getDate}/_SUCCESS")
+    renameCSV(ids, s"/tmp/standalone-reports/user-report/${getDate}/")
 
-      val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+    val storageConfig = new StorageConfig(conf.store, conf.container,s"/tmp/standalone-reports/user-report/${getDate}")
 
-      if (tempCsvFileOpt != None) {
-        val finalFile = tempCsvFileOpt.get
-        finalFile.renameTo(customized)
-      }
-    }
+    val storageService = getStorageService(conf)
+    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-report/${getDate}",
+      s"standalone-reports/user-report/${getDate}/", Some(true), Some(0), Some(3), None);
 
-
-    //    val storageService = StorageServiceFactory.getStorageService(config)
-    //    try {
-    //      storageService.upload(storageConfig.container, toCSVString(reportData.repartition(5)), s"${objectKey}report-${getDate}", Option(false), Option(5), Option(5))
-    //    } catch {
-    //      case e: Exception => println("max number of attempts ")
-    //    }
-
-
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,s"/tmp/user-report/${getDate}")
-    //    val storageService = fc.getStorageService(storageConfig.store, storageConfig.accountKey.getOrElse(conf.key, ""),
-    //      storageConfig.secretKey.getOrElse(conf.secret,""));
-    println("config" + storageConfig.toString)
-
-    val storageService = StorageUtil.getStorageService(conf)
-    val stg = storageService.upload(storageConfig.container, s"/tmp/user-report/${getDate}", "object_key", Some(true), Some(0), Some(3), None);
-
-
-    println("response"+stg)
     closeRedisConnect()
   }
 }

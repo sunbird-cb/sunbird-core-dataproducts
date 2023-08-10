@@ -7,7 +7,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
-
 import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
@@ -18,7 +17,7 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
@@ -106,8 +105,10 @@ object DataUtil extends Serializable {
         col("firstname").alias("firstName"),
         col("lastname").alias("lastName"),
         col("maskedemail").alias("maskedEmail"),
+        col("maskedphone").alias("maskedPhone"),
         col("rootorgid").alias("userOrgID"),
         col("status").alias("userStatus"),
+        col("profiledetails").alias("userProfileDetails"),
         col("createddate").alias("userCreatedTimestamp"),
         col("updateddate").alias("userUpdatedTimestamp")
       ).na.fill("", Seq("userOrgID"))
@@ -241,7 +242,7 @@ object DataUtil extends Serializable {
 
   /**
    * All courses/programs from elastic search api
-   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID)
+   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
    */
   def allCourseProgramESDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = elasticSearchCourseProgramDataFrame(primaryCategories)
@@ -253,7 +254,8 @@ object DataUtil extends Serializable {
       col("name").alias("courseName"),
       col("status").alias("courseStatus"),
       col("reviewStatus").alias("courseReviewStatus"),
-      col("channel").alias("courseOrgID")
+      col("channel").alias("courseOrgID"),
+      col("lastPublishedOn").alias("courseLastPublishedOn")
       // col("duration").alias("courseDuration"),
       // col("leafNodesCount").alias("courseResourceCount")
     )
@@ -431,11 +433,12 @@ object DataUtil extends Serializable {
 
       col("data.duration").cast(FloatType).alias("courseDuration"),
       col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.competencies_v3").alias("competenciesJson")
+      col("data.competencies_v3").alias("competenciesJson"),
+      col("courseLastPublishedOn")
     )
     df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
 
-    show(df, "allCourseProgramDetailsWithCompetenciesJsonDataFrame() = (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)")
+    show(df, "allCourseProgramDetailsWithCompetenciesJsonDataFrame() = (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson, lastPublishedOn)")
     df
   }
 
