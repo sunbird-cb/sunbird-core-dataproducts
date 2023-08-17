@@ -58,6 +58,7 @@ case class DashboardConfig (
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
+    cassandraRatingTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -422,6 +423,7 @@ object DashboardUtil extends Serializable {
       cassandraUserEnrolmentsTable = getConfigModelParam(config, "cassandraUserEnrolmentsTable"),
       cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
       cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
+      cassandraRatingTable = getConfigModelParam(config, "cassandraRatingTable"),
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",

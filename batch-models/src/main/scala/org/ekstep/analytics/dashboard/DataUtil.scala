@@ -613,6 +613,32 @@ object DataUtil extends Serializable {
   }
 
   /**
+   * data frame of  rating table
+   *
+   * @return DataFrame(activityid, activitytype, userid, comment, commentby, commentupdatedon, createdon, rating, review, updatedon)
+   */
+  def courseRatingTableDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingTable)
+      .where(expr("total_number_of_ratings > 0"))
+      .withColumn("ratingAverage", expr("sum_of_total_ratings / total_number_of_ratings"))
+      .select(
+        col("activityid"),
+        col("activitytype"),
+        col("userid"),
+        col("comment"),
+        col("commentby"),
+        col("commentupdatedon"),
+        col("createdon"),
+        col("rating"),
+        col("review"),
+        col("updatedon")
+      )
+    show(df, "ratingDataFrame ")
+
+    df
+  }
+
+  /**
    * add course rating columns to course detail data-frame
    * @param allCourseProgramDetailsDF course details data frame -
    *                                  DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID,
