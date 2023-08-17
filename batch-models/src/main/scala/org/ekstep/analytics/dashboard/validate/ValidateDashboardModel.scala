@@ -104,17 +104,22 @@ object ValidateDashboardModel extends IBatchModelTemplate[String, DummyInput, Du
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    // get user org data frames, no filtering is done here
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
+    // get all rows from user_enrolments table, only filtering out active=false
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
 
-    val courseIDs = userCourseProgramCompletionDF.select(
-      col("courseID")).distinct()
-
+    // get the content hierarchy table
     val hierarchyDF = contentHierarchyDataFrame()
 
-    val filteredHierarchyDF = addHierarchyColumn(courseIDs, hierarchyDF, "courseID", "data")
+    // get only the ids in enrolments table to filter the hierarchy table
+    val progressCourseIDs = userCourseProgramCompletionDF.select(col("courseID")).distinct()
 
+    // get filtered hierarchy
+    val filteredHierarchyDF = addHierarchyColumn(progressCourseIDs, hierarchyDF, "courseID", "data")
+
+    // prepare org df for clean joining
     val courseJoinOrgDF = orgDF.select(
       col("orgID").alias("courseOrgID"),
       col("orgName").alias("courseOrgName"),

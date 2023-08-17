@@ -3,20 +3,21 @@ package org.ekstep.analytics.dashboard.validate
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.FrameworkContext
+import org.ekstep.analytics.dashboard.DashboardUtil
 
 
 object ValidateDashboardTest extends Serializable {
 
   def main(args: Array[String]): Unit = {
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CompetencyMetricsTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("ValidateDashboardTest", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    ValidateDashboardModel.processCompetencyMetricsData(System.currentTimeMillis(), config)
+    ValidateDashboardModel.processData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

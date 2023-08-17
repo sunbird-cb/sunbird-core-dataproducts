@@ -413,6 +413,18 @@ object DataUtil extends Serializable {
       .select(col("identifier"), col("hierarchy"))
   }
 
+  /**
+   * Adds hierarchy column, parses json and adds it as a column
+   * @param df dataframe to add column to
+   * @param hierarchyDF hierarchy table dataframe
+   * @param idCol
+   * @param asCol
+   * @param children
+   * @param competencies
+   * @param spark
+   * @param conf
+   * @return
+   */
   def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
                          children: Boolean = false, competencies: Boolean = false
                         )(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -636,6 +648,8 @@ object DataUtil extends Serializable {
 
 
   /**
+   * Despite the name this gets all rows from user_enrolments table, only filtering out active=false
+   * 'active' column was added to the db to fix the issue of duplicate rows in this table
    *
    * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    */
