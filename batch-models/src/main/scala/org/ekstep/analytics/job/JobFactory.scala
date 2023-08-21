@@ -36,7 +36,7 @@ object JobFactory {
         UserAssessmentJob
       case "user-report" =>
         UserReportJob
-      case "user-enrollment" =>
+      case "user-enrollment-report" =>
         UserEnrollmentJob
       case "course-report" =>
         CourseReportJob
