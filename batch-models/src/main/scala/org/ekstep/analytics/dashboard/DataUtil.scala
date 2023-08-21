@@ -1,9 +1,10 @@
 package org.ekstep.analytics.dashboard
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions.{col, countDistinct, explode, explode_outer, expr, from_json, last, lit, lower, max, to_timestamp, udf}
 import DashboardUtil._
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
@@ -1180,6 +1181,18 @@ object DataUtil extends Serializable {
     StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
     StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
   ))
+
+  def mdoIDsDF(mdoID: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
+    val mdoIDs = mdoID.split(",").map(_.toString).distinct
+    val rdd = sc.parallelize(mdoIDs)
+
+    val rowRDD: RDD[Row] = rdd.map(t => Row(t))
+
+    val schema = new StructType()
+      .add(StructField("orgID", StringType, false))
+    val df = spark.createDataFrame(rowRDD, schema)
+    df
+  }
 
 
 

@@ -37,7 +37,7 @@ case class DashboardConfig (
     redisHost: String,
     redisPort: Int,
     redisDB: Int,
-    //
+    // for blob storage
     store: String,
     container: String,
     key: String,
@@ -67,7 +67,10 @@ case class DashboardConfig (
     redisUserCompetencyGapCount: String, redisUserCourseEnrollmentCount: String,
     redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
-    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String
+    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+
+    // for reports
+    mdoIDs: String
 ) extends Serializable
 
 
@@ -388,7 +391,7 @@ object DashboardUtil extends Serializable {
       redisHost = getConfigModelParam(config, "redisHost"),
       redisPort = getConfigModelParam(config, "redisPort").toInt,
       redisDB = getConfigModelParam(config, "redisDB").toInt,
-      //
+      //for blob storage
       store = getConfigModelParam(config, "store"),
       container = getConfigModelParam(config, "container"),
       key = getConfigModelParam(config, "key"),
@@ -440,7 +443,11 @@ object DashboardUtil extends Serializable {
       redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
-      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate"
+      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
+
+      // for reports
+      mdoIDs = getConfigModelParam(config, "mdoIDs")
+
     )
   }
   /* Config functions end */

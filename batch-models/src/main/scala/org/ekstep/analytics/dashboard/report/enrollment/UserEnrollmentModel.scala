@@ -49,16 +49,24 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    val reportPath = s"/tmp/standalone-reports/user-enrollment-report/${getDate}/"
+
     val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     val org = orgDataFrame();
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
       contentDataFrames(org, false, false)
+
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    // get the mdoids for which the report are requesting
+    val mdoID = conf.mdoIDs
+    val mdoIDDF = mdoIDsDF(mdoID)
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
 
-    var df = allCourseData.join(userDataDF, Seq("userID"), "inner")
-
+    var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
     df = df.withColumn("rating", round(col("ratingAverage"), 1))
 
     df = df.select(
@@ -82,22 +90,22 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df.show()
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
+      .save(reportPath)
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     // remove _SUCCESS file
-    removeFile(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/_SUCCESS")
+    removeFile(reportPath + "_SUCCESS")
 
     // rename csv
-    renameCSV(ids, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
+    renameCSV(ids, reportPath)
 
     //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}")
+    val storageConfig = new StorageConfig(conf.store, conf.container, reportPath)
     val storageService = getStorageService(conf)
 
-    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/",
+    storageService.upload(storageConfig.container, reportPath,
       s"standalone-reports/user-enrollment-report/${getDate}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()

@@ -51,12 +51,22 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    val reportPath = s"/tmp/standalone-reports/user-report/${getDate}/"
+
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
     val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
-    var df = userDataDF.join(userRolesDF, Seq("userID"), "inner")
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
-    df = df.select(
+    // get the mdoids for which the report are requesting
+    val mdoID = conf.mdoIDs
+    val mdoIDDF = mdoIDsDF(mdoID)
+
+    var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+
+    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "inner")
+
+    df = df.filter(df("userOrgStatus").equalTo(1)).select(
       col("fullName"),
       col("professionalDetails.designation").alias("designation"),
       col("userOrgName").alias("orgName"),
@@ -68,24 +78,20 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("additionalProperties.externalSystemId"),
       col("additionalProperties.externalSystem")
     )
-    show(df)
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
+      .save(reportPath)
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
+    removeFile(reportPath + "_SUCCESS")
+    renameCSV(ids, reportPath)
 
-    removeFile(s"/tmp/standalone-reports/user-report/${getDate}/_SUCCESS")
-    renameCSV(ids, s"/tmp/standalone-reports/user-report/${getDate}/")
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,s"/tmp/standalone-reports/user-report/${getDate}")
+    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
 
     val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-report/${getDate}",
+    storageService.upload(storageConfig.container, reportPath,
       s"standalone-reports/user-report/${getDate}/", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()

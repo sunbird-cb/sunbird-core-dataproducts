@@ -49,6 +49,9 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/"
+    val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/"
+
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
@@ -71,9 +74,15 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     // kafka dispatch to dashboard.user.assessment
     kafkaDispatch(withTimestamp(userAssessChildrenDetailsDF, timestamp), conf.userAssessmentTopic)
 
-    userAssessChildrenDetailsDF.show()
-
     var df = userAssessChildrenDetailsDF
+
+    // get the mdoids for which the report are requesting
+    val mdoID = conf.mdoIDs
+    val mdoIDDF = mdoIDsDF(mdoID)
+
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+
+    df = df.join(mdoData, Seq("userOrgID"), "inner")
     df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
 
     df = df.select(
@@ -92,19 +101,19 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/")
+      .save(reportPathMDO)
 
     // remove the _SUCCESS file
-    removeFile(s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/_SUCCESS")
+    removeFile(reportPathMDO + "_SUCCESS")
 
     //rename the csv file
-    renameCSV(ids, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/")
+    renameCSV(ids, reportPathMDO)
 
     // upload mdo files - s3://{container}/standalone-reports/user-assessment-report-mdo/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigMdo = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}")
+    val storageConfigMdo = new StorageConfig(conf.store, conf.container, reportPathMDO)
     val storageService = getStorageService(conf)
 
-    storageService.upload(storageConfigMdo.container, s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/",
+    storageService.upload(storageConfigMdo.container, reportPathMDO,
       s"standalone-reports/user-assessment-report-mdo/${getDate}/", Some(true), Some(0), Some(3), None)
 
 
@@ -113,14 +122,14 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val cbpids = dfCBP.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/")
+      .save(reportPathCBP)
 
-    removeFile(s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/_SUCCESS")
-    renameCSV(cbpids, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/")
+    removeFile(reportPathCBP + "_SUCCESS")
+    renameCSV(cbpids, reportPathCBP)
 
     // upload cbp files - s3://{container}/standalone-reports/user-assessment-report-cbp/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigCbp = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}")
-    storageService.upload(storageConfigCbp.container, s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/",
+    val storageConfigCbp = new StorageConfig(conf.store, conf.container, reportPathCBP)
+    storageService.upload(storageConfigCbp.container, reportPathCBP,
       s"standalone-reports/user-assessment-report-cbp/${getDate}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()
