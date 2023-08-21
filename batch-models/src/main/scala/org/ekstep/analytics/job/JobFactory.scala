@@ -34,11 +34,11 @@ object JobFactory {
         CompetencyMetricsJob
       case "assessment-metrics" =>
         UserAssessmentJob
-      case "user-report-job" =>
+      case "user-report" =>
         UserReportJob
-      case "user-enrollment-job" =>
+      case "user-enrollment" =>
         UserEnrollmentJob
-      case "course-report-job" =>
+      case "course-report" =>
         CourseReportJob
       case "video-streaming" =>
         VideoStreamingJob
