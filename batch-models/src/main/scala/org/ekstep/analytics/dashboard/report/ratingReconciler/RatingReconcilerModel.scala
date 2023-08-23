@@ -11,7 +11,7 @@ import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 
 object RatingReconcilerModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.user.RatingReconcilerModel"
   implicit var debug: Boolean = false
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
@@ -67,18 +67,17 @@ object RatingReconcilerModel extends IBatchModelTemplate[String, DummyInput, Dum
         sum("rating").alias("sum_of_total_ratings"),
         count("userid").alias("total_number_of_ratings"),
         sum(when(col("rating") === 1, 1).otherwise(0)).alias("totalcount1stars"),
-        sum(when(col("rating") === 2, 1).otherwise(0)).alias("totalcount1stars"),
+        sum(when(col("rating") === 2, 1).otherwise(0)).alias("totalcount2stars"),
         sum(when(col("rating") === 3, 1).otherwise(0)).alias("totalcount3stars"),
         sum(when(col("rating") === 4, 1).otherwise(0)).alias("totalcount4stars"),
-        sum(when(col("rating") === 5, 1).otherwise(0)).alias("totalcount5stars"),
-        sum(when(col("rating") === 5, 1).otherwise(0)).alias("totalcount5stars1")
+        sum(when(col("rating") === 5, 1).otherwise(0)).alias("totalcount5stars")
        )
     show(aggDF)
 
     aggDF.write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "rating", "keyspace" -> "sunbird"))
-      .mode("update")
+      .mode("append")
       .save()
 
   //  closeRedisConnect()

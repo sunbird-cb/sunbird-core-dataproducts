@@ -619,9 +619,7 @@ object DataUtil extends Serializable {
    */
   def courseRatingTableDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingTable)
-      .where(expr("total_number_of_ratings > 0"))
-      .withColumn("ratingAverage", expr("sum_of_total_ratings / total_number_of_ratings"))
-      .select(
+       .select(
         col("activityid"),
         col("activitytype"),
         col("userid"),
