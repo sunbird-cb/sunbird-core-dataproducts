@@ -6,7 +6,9 @@ import DashboardUtil._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
+import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.FrameworkContext
+
 import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
@@ -38,7 +40,7 @@ object DataUtil extends Serializable {
       println(s"ERROR: fracCompetencyAPI returned empty string")
       return None
     }
-    val df = dataFrameFromJSONString(result)  // parse json string
+    val df = dataFrameFromJSONString(result).persist(StorageLevel.MEMORY_ONLY)  // parse json string
     if (df.isEmpty) {
       println(s"ERROR: druidSQLAPI json parse result is empty")
       return None
@@ -166,7 +168,7 @@ object DataUtil extends Serializable {
       col("userID"), col("userStatus"),
       col("userOrgID"), col("userOrgName"), col("userOrgStatus")
     )
-    val userOrgRoleDF = joinUserOrgDF.join(roleDF, Seq("userID"), "left").where(expr("userStatus=1 AND userOrgStatus=1"))
+    val userOrgRoleDF = joinUserOrgDF.join(roleDF, Seq("userID"), "left")
     show(userOrgRoleDF)
 
     userOrgRoleDF
@@ -178,7 +180,9 @@ object DataUtil extends Serializable {
    * @return DataFrame(role, count)
    */
   def roleCountDataFrame(userOrgRoleDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val roleCountDF = userOrgRoleDF.groupBy("role").agg(countDistinct("userID").alias("count"))
+    val roleCountDF = userOrgRoleDF
+      .where(expr("userStatus=1 AND userOrgStatus=1"))
+      .groupBy("role").agg(countDistinct("userID").alias("count"))
     show(roleCountDF)
 
     roleCountDF
@@ -190,13 +194,16 @@ object DataUtil extends Serializable {
    * @return DataFrame(orgID, orgName, role, count)
    */
   def orgRoleCountDataFrame(userOrgRoleDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val orgRoleCount = userOrgRoleDF.groupBy("userOrgID", "role").agg(
-      last("userOrgName").alias("orgName"),
-      countDistinct("userID").alias("count")
-    ).select(
-      col("userOrgID").alias("orgID"),
-      col("orgName"), col("role"), col("count")
-    )
+    val orgRoleCount = userOrgRoleDF
+      .where(expr("userStatus=1 AND userOrgStatus=1"))
+      .groupBy("userOrgID", "userOrgName", "role")
+      .agg(countDistinct("userID").alias("count"))
+      .select(
+        col("userOrgID").alias("orgID"),
+        col("userOrgName").alias("orgName"),
+        col("role"), col("count")
+      )
+
     show(orgRoleCount)
 
     orgRoleCount
@@ -441,16 +448,20 @@ object DataUtil extends Serializable {
    */
   def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = addHierarchyColumn(allCourseProgramDF, hierarchyDF, "courseID", "data", competencies = true)
-    df = df.select(
-      col("courseID"), col("category"), col("courseName"), col("courseStatus"),
-      col("courseReviewStatus"), col("courseOrgID"), col("courseOrgName"), col("courseOrgStatus"),
 
-      col("data.duration").cast(FloatType).alias("courseDuration"),
-      col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.competencies_v3").alias("competenciesJson"),
-      col("courseLastPublishedOn")
-    )
-    df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
+    df = df
+      .withColumn("courseName", col("data.name"))
+      .withColumn("courseStatus", col("data.status"))
+      .withColumn("courseDuration", col("data.duration").cast(FloatType))
+      .withColumn("category", col("data.primaryCategory"))
+      .withColumn("courseReviewStatus", col("data.reviewStatus"))
+      .withColumn("courseResourceCount", col("data.leafNodesCount"))
+      .withColumn("competenciesJson", col("data.competencies_v3"))
+
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
+      .drop("data")
 
     show(df, "allCourseProgramDetailsWithCompetenciesJsonDataFrame() = (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson, lastPublishedOn)")
     df
@@ -674,6 +685,38 @@ object DataUtil extends Serializable {
     df
   }
 
+  def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, "user_content_consumption")
+      .select(
+        col("userid").alias("userID"),
+        col("courseid").alias("courseID"),
+        col("batchid").alias("batchID"),
+        col("contentid").alias("contentID"),
+        col("completionpercentage").alias("contentCompletionPercentage"),
+        col("status").alias("contentConsumptionStatus")
+      )
+      .withColumn("contentCompletionPercentage", expr("CASE WHEN contentConsumptionStatus=2 THEN 100.0 ELSE contentCompletionPercentage END"))
+      .na.fill(0.0, Seq("contentCompletionPercentage"))
+
+    show(df)
+    df
+  }
+
+  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
+      .withColumn("contentDuration", col("data.duration"))
+      .na.fill(0.0, Seq("contentDuration"))
+      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
+
+    show(df)
+
+    df = df.groupBy("userID", "courseID", "batchID")
+      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
+
+    show(df)
+    df
+  }
+
   /**
    * get course completion data with details attached
    * @param userCourseProgramCompletionDF  DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
@@ -701,6 +744,18 @@ object DataUtil extends Serializable {
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")
 
+    df
+  }
+
+  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val userContentConsumptionDF = userContentConsumptionDataFrame()
+    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
+
+    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
+      .na.fill(0.0, Seq("courseDurationCompleted"))
+      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
+
+    show(df, "addCourseDurationCompletedColumns")
     df
   }
 

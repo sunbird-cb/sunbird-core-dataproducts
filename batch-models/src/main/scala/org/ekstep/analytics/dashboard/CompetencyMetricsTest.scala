@@ -3,7 +3,6 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.FrameworkContext
-import org.ekstep.analytics.dashboard.CompetencyMetricsModel
 
 
 object CompetencyMetricsTest extends Serializable {

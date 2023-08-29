@@ -3,9 +3,8 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, countDistinct, expr, last}
+import org.apache.spark.sql.functions.{avg, col, countDistinct, expr, last}
 import org.ekstep.analytics.framework._
-
 import DashboardUtil._
 import DataUtil._
 
@@ -137,7 +136,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+    var allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+    allCourseProgramCompletionWithDetailsDF = addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF, hierarchyDF)
+
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 

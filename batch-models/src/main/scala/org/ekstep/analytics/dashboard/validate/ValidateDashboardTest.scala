@@ -22,7 +22,7 @@ object ValidateDashboardTest extends Serializable {
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
-      "brokerList" -> "192.168.3.249:9092",
+      "brokerList" -> "",
       "compression" -> "none",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
@@ -41,18 +41,18 @@ object ValidateDashboardTest extends Serializable {
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "192.168.3.249",
+      "redisHost" -> "",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
-      "sparkCassandraConnectionHost" -> "192.168.3.211",
-      "sparkDruidRouterHost" -> "192.168.3.91",
-      "sparkElasticsearchConnectionHost" -> "192.168.3.211",
-      "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
+      "sparkCassandraConnectionHost" -> "192.168.3.200",
+      "sparkDruidRouterHost" -> "192.168.3.21",
+      "sparkElasticsearchConnectionHost" -> "192.168.3.90",
+      "fracBackendHost" -> "frac-dictionary.igotkarmayogi.gov.in",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
-      "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
+      "cassandraHierarchyStoreKeyspace" -> "prod_hierarchy_store",
 
       "cassandraUserTable" -> "user",
       "cassandraUserRolesTable" -> "user_roles",
