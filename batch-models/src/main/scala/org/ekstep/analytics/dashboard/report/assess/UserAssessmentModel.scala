@@ -85,7 +85,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.join(mdoData, Seq("userOrgID"), "inner")
     df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
 
-    df = df.select(
+    df = df.dropDuplicates("userID").select(
       col("fullName"),
       col("assessPrimaryCategory").alias("type"),
       col("assessName").alias("assessmentName"),

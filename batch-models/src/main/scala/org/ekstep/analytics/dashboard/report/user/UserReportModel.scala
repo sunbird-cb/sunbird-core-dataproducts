@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.user
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.functions.{coalesce, col, expr, from_unixtime, lit}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
@@ -55,8 +55,12 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+
+    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+      coalesce(col("lastName"), lit(""))))
+
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val orgHierarchyData = orgHierarchyDataframe()
 
     // get the mdoids for which the report are requesting
     val mdoID = conf.mdoIDs
@@ -64,21 +68,29 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "inner")
+    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "left")
+      .join(orgHierarchyData, Seq("userOrgName"),"left")
 
-    df = df.filter(df("userOrgStatus").equalTo(1)).select(
-      col("fullName"),
-      col("professionalDetails.designation").alias("designation"),
-      col("userOrgName").alias("orgName"),
-      col("userOrgID").alias("mdoid"),
-      col("userUpdatedTimestamp").alias("createdDate"),
-      col("additionalProperties.tag").alias("tag"),
-      col("professionalDetails.group").alias("group"),
-      col("role").alias("roles"),
-      col("additionalProperties.externalSystemId"),
-      col("additionalProperties.externalSystem")
+    df = df.where(expr("userStatus=1"))
+
+    df = df.dropDuplicates("userID").select(
+      col("fullName").alias("Full_Name"),
+      col("professionalDetails.designation").alias("Designation"),
+      col("maskedEmail").alias("Email"),
+      col("maskedPhone").alias("Phone_Number"),
+      col("professionalDetails.group").alias("Group"),
+      col("additionalProperties.tag").alias("Tags"),
+      col("ministry_name").alias("Ministry"),
+      col("dept_name").alias("Department"),
+      col("userOrgName").alias("Organization"),
+      from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
+      col("role").alias("Roles"),
+      col("personalDetails.gender").alias("Gender"),
+      col("personalDetails.category").alias("Category"),
+      col("additionalProperties.externalSystem").alias("External_System"),
+      col("additionalProperties.externalSystemId").alias("External_System_Id"),
+      col("userOrgID").alias("mdoid")
     )
-
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
       .save(reportPath)
 

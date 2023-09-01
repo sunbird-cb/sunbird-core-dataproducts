@@ -2,8 +2,8 @@ package org.ekstep.analytics.dashboard.report.course
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, countDistinct, expr}
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, from_unixtime, lit, round}
+import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 import org.ekstep.analytics.dashboard.DashboardUtil._
@@ -53,26 +53,30 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     val reportPath = s"/tmp/standalone-reports/course-report/${getDate}/"
 
-    // obtain user org data
+    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+      coalesce(col("lastName"), lit(""))))
+    val userEnrolmentDF = userCourseProgramCompletionDataFrame()
+    val org = orgDataFrame();
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
-    // get course details, with rating info
-    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
+      contentDataFrames(org, false, false)
 
-    val courseRatingDF = courseRatingSummaryDataFrame()
-    val courseDataWithRating =  allCourseProgramCompletionWithDetailsDF.join(courseRatingDF, Seq("courseID"), "inner")
-
-    val courseDetailsWithCompletionStatus = withCompletionStatusColumn(courseDataWithRating)
+    //    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
+      .select(col("courseID"), col("userID"), col("completionPercentage"))
+    val courseDetailsWithCompletionStatus = withCompletionStatusColumn(allCourseProgramCompletionWithDetailsDF)
 
     // get the mdoids for which the report are requesting
     val mdoID = conf.mdoIDs
     val mdoIDDF = mdoIDsDF(mdoID)
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("courseOrgID"), col("orgName"))
 
-    val courseCompletionWithDetailsDFforMDO = courseDetailsWithCompletionStatus.join(mdoData, Seq("userOrgID"), "inner")
+    val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
+
+    var courseCompletionWithDetailsDFforMDO = allCourseData.join(mdoData, Seq("courseOrgID"), "inner")
+      .join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
+
 
     // number of enrollments
     val courseEnrolled = courseCompletionWithDetailsDFforMDO.where(expr("completionStatus in ('enrolled', 'started', 'in-progress', 'completed')"))
@@ -98,20 +102,22 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       .join(courseInProgressCount, Seq("courseID"), "inner").join(courseCompletedCount, Seq("courseID"), "inner")
       .join(courseStartedCount, Seq("courseID"), "inner")
 
-    df = df.select(
-      col("courseID"),
-      col("courseName"),
-      col("category"),
-      col("courseOrgID"),
-      col("userOrgID").alias("mdoid"),
-      col("courseOrgName"),
-      col("courseDuration").alias("duration"),
-      col("courseResourceCount"),
-      col("ratingAverage"),
-      col("enrollmentCount"),
-      col("startedCount"),
-      col("inProgressCount"),
-      col("completedCount")
+    df = df.withColumn("notStartedCount", df("enrollmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
+    df = df.withColumn("durationInHour", round(col("courseDuration")/3600, 2))
+    df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
+
+    df = df.dropDuplicates("courseID").select(
+      col("courseOrgName").alias("CBP_Provider"),
+      col("courseName").alias("CBP_Name"),
+      col("category").alias("CBP_Type"),
+      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Published_Date"),
+      col("durationInHour").alias("CBP_Duration"),
+      col("enrollmentCount").alias("Enrolled"),
+      col("notStartedCount").alias("Not_Started"),
+      col("inProgressCount").alias("In_Progress"),
+      col("completedCount").alias("Completed"),
+      col("Average_Rating"),
+      col("courseOrgID").alias("mdoid")
     )
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")

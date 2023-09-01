@@ -60,6 +60,8 @@ object UserEnrollmentTest extends Serializable{
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
+      "cassandraRatingsTable" -> "ratings",
+      "cassandraOrgHierarchyTable" -> "org_hierarchy",
 
       "store" -> "s3",
       "container" -> "igot",

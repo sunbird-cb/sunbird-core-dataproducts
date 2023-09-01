@@ -66,7 +66,7 @@ object CourseReportTest extends Serializable{
       "store" -> "s3",
       "container" -> "igot",
 
-      "mdoIDs" -> "0135071359030722569, 01358993635114188855",
+      "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
       "sideOutput" -> sideOutput
     )
