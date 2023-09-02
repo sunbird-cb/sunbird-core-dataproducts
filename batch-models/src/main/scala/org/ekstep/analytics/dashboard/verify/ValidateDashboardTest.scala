@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.validate
+package org.ekstep.analytics.dashboard.verify
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession

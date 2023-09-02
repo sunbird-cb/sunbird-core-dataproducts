@@ -1,7 +1,6 @@
 package org.ekstep.analytics.dashboard.report.enrollment
 
 import org.apache.spark.SparkContext
-import org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentModel
 import org.ekstep.analytics.framework.util.JobLogger
 import org.ekstep.analytics.framework.{FrameworkContext, IJob, JobDriver}
 

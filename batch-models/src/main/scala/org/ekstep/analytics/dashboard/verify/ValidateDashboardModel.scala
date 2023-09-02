@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.validate
+package org.ekstep.analytics.dashboard.verify
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -15,7 +15,7 @@ import java.io.Serializable
 
 object ValidateDashboardModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.validate.ValidateDashboardModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.verify.ValidateDashboardModel"
   override def name() = "ValidateDashboardModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {

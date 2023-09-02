@@ -6,8 +6,9 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.framework.FrameworkContext
+
+import DashboardUtil.{validate, _}
 
 import java.io.Serializable
 import java.util
