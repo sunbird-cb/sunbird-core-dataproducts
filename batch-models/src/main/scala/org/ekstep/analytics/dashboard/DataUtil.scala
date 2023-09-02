@@ -329,6 +329,7 @@ object DataUtil extends Serializable {
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
       .withColumn("userPhoneVerified", col("verificationDetails.personalDetails.phoneVerified"))
       .drop("verificationDetails")
+      .drop("userProfileDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
     show(userDF, "userDataFrame")
@@ -618,6 +619,7 @@ object DataUtil extends Serializable {
     df.join(hierarchyDF, df.col(idCol) === hierarchyDF.col("identifier"), "left")
       .na.fill("{}", Seq("hierarchy"))
       .withColumn(asCol, from_json(col("hierarchy"), hierarchySchema))
+      .drop("hierarchy")
   }
 
   /**
