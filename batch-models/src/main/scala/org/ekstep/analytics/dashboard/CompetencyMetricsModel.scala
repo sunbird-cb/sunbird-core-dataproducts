@@ -106,9 +106,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
-    userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-    userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-
     // obtain and save role count data
     val roleDF = roleDataFrame()
     val userOrgRoleDF = userOrgRoleDataFrame(userOrgDF, roleDF)
@@ -128,6 +125,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
     // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
