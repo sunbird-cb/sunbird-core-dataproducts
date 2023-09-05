@@ -64,19 +64,18 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     //    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
-      .select(col("courseID"), col("userID"), col("completionPercentage"))
+      .select(col("courseID"), col("userID"), col("completionPercentage"), col("userOrgID"))
     val courseDetailsWithCompletionStatus = withCompletionStatusColumn(allCourseProgramCompletionWithDetailsDF)
 
     // get the mdoids for which the report are requesting
     val mdoID = conf.mdoIDs
     val mdoIDDF = mdoIDsDF(mdoID)
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("courseOrgID"), col("orgName"))
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
 
-    var courseCompletionWithDetailsDFforMDO = allCourseData.join(mdoData, Seq("courseOrgID"), "inner")
-      .join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
-
+    var courseCompletionWithDetailsDFforMDO = allCourseData.join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
+      .join(mdoData, Seq("userOrgID"), "inner")
 
     // number of enrollments
     val courseEnrolled = courseCompletionWithDetailsDFforMDO.where(expr("completionStatus in ('enrolled', 'started', 'in-progress', 'completed')"))
@@ -106,7 +105,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     df = df.withColumn("durationInHour", round(col("courseDuration")/3600, 2))
     df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
 
-    df = df.dropDuplicates("courseID").select(
+    df = df.dropDuplicates("courseID", "userID").select(
       col("courseOrgName").alias("CBP_Provider"),
       col("courseName").alias("CBP_Name"),
       col("category").alias("CBP_Type"),
@@ -117,7 +116,8 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       col("inProgressCount").alias("In_Progress"),
       col("completedCount").alias("Completed"),
       col("Average_Rating"),
-      col("courseOrgID").alias("mdoid")
+      col("userOrgID").alias("mdoid")
+//      col("courseOrgID").alias("mdoid")
     )
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
