@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.user
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.functions.{coalesce, col, expr, from_unixtime, lit}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
@@ -51,41 +51,59 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
+    val reportPath = s"/tmp/standalone-reports/user-report/${getDate}/"
+
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
-    var df = userDataDF.join(userRolesDF, Seq("userID"), "inner")
 
-    df = df.select(
-      col("fullName"),
-      col("professionalDetails.designation").alias("designation"),
-      col("userOrgName").alias("orgName"),
-      col("userOrgID").alias("mdoid"),
-      col("userUpdatedTimestamp").alias("createdDate"),
-      col("additionalProperties.tag").alias("tag"),
-      col("professionalDetails.group").alias("group"),
-      col("role").alias("roles"),
-      col("additionalProperties.externalSystemId"),
-      col("additionalProperties.externalSystem")
+    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+      coalesce(col("lastName"), lit(""))))
+
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val orgHierarchyData = orgHierarchyDataframe()
+
+    // get the mdoids for which the report are requesting
+    val mdoID = conf.mdoIDs
+    val mdoIDDF = mdoIDsDF(mdoID)
+
+    var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+
+    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "left")
+      .join(orgHierarchyData, Seq("userOrgName"),"left")
+
+    df = df.where(expr("userStatus=1"))
+
+    df = df.dropDuplicates("userID").select(
+      col("fullName").alias("Full_Name"),
+      col("professionalDetails.designation").alias("Designation"),
+      col("maskedEmail").alias("Email"),
+      col("maskedPhone").alias("Phone_Number"),
+      col("professionalDetails.group").alias("Group"),
+      col("additionalProperties.tag").alias("Tags"),
+      col("ministry_name").alias("Ministry"),
+      col("dept_name").alias("Department"),
+      col("userOrgName").alias("Organization"),
+      from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
+      col("role").alias("Roles"),
+      col("personalDetails.gender").alias("Gender"),
+      col("personalDetails.category").alias("Category"),
+      col("additionalProperties.externalSystem").alias("External_System"),
+      col("additionalProperties.externalSystemId").alias("External_System_Id"),
+      col("userOrgID").alias("mdoid")
     )
-    show(df)
-
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
+      .save(reportPath)
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-report/${getDate}/")
+    removeFile(reportPath + "_SUCCESS")
+    renameCSV(ids, reportPath)
 
-    removeFile(s"/tmp/standalone-reports/user-report/${getDate}/_SUCCESS")
-    renameCSV(ids, s"/tmp/standalone-reports/user-report/${getDate}/")
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,s"/tmp/standalone-reports/user-report/${getDate}")
+    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
 
     val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-report/${getDate}",
+    storageService.upload(storageConfig.container, reportPath,
       s"standalone-reports/user-report/${getDate}/", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()

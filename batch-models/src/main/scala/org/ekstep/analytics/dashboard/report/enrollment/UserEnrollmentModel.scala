@@ -49,55 +49,91 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+    val reportPath = s"/tmp/standalone-reports/user-enrollment-report/${getDate}/"
+
+    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+      coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val org = orgDataFrame();
+    val org = orgDataFrame()
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
       contentDataFrames(org, false, false)
+
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
+      .select(col("courseID"), col("userID"), col("completionPercentage"))
+
+    // get the mdoids for which the report are requesting
+    val mdoID = conf.mdoIDs
+    val mdoIDDF = mdoIDsDF(mdoID)
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+
+    val userRating = userCourseRatingDataframe()
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
 
-    var df = allCourseData.join(userDataDF, Seq("userID"), "inner")
+    val orgHierarchyData = orgHierarchyDataframe()
+    var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
+      .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
+      .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
+//      .join(userCourseRatingDataframe, )
 
-    df = df.withColumn("rating", round(col("ratingAverage"), 1))
+    df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
 
-    df = df.select(
-      col("fullName"),
-      col("professionalDetails.designation").alias("designation"),
-      col("userOrgName").alias("orgName"),
-      col("additionalProperties.tag").alias("tag"),
-      col("professionalDetails.group").alias("group"),
-      col("additionalProperties.externalSystem"),
-      col("additionalProperties.externalSystemId"),
-      col("courseName"),
-      col("courseDuration").alias("duration"),
-      col("courseOrgName"),
-      col("courseLastPublishedOn").alias("lastPublishedOn"),
-      col("courseStatus").alias("status"),
-      col("courseProgress").alias("completionPercentage"),
-      col("courseCompletedTimestamp").alias("completedOn"),
-      col("ratingAverage").alias("rating"),
+    df = userCourseCompletionStatus(df)
+
+    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
+      expr("courseDuration % 3600 / 60").cast("int"),
+      expr("courseDuration % 60").cast("int")
+    ))
+
+    val caseExpression = "CASE WHEN userCourseCompletionStatus == 'completed' THEN 100 " +
+      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 ELSE courseCompletionPercentage END"
+    df = df.withColumn("Completion Percentage", expr(caseExpression))
+
+    df.show()
+    df = df.distinct().dropDuplicates("userID", "courseID").select(
+      col("Full Name").alias("Full_Name"),
+      col("professionalDetails.designation").alias("Designation"),
+      col("maskedEmail").alias("Email"),
+      col("maskedPhone").alias("Phone_Number"),
+      col("professionalDetails.group").alias("Group"),
+      col("additionalProperties.tag").alias("Tags"),
+      col("ministry_name").alias("Ministry"),
+      col("dept_name").alias("Department"),
+      col("userOrgName").alias("Organization"),
+      col("courseOrgName").alias("CBP Provider"),
+      col("courseName").alias("CBP Name"),
+      col("category").alias("CBP Type"),
+      col("CBP_Duration"),
+      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
+      col("userCourseCompletionStatus").alias("Status"),
+      col("courseCompletionPercentage").alias("Completion_Percentage"),
+      from_unixtime(col("courseCompletedTimestamp"),"dd/MM/yyyy").alias("Completed_On"),
+      col("userRating").alias("Rating"),
+      col("personalDetails.gender").alias("Gender"),
+      col("personalDetails.category").alias("Category"),
+      col("additionalProperties.externalSystem").alias("External System"),
+      col("additionalProperties.externalSystemId").alias("External System Id"),
       col("userOrgID").alias("mdoid")
     )
-    df.show()
 
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
+      .save(reportPath)
 
     import spark.implicits._
     val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
     // remove _SUCCESS file
-    removeFile(s"/tmp/standalone-reports/user-enrollment-report/${getDate}/_SUCCESS")
+    removeFile(reportPath + "_SUCCESS")
 
     // rename csv
-    renameCSV(ids, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/")
+    renameCSV(ids, reportPath)
 
     //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}")
+    val storageConfig = new StorageConfig(conf.store, conf.container, reportPath)
     val storageService = getStorageService(conf)
 
-    storageService.upload(storageConfig.container, s"/tmp/standalone-reports/user-enrollment-report/${getDate}/",
+    storageService.upload(storageConfig.container, reportPath,
       s"standalone-reports/user-enrollment-report/${getDate}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()

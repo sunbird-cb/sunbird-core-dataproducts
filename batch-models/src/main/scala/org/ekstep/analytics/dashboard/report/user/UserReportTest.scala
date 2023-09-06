@@ -60,11 +60,15 @@ object UserReportTest extends Serializable{
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
+      "cassandraRatingsTable" -> "ratings",
+      "cassandraOrgHierarchyTable" -> "org_hierarchy",
 
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
       "store" -> "s3",
       "container" -> "igot",
+
+      "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
       "sideOutput" -> sideOutput
     )

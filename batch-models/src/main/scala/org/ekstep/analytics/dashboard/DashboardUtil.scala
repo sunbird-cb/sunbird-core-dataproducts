@@ -37,7 +37,7 @@ case class DashboardConfig (
     redisHost: String,
     redisPort: Int,
     redisDB: Int,
-    //
+    // for blob storage
     store: String,
     container: String,
     key: String,
@@ -58,6 +58,7 @@ case class DashboardConfig (
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
+    cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -67,7 +68,10 @@ case class DashboardConfig (
     redisUserCompetencyGapCount: String, redisUserCourseEnrollmentCount: String,
     redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
-    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String
+    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+
+    // for reports
+    mdoIDs: String
 ) extends Serializable
 
 
@@ -388,7 +392,7 @@ object DashboardUtil extends Serializable {
       redisHost = getConfigModelParam(config, "redisHost"),
       redisPort = getConfigModelParam(config, "redisPort").toInt,
       redisDB = getConfigModelParam(config, "redisDB").toInt,
-      //
+      //for blob storage
       store = getConfigModelParam(config, "store"),
       container = getConfigModelParam(config, "container"),
       key = getConfigModelParam(config, "key"),
@@ -423,6 +427,8 @@ object DashboardUtil extends Serializable {
       cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
       cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
+      cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
+      cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
@@ -440,7 +446,11 @@ object DashboardUtil extends Serializable {
       redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
-      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate"
+      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
+
+      // for reports
+      mdoIDs = getConfigModelParam(config, "mdoIDs")
+
     )
   }
   /* Config functions end */

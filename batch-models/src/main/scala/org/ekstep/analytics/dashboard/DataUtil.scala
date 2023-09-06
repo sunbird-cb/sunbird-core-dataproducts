@@ -1,9 +1,10 @@
 package org.ekstep.analytics.dashboard
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions.{col, countDistinct, explode, explode_outer, expr, from_json, last, lit, lower, max, to_timestamp, udf}
 import DashboardUtil._
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.framework.FrameworkContext
@@ -67,6 +68,21 @@ object DataUtil extends Serializable {
     df.withColumn("completionStatus", expr(caseExpression))
   }
 
+  /**
+   * dbCompletionStatus     userCourseCompletionStatus
+   * NULL                   not-enrolled
+   * 0                      not-started
+   * 1                      in-progress
+   * 2                      completed
+   *
+   * @param df data frame with dbCompletionStatus column
+   * @return df with userCourseCompletionStatus column
+   */
+  def userCourseCompletionStatus(df: DataFrame): DataFrame = {
+    val caseExpression = "CASE WHEN ISNULL(dbCompletionStatus) THEN 'not-enrolled' WHEN dbCompletionStatus == 0 THEN 'not-started' WHEN dbCompletionStatus == 1 THEN 'in-progress' ELSE 'completed' END"
+    df.withColumn("userCourseCompletionStatus", expr(caseExpression))
+  }
+
   def timestampStringToLong(df: DataFrame, cols: Seq[String], format: String = "yyyy-MM-dd HH:mm:ss:SSSZ"): DataFrame = {
     var resDF = df
     cols.foreach(c => {
@@ -95,7 +111,7 @@ object DataUtil extends Serializable {
 
   /**
    * user data from cassandra
-   * @return DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
+   * @return DataFrame(userID, firstName, lastName, maskedEmail, maskedPhone, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
    */
   def userDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, orgID, userStatus
@@ -123,7 +139,7 @@ object DataUtil extends Serializable {
   /**
    *
    * @param orgDF DataFrame(orgID, orgName, orgStatus)
-   * @param userDF DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
+   * @param userDF DataFrame(userID, firstName, lastName, maskedEmail,maskedPhone, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
    * @return DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp, userOrgID, userOrgName, userOrgStatus)
    */
   def userOrgDataFrame(orgDF: DataFrame, userDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -612,6 +628,45 @@ object DataUtil extends Serializable {
     df
   }
 
+  def orgHierarchyDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgHierarchyTable).select(
+      col("orgname").alias("userOrgName"), col("mapid").alias("mapID"), col("orgcode").alias("orgCode"),
+      col("parentmapid").alias("parentMapID"), col("sborgid").alias("subOrgID"))
+
+    val alias1 = df.alias("alias1")
+    val alias2 = df.alias("alias2")
+    val orgDeptDF = alias1.join(alias2, col("alias1.parentMapID") === col("alias2.mapID"), "inner")
+    val orgDeptDataDF = orgDeptDF.select(
+      col("alias1.userOrgName").alias("orgname"),
+      col("alias1.mapID"),
+      col("alias2.mapID").alias("department"),
+      col("alias2.userOrgName").alias("dept_name"),
+      col("alias2.parentMapID").alias("dept_parent")
+    )
+    val alias3 = orgDeptDataDF.alias("alias3")
+    val alias4 = df.alias("alias4")
+    val deptMinistryDF = alias3.join(alias4, col("alias3.dept_parent") === col("alias4.mapID"), "left")
+    var orgDeptMinistryDataDF = deptMinistryDF.select(
+      col("alias3.mapID"),
+      col("alias3.orgname").alias("userOrgName"),
+      col("alias3.department"),
+      col("alias3.dept_name").alias("dept_name"),
+      col("alias4.mapID"),
+      col("alias4.userOrgName").alias("ministry_name")
+    )
+    show(orgDeptDataDF, "result DF ")
+    show(orgDeptMinistryDataDF, "Org Hierarchy DF")
+    orgDeptMinistryDataDF
+  }
+
+  def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable).select(
+      col("activityid").alias("courseID"), col("userid").alias("userID"), col("rating").alias("userRating")
+    )
+    show(df, "Rating given by user")
+    df
+  }
+
   /**
    * add course rating columns to course detail data-frame
    * @param allCourseProgramDetailsDF course details data frame -
@@ -667,8 +722,8 @@ object DataUtil extends Serializable {
    * @param userOrgDF DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userOrgID, userOrgName, userOrgStatus)
    * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp,
    *         courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID,
-   *         courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, firstName, lastName, maskedEmail, userStatus,
-   *         userOrgID, userOrgName, userOrgStatus, completionPercentage, completionStatus)
+   *         courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, firstName, lastName, maskedEmail, maskedPhone, userStatus,
+   *         userOrgID, userOrgName, userOrgStatus, completionPercentage, completionStatus, courseLastPublishedOn)
    */
   def allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
@@ -679,7 +734,7 @@ object DataUtil extends Serializable {
       .select("userID", "courseID", "batchID", "courseCompletedTimestamp", "courseEnrolledTimestamp",
         "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
         "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
-        "courseResourceCount", "firstName", "lastName", "maskedEmail", "userStatus", "userOrgID", "userOrgName", "userOrgStatus")
+        "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
     df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
     df = withCompletionStatusColumn(df)
 
@@ -1162,6 +1217,7 @@ object DataUtil extends Serializable {
     df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema1))
     df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
     df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
+    df = df.withColumn("personalDetails", explode_outer(col("profileDetails.personalDetails")))
     df
   }
 
@@ -1176,10 +1232,28 @@ object DataUtil extends Serializable {
     StructField("externalSystem", StringType, true)
   ))
 
+  val personalDetailsSchema: StructType = StructType(Seq(
+    StructField("gender", StringType, true),
+    StructField("category", StringType, true)
+  ))
+
   val profileDetailsSchema1: StructType = StructType(Seq(
     StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
-    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true)
+    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true),
+    StructField("personalDetails", ArrayType(personalDetailsSchema), true)
   ))
+
+  def mdoIDsDF(mdoID: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
+    val mdoIDs = mdoID.split(",").map(_.toString).distinct
+    val rdd = sc.parallelize(mdoIDs)
+
+    val rowRDD: RDD[Row] = rdd.map(t => Row(t))
+
+    val schema = new StructType()
+      .add(StructField("orgID", StringType, false))
+    val df = spark.createDataFrame(rowRDD, schema)
+    df
+  }
 
 
 
