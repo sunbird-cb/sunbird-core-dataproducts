@@ -1,27 +1,28 @@
-package org.ekstep.analytics.dashboard
+package org.ekstep.analytics.dashboard.verify
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.FrameworkContext
+import org.ekstep.analytics.dashboard.DashboardUtil
 
 
-object CompetencyMetricsTest extends Serializable {
+object ValidateDashboardTest extends Serializable {
 
   def main(args: Array[String]): Unit = {
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CompetencyMetricsTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("ValidateDashboardTest", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CompetencyMetricsModel.processCompetencyMetricsData(System.currentTimeMillis(), config)
+    ValidateDashboardModel.processData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
-      "brokerList" -> "192.168.3.249:9092",
+      "brokerList" -> "",
       "compression" -> "none",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
@@ -40,18 +41,18 @@ object CompetencyMetricsTest extends Serializable {
       "debug" -> "true",
       "validation" -> "true",
 
-      "redisHost" -> "192.168.3.249",
+      "redisHost" -> "",
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
-      "sparkCassandraConnectionHost" -> "192.168.3.211",
-      "sparkDruidRouterHost" -> "192.168.3.91",
-      "sparkElasticsearchConnectionHost" -> "192.168.3.211",
-      "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
+      "sparkCassandraConnectionHost" -> "192.168.3.200",
+      "sparkDruidRouterHost" -> "192.168.3.21",
+      "sparkElasticsearchConnectionHost" -> "192.168.3.90",
+      "fracBackendHost" -> "frac-dictionary.igotkarmayogi.gov.in",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
-      "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
+      "cassandraHierarchyStoreKeyspace" -> "prod_hierarchy_store",
 
       "cassandraUserTable" -> "user",
       "cassandraUserRolesTable" -> "user_roles",

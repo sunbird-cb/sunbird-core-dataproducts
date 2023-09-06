@@ -1,13 +1,16 @@
 package org.ekstep.analytics.dashboard
 
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.apache.spark.sql.functions.{col, countDistinct, explode, explode_outer, expr, from_json, last, lit, lower, max, to_timestamp, udf}
-import DashboardUtil._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.types.{ArrayType, BooleanType, FloatType, IntegerType, StringType, StructField, StructType}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.FrameworkContext
+
+import DashboardUtil._
+
 import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
@@ -15,6 +18,209 @@ import scala.util.matching.Regex
 
 
 object DataUtil extends Serializable {
+
+  /*
+  organizes schema def at one place
+   */
+  object Schema extends Serializable {
+
+    /* schema definitions for user profile details */
+    val profileCompetencySchema: StructType = StructType(Seq(
+      StructField("id",  StringType, nullable = true),
+      StructField("name",  StringType, nullable = true),
+      StructField("status",  StringType, nullable = true),
+      StructField("competencyType",  StringType, nullable = true),
+      StructField("competencySelfAttestedLevel",  StringType, nullable = true), // this is sometimes an int other times a string
+      StructField("competencySelfAttestedLevelValue",  StringType, nullable = true)
+    ))
+    val professionalDetailsSchema: StructType = StructType(Seq(
+      StructField("designation", StringType, nullable = true),
+      StructField("group", StringType, nullable = true)
+    ))
+    val personalDetailsSchema: StructType = StructType(Seq(
+      StructField("phoneVerified", BooleanType, nullable = true),
+      StructField("gender", StringType, nullable = true),
+      StructField("category", StringType, nullable = true)
+    ))
+    val additionalPropertiesSchema: StructType = StructType(Seq(
+      StructField("tag", StringType, nullable = true),
+      StructField("externalSystemId", StringType, nullable = true),
+      StructField("externalSystem", StringType, nullable = true)
+    ))
+    def makeProfileDetailsSchema(competencies: Boolean = false, additionalProperties: Boolean = false, professionalDetails: Boolean = false): StructType = {
+      val fields = ListBuffer(
+        StructField("verifiedKarmayogi", BooleanType, nullable = true),
+        StructField("mandatoryFieldsExists", BooleanType, nullable = true),
+        StructField("personalDetails", personalDetailsSchema, nullable = true)
+      )
+      if (competencies) {
+        fields.append(StructField("competencies", ArrayType(profileCompetencySchema), nullable = true))
+      }
+      if (additionalProperties) {
+        fields.append(StructField("additionalProperties", ArrayType(additionalPropertiesSchema), nullable = true))
+      }
+      if (professionalDetails) {
+        fields.append(StructField("professionalDetails", ArrayType(professionalDetailsSchema), nullable = true))
+      }
+      StructType(fields)
+    }
+
+    /* schema definitions for competencies */
+    val courseCompetenciesSchema: ArrayType = ArrayType(StructType(Seq(
+      StructField("id",  StringType, nullable = true),
+      StructField("name",  StringType, nullable = true),
+      // StructField("description",  StringType, nullable = true),
+      // StructField("source",  StringType, nullable = true),
+      StructField("competencyType",  StringType, nullable = true),
+      // StructField("competencyArea",  StringType, nullable = true),
+      // StructField("selectedLevelId",  StringType, nullable = true),
+      // StructField("selectedLevelName",  StringType, nullable = true),
+      // StructField("selectedLevelSource",  StringType, nullable = true),
+      StructField("selectedLevelLevel",  StringType, nullable = true)
+      //StructField("selectedLevelDescription",  StringType, nullable = true)
+    )))
+    val expectedCompetencySchema: StructType = StructType(Seq(
+      StructField("orgID",  StringType, nullable = true),
+      StructField("workOrderID",  StringType, nullable = true),
+      StructField("userID",  StringType, nullable = true),
+      StructField("competencyID",  StringType, nullable = true),
+      StructField("expectedCompetencyLevel",  IntegerType, nullable = true)
+    ))
+    val fracCompetencySchema: StructType = StructType(Seq(
+      StructField("competencyID",  StringType, nullable = true),
+      StructField("competencyName",  StringType, nullable = true),
+      StructField("competencyStatus",  StringType, nullable = true)
+    ))
+
+    /* schema definitions for content hierarchy table */
+    val hierarchyChildSchema: StructType = StructType(Seq(
+      StructField("identifier", StringType, nullable = true),
+      StructField("name", StringType, nullable = true),
+      StructField("channel", StringType, nullable = true),
+      StructField("duration", StringType, nullable = true),
+      StructField("primaryCategory", StringType, nullable = true),
+      StructField("contentType", StringType, nullable = true),
+      StructField("objectType", StringType, nullable = true),
+      StructField("showTimer", StringType, nullable = true),
+      StructField("allowSkip", StringType, nullable = true)
+    ))
+    def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
+      val fields = ListBuffer(
+        StructField("name", StringType, nullable = true),
+        StructField("status", StringType, nullable = true),
+        StructField("reviewStatus", StringType, nullable = true),
+        StructField("channel", StringType, nullable = true),
+        StructField("duration", StringType, nullable = true),
+        StructField("primaryCategory", StringType, nullable = true),
+        StructField("leafNodesCount", IntegerType, nullable = true),
+        StructField("publish_type", StringType, nullable = true),
+        StructField("isExternal", BooleanType, nullable = true),
+        StructField("contentType", StringType, nullable = true),
+        StructField("objectType", StringType, nullable = true),
+        StructField("userConsent", StringType, nullable = true),
+        StructField("visibility", StringType, nullable = true),
+        StructField("createdOn", StringType, nullable = true),
+        StructField("lastUpdatedOn", StringType, nullable = true),
+        StructField("lastPublishedOn", StringType, nullable = true),
+        StructField("lastSubmittedOn", StringType, nullable = true)
+
+      )
+      if (children) {
+        fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
+      }
+      if (competencies) {
+        fields.append(StructField("competencies_v3", StringType, nullable = true))
+      }
+      StructType(fields)
+    }
+
+    /* assessment related schema */
+    val assessmentReadResponseSchema: StructType = StructType(Seq(
+      StructField("name", StringType, nullable = false),
+      StructField("objectType", StringType, nullable = false),
+      StructField("version", IntegerType, nullable = false),
+      StructField("status", StringType, nullable = false),
+      StructField("totalQuestions", IntegerType, nullable = false),
+      StructField("maxQuestions", IntegerType, nullable = false),
+      StructField("expectedDuration", IntegerType, nullable = false),
+      StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
+    ))
+    val submitAssessmentRequestSchema: StructType = StructType(Seq(
+      StructField("courseId", StringType, nullable = false),
+      StructField("batchId", StringType, nullable = false),
+      StructField("primaryCategory", StringType, nullable = false),
+      StructField("isAssessment", BooleanType, nullable = false),
+      StructField("timeLimit", IntegerType, nullable = false)
+    ))
+    val submitAssessmentResponseSchema: StructType = StructType(Seq(
+      StructField("result", FloatType, nullable = false),
+      StructField("total", IntegerType, nullable = false),
+      StructField("blank", IntegerType, nullable = false),
+      StructField("correct", IntegerType, nullable = false),
+      StructField("incorrect", IntegerType, nullable = false),
+      StructField("pass", BooleanType, nullable = false),
+      StructField("overallResult", FloatType, nullable = false),
+      StructField("passPercentage", FloatType, nullable = false)
+    ))
+
+    /* telemetry related schema */
+    val loggedInMobileUserSchema: StructType = StructType(Seq(
+      StructField("userID", StringType, nullable = true),
+      StructField("userLoginFromMobile", BooleanType, nullable = true)
+    ))
+    val loggedInWebUserSchema: StructType = StructType(Seq(
+      StructField("userID", StringType, nullable = true),
+      StructField("userLoginFromWeb", BooleanType, nullable = true)
+    ))
+    val userActualTimeSpentLearningSchema: StructType = StructType(Seq(
+      StructField("userID", StringType, nullable = true),
+      StructField("userActualTimeSpentLearning", FloatType, nullable = true)
+    ))
+  }
+
+
+  object CompLevelParser extends Serializable {
+
+    val competencyLevelPattern: Regex = ".*[Ll]evel[ ]+?([0-9]+).*".r
+    /**
+     * match string against level pattern and return level or zero
+     * @param s string to parse
+     * @return level or zero
+     */
+    def parseCompetencyLevelString(s: String): Int = {
+      s match {
+        case competencyLevelPattern(level) => level.toInt
+        case _ => 0
+      }
+    }
+    /**
+     * get competency level from string value
+     * @param levelString level string
+     * @return level value as int
+     */
+    def getCompetencyLevel(levelString: String): Int = {
+      intOrZero(levelString) match {
+        case 0 => parseCompetencyLevelString(levelString)
+        case default => default
+      }
+    }
+
+    /**
+     * spark udf to infer competency level value, returns 1 if no value could be inferred
+     * @param csaLevel value of competencySelfAttestedLevel column
+     * @param csaLevelValue value of competencySelfAttestedLevelValue column
+     * @return level value as int
+     */
+    def compLevelParser(csaLevel: String, csaLevelValue: String): Int = {
+      for (levelString <- Seq(csaLevel, csaLevelValue)) {
+        val level = getCompetencyLevel(levelString)
+        if (level != 0) return level
+      }
+      1 // return 1 as default
+    }
+    val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
+  }
+
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
@@ -39,9 +245,9 @@ object DataUtil extends Serializable {
       println(s"ERROR: fracCompetencyAPI returned empty string")
       return None
     }
-    val df = dataFrameFromJSONString(result)  // parse json string
+    val df = dataFrameFromJSONString(result).persist(StorageLevel.MEMORY_ONLY)  // parse json string
     if (df.isEmpty) {
-      println(s"ERROR: druidSQLAPI json parse result is empty")
+      println(s"ERROR: fracCompetencyAPI json parse result is empty")
       return None
     }
     // return empty data frame if there is an `errors` field in the json
@@ -93,28 +299,34 @@ object DataUtil extends Serializable {
   }
 
   /**
-   * org data from cassandra
-   * @return DataFrame(orgID, orgName, orgStatus)
+   * org data from cassandra TODO
+   * @return DataFrame(orgID, orgName, orgStatus, orgCreatedDate, orgType, orgSubType)
    */
   def orgDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
+    var orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
       .select(
         col("id").alias("orgID"),
         col("orgname").alias("orgName"),
-        col("status").alias("orgStatus")
+        col("status").alias("orgStatus"),
+        col("createddate").alias("orgCreatedDate"),
+        col("organisationtype").alias("orgType"),
+        col("organisationsubtype").alias("orgSubType")
       ).na.fill("", Seq("orgName"))
 
-    show(orgDF, "Org DataFrame")
+    orgDF = timestampStringToLong(orgDF, Seq("orgCreatedDate"))
+
+    show(orgDF, "orgDataFrame")
 
     orgDF
   }
 
   /**
-   * user data from cassandra
-   * @return DataFrame(userID, firstName, lastName, maskedEmail, maskedPhone, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
+   * user data from cassandra TODO
+   * @return DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp,
+   *         userVerified, userMandatoryFieldsExists, userPhoneVerified)
    */
   def userDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    // userID, orgID, userStatus
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema()
     var userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
       .select(
         col("id").alias("userID"),
@@ -127,32 +339,47 @@ object DataUtil extends Serializable {
         col("profiledetails").alias("userProfileDetails"),
         col("createddate").alias("userCreatedTimestamp"),
         col("updateddate").alias("userUpdatedTimestamp")
-      ).na.fill("", Seq("userOrgID"))
+      )
+      .na.fill("", Seq("userOrgID"))
+      .na.fill("{}", Seq("userProfileDetails"))
+      .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+      .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
+      .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
+      .withColumn("userPhoneVerified", col("verificationDetails.personalDetails.phoneVerified"))
+      .drop("verificationDetails")
+      .drop("userProfileDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
-    show(userDF, "User DataFrame")
+    show(userDF, "userDataFrame")
 
     userDF
   }
 
-
   /**
+   * de-normalize user data with org data
    *
-   * @param orgDF DataFrame(orgID, orgName, orgStatus)
-   * @param userDF DataFrame(userID, firstName, lastName, maskedEmail,maskedPhone, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp)
-   * @return DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp, userOrgID, userOrgName, userOrgStatus)
+   * @param orgDF DataFrame(orgID, orgName, orgStatus, orgCreatedDate, orgType, orgSubType)
+   * @param userDF DataFrame(userID, firstName, lastName, maskedEmail, userOrgID, userStatus, userCreatedTimestamp, userUpdatedTimestamp,
+   *               userVerified, userMandatoryFieldsExists, userPhoneVerified)
+   * @return DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userCreatedTimestamp, userUpdatedTimestamp,
+   *         userVerified, userMandatoryFieldsExists, userPhoneVerified,
+   *         userOrgID, userOrgName, userOrgStatus, userOrgCreatedDate, userOrgType, userOrgSubType)
    */
   def userOrgDataFrame(orgDF: DataFrame, userDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val joinOrgDF = orgDF.select(
       col("orgID").alias("userOrgID"),
       col("orgName").alias("userOrgName"),
-      col("orgStatus").alias("userOrgStatus")
+      col("orgStatus").alias("userOrgStatus"),
+      col("orgCreatedDate").alias("userOrgCreatedDate"),
+      col("orgType").alias("userOrgType"),
+      col("orgSubType").alias("userOrgSubType")
     )
-    val userInfoDF = userDF.join(joinOrgDF, Seq("userOrgID"), "left")
-    show(userInfoDF, "User Info DataFrame")
 
-    userInfoDF
+    val df = userDF.join(joinOrgDF, Seq("userOrgID"), "left")
+    show(df, "userOrgDataFrame")
+
+    df
   }
 
   /**
@@ -182,7 +409,7 @@ object DataUtil extends Serializable {
       col("userID"), col("userStatus"),
       col("userOrgID"), col("userOrgName"), col("userOrgStatus")
     )
-    val userOrgRoleDF = joinUserOrgDF.join(roleDF, Seq("userID"), "left").where(expr("userStatus=1 AND userOrgStatus=1"))
+    val userOrgRoleDF = joinUserOrgDF.join(roleDF, Seq("userID"), "left")
     show(userOrgRoleDF)
 
     userOrgRoleDF
@@ -194,7 +421,9 @@ object DataUtil extends Serializable {
    * @return DataFrame(role, count)
    */
   def roleCountDataFrame(userOrgRoleDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val roleCountDF = userOrgRoleDF.groupBy("role").agg(countDistinct("userID").alias("count"))
+    val roleCountDF = userOrgRoleDF
+      .where(expr("userStatus=1 AND userOrgStatus=1"))
+      .groupBy("role").agg(countDistinct("userID").alias("count"))
     show(roleCountDF)
 
     roleCountDF
@@ -206,13 +435,16 @@ object DataUtil extends Serializable {
    * @return DataFrame(orgID, orgName, role, count)
    */
   def orgRoleCountDataFrame(userOrgRoleDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val orgRoleCount = userOrgRoleDF.groupBy("userOrgID", "role").agg(
-      last("userOrgName").alias("orgName"),
-      countDistinct("userID").alias("count")
-    ).select(
-      col("userOrgID").alias("orgID"),
-      col("orgName"), col("role"), col("count")
-    )
+    val orgRoleCount = userOrgRoleDF
+      .where(expr("userStatus=1 AND userOrgStatus=1"))
+      .groupBy("userOrgID", "userOrgName", "role")
+      .agg(countDistinct("userID").alias("count"))
+      .select(
+        col("userOrgID").alias("orgID"),
+        col("userOrgName").alias("orgName"),
+        col("role"), col("count")
+      )
+
     show(orgRoleCount)
 
     orgRoleCount
@@ -271,9 +503,9 @@ object DataUtil extends Serializable {
       col("status").alias("courseStatus"),
       col("reviewStatus").alias("courseReviewStatus"),
       col("channel").alias("courseOrgID"),
-      col("lastPublishedOn").alias("courseLastPublishedOn")
-      // col("duration").alias("courseDuration"),
-      // col("leafNodesCount").alias("courseResourceCount")
+      col("lastPublishedOn").alias("courseLastPublishedOn"),
+      col("duration").alias("courseDuration"),
+      col("leafNodesCount").alias("courseResourceCount")
     )
     df = df.dropDuplicates("courseID", "category")
     // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
@@ -380,60 +612,31 @@ object DataUtil extends Serializable {
     df
   }
 
-  /* schema definitions for courseDetailsDataFrame */
-  val hierarchyChildSchema: StructType = StructType(Seq(
-    StructField("identifier", StringType, nullable = true),
-    StructField("name", StringType, nullable = true),
-    StructField("channel", StringType, nullable = true),
-    StructField("duration", StringType, nullable = true),
-    StructField("primaryCategory", StringType, nullable = true),
-    StructField("contentType", StringType, nullable = true),
-    StructField("objectType", StringType, nullable = true),
-    StructField("showTimer", StringType, nullable = true),
-    StructField("allowSkip", StringType, nullable = true)
-  ))
-
-  def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
-    val fields = ListBuffer(
-      StructField("name", StringType, nullable = true),
-      StructField("status", StringType, nullable = true),
-      StructField("channel", StringType, nullable = true),
-      StructField("duration", StringType, nullable = true),
-      StructField("leafNodesCount", IntegerType, nullable = true),
-      StructField("publish_type", StringType, nullable = true),
-      StructField("isExternal", BooleanType, nullable = true),
-      StructField("contentType", StringType, nullable = true),
-      StructField("objectType", StringType, nullable = true),
-      StructField("userConsent", StringType, nullable = true),
-      StructField("visibility", StringType, nullable = true),
-      StructField("createdOn", StringType, nullable = true),
-      StructField("lastUpdatedOn", StringType, nullable = true),
-      StructField("lastPublishedOn", StringType, nullable = true),
-      StructField("lastSubmittedOn", StringType, nullable = true)
-
-    )
-    if (children) {
-      fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
-    }
-    if (competencies) {
-      fields.append(StructField("competencies_v3", StringType, nullable = true))
-    }
-
-    StructType(fields)
-  }
-
   def contentHierarchyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
       .select(col("identifier"), col("hierarchy"))
   }
 
+  /**
+   * Adds hierarchy column, parses json and adds it as a column
+   * @param df dataframe to add column to
+   * @param hierarchyDF hierarchy table dataframe
+   * @param idCol
+   * @param asCol
+   * @param children
+   * @param competencies
+   * @param spark
+   * @param conf
+   * @return
+   */
   def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
                          children: Boolean = false, competencies: Boolean = false
                         )(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val hierarchySchema = makeHierarchySchema(children, competencies)
+    val hierarchySchema = Schema.makeHierarchySchema(children, competencies)
     df.join(hierarchyDF, df.col(idCol) === hierarchyDF.col("identifier"), "left")
       .na.fill("{}", Seq("hierarchy"))
       .withColumn(asCol, from_json(col("hierarchy"), hierarchySchema))
+      .drop("hierarchy")
   }
 
   /**
@@ -443,25 +646,25 @@ object DataUtil extends Serializable {
    */
   def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = addHierarchyColumn(allCourseProgramDF, hierarchyDF, "courseID", "data", competencies = true)
-    df = df.select(
-      col("courseID"), col("category"), col("courseName"), col("courseStatus"),
-      col("courseReviewStatus"), col("courseOrgID"), col("courseOrgName"), col("courseOrgStatus"),
 
-      col("data.duration").cast(FloatType).alias("courseDuration"),
-      col("data.leafNodesCount").alias("courseResourceCount"),
-      col("data.competencies_v3").alias("competenciesJson"),
-      col("courseLastPublishedOn")
-    )
-    df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
+    df = df.withColumn("competenciesJson", col("data.competencies_v3"))
+
+//      .withColumn("courseName", col("data.name"))
+//      .withColumn("courseStatus", col("data.status"))
+//      .withColumn("courseDuration", col("data.duration").cast(FloatType))
+//      .withColumn("category", col("data.primaryCategory"))
+//      .withColumn("courseReviewStatus", col("data.reviewStatus"))
+//      .withColumn("courseResourceCount", col("data.leafNodesCount"))
+
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
+      .drop("data")
 
     show(df, "allCourseProgramDetailsWithCompetenciesJsonDataFrame() = (courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson, lastPublishedOn)")
     df
   }
 
-  // only live course ids
-  val liveCourseSchema: StructType = StructType(Seq(
-    StructField("id",  StringType, nullable = true)
-  ))
   def liveCourseDataFrame(allCourseProgramDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = allCourseProgramDF.where(expr("category='Course' and courseStatus='Live'")).select(col("courseID").alias("id")).distinct()
 
@@ -531,21 +734,6 @@ object DataUtil extends Serializable {
     (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)
   }
 
-
-  /* schema definitions for courseCompetencyDataFrame */
-  val courseCompetenciesSchema: ArrayType = ArrayType(StructType(Seq(
-    StructField("id",  StringType, nullable = true),
-    StructField("name",  StringType, nullable = true),
-    // StructField("description",  StringType, nullable = true),
-    // StructField("source",  StringType, nullable = true),
-    StructField("competencyType",  StringType, nullable = true),
-    // StructField("competencyArea",  StringType, nullable = true),
-    // StructField("selectedLevelId",  StringType, nullable = true),
-    // StructField("selectedLevelName",  StringType, nullable = true),
-    // StructField("selectedLevelSource",  StringType, nullable = true),
-    StructField("selectedLevelLevel",  StringType, nullable = true)
-    //StructField("selectedLevelDescription",  StringType, nullable = true)
-  )))
   /**
    * course competency mapping data from cassandra dev_hierarchy_store:content_hierarchy
    * @param allCourseProgramDetailsWithCompDF course details with competencies json
@@ -556,7 +744,7 @@ object DataUtil extends Serializable {
    */
   def allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = allCourseProgramDetailsWithCompDF.filter(col("competenciesJson").isNotNull)
-    df = df.withColumn("competencies", from_json(col("competenciesJson"), courseCompetenciesSchema))
+    df = df.withColumn("competencies", from_json(col("competenciesJson"), Schema.courseCompetenciesSchema))
 
     df = df.select(
       col("courseID"), col("category"), col("courseName"), col("courseStatus"),
@@ -689,6 +877,8 @@ object DataUtil extends Serializable {
 
 
   /**
+   * Despite the name this gets all rows from user_enrolments table, only filtering out active=false
+   * 'active' column was added to the db to fix the issue of duplicate rows in this table
    *
    * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    */
@@ -708,6 +898,38 @@ object DataUtil extends Serializable {
         col("courseEnrolledTimestamp"),
         col("lastContentAccessTimestamp")
       ).na.fill(0, Seq("courseProgress"))
+
+    show(df)
+    df
+  }
+
+  def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, "user_content_consumption")
+      .select(
+        col("userid").alias("userID"),
+        col("courseid").alias("courseID"),
+        col("batchid").alias("batchID"),
+        col("contentid").alias("contentID"),
+        col("completionpercentage").alias("contentCompletionPercentage"),
+        col("status").alias("contentConsumptionStatus")
+      )
+      .withColumn("contentCompletionPercentage", expr("CASE WHEN contentConsumptionStatus=2 THEN 100.0 ELSE contentCompletionPercentage END"))
+      .na.fill(0.0, Seq("contentCompletionPercentage"))
+
+    show(df)
+    df
+  }
+
+  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
+      .withColumn("contentDuration", col("data.duration"))
+      .na.fill(0.0, Seq("contentDuration"))
+      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
+
+    show(df)
+
+    df = df.groupBy("userID", "courseID", "batchID")
+      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
 
     show(df)
     df
@@ -743,6 +965,18 @@ object DataUtil extends Serializable {
     df
   }
 
+  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val userContentConsumptionDF = userContentConsumptionDataFrame()
+    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
+
+    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
+      .na.fill(0.0, Seq("courseDurationCompleted"))
+      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
+
+    show(df, "addCourseDurationCompletedColumns")
+    df
+  }
+
   /**
    *
    * @param allCourseProgramCompletionWithDetailsDF DataFrame(userID, courseID, courseProgress, dbCompletionStatus, category, courseName, courseStatus,
@@ -764,17 +998,10 @@ object DataUtil extends Serializable {
    * User's expected competency data from the latest approved work orders issued for them from druid
    * @return DataFrame(orgID, workOrderID, userID, competencyID, expectedCompetencyLevel)
    */
-  val expectedCompetencySchema: StructType = StructType(Seq(
-    StructField("orgID",  StringType, nullable = true),
-    StructField("workOrderID",  StringType, nullable = true),
-    StructField("userID",  StringType, nullable = true),
-    StructField("competencyID",  StringType, nullable = true),
-    StructField("expectedCompetencyLevel",  IntegerType, nullable = true)
-  ))
   def expectedCompetencyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
     val query = """SELECT edata_cb_data_deptId AS orgID, edata_cb_data_wa_id AS workOrderID, edata_cb_data_wa_userId AS userID, edata_cb_data_wa_competency_id AS competencyID, CAST(REGEXP_EXTRACT(edata_cb_data_wa_competency_level, '[0-9]+') AS INTEGER) AS expectedCompetencyLevel FROM \"cb-work-order-properties\" WHERE edata_cb_data_wa_competency_type='COMPETENCY' AND edata_cb_data_wa_id IN (SELECT LATEST(edata_cb_data_wa_id, 36) FROM \"cb-work-order-properties\" GROUP BY edata_cb_data_wa_userId)"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
-    if (df == null) return emptySchemaDataFrame(expectedCompetencySchema)
+    if (df == null) return emptySchemaDataFrame(Schema.expectedCompetencySchema)
 
     df = df.filter(col("competencyID").isNotNull && col("expectedCompetencyLevel").notEqual(0))
       .withColumn("expectedCompetencyLevel", expr("CAST(expectedCompetencyLevel as INTEGER)"))  // Important to cast as integer otherwise a cast will fail later on
@@ -807,67 +1034,13 @@ object DataUtil extends Serializable {
     df
   }
 
-  /* schema definitions for declaredCompetencyDataFrame */
-  val profileCompetencySchema: StructType = StructType(Seq(
-    StructField("id",  StringType, nullable = true),
-    StructField("name",  StringType, nullable = true),
-    StructField("status",  StringType, nullable = true),
-    StructField("competencyType",  StringType, nullable = true),
-    StructField("competencySelfAttestedLevel",  StringType, nullable = true), // this is sometimes an int other times a string
-    StructField("competencySelfAttestedLevelValue",  StringType, nullable = true)
-  ))
-  val profileDetailsSchema: StructType = StructType(Seq(
-    StructField("competencies", ArrayType(profileCompetencySchema), nullable = true)
-  ))
-
-  object CompLevelParser extends Serializable {
-
-    val competencyLevelPattern: Regex = ".*[Ll]evel[ ]+?([0-9]+).*".r
-    /**
-     * match string against level pattern and return level or zero
-     * @param s string to parse
-     * @return level or zero
-     */
-    def parseCompetencyLevelString(s: String): Int = {
-      s match {
-        case competencyLevelPattern(level) => level.toInt
-        case _ => 0
-      }
-    }
-    /**
-     * get competency level from string value
-     * @param levelString level string
-     * @return level value as int
-     */
-    def getCompetencyLevel(levelString: String): Int = {
-      intOrZero(levelString) match {
-        case 0 => parseCompetencyLevelString(levelString)
-        case default => default
-      }
-    }
-
-    /**
-     * spark udf to infer competency level value, returns 1 if no value could be inferred
-     * @param csaLevel value of competencySelfAttestedLevel column
-     * @param csaLevelValue value of competencySelfAttestedLevelValue column
-     * @return level value as int
-     */
-    def compLevelParser(csaLevel: String, csaLevelValue: String): Int = {
-      for (levelString <- Seq(csaLevel, csaLevelValue)) {
-        val level = getCompetencyLevel(levelString)
-        if (level != 0) return level
-      }
-      1 // return 1 as default
-    }
-    val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
-  }
-
   /**
    * User's declared competency data from cassandra sunbird:user
    * @return DataFrame(userID, competencyID, declaredCompetencyLevel)
    */
   def declaredCompetencyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
     val userdata = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema(competencies = true)
 
     // select id and profile details column where profile details are available
     var df = userdata.where(col("profiledetails").isNotNull).select("id", "profiledetails")
@@ -898,14 +1071,9 @@ object DataUtil extends Serializable {
    * data frame of all approved competencies from frac dictionary api
    * @return DataFrame(competencyID, competencyName, competencyStatus)
    */
-  val fracCompetencySchema: StructType = StructType(Seq(
-    StructField("competencyID",  StringType, nullable = true),
-    StructField("competencyName",  StringType, nullable = true),
-    StructField("competencyStatus",  StringType, nullable = true)
-  ))
   def fracCompetencyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = fracCompetencyDFOption(conf.fracBackendHost).orNull
-    if (df == null) return emptySchemaDataFrame(fracCompetencySchema)
+    if (df == null) return emptySchemaDataFrame(Schema.fracCompetencySchema)
 
     df = df
       .select(explode_outer(col("data.getAllCompetencies")).alias("competency"))
@@ -1034,34 +1202,7 @@ object DataUtil extends Serializable {
     df
   }
 
-  /***/
-  val assessmentReadResponseSchema: StructType = StructType(Seq(
-    StructField("name", StringType, nullable = false),
-    StructField("objectType", StringType, nullable = false),
-    StructField("version", IntegerType, nullable = false),
-    StructField("status", StringType, nullable = false),
-    StructField("totalQuestions", IntegerType, nullable = false),
-    StructField("maxQuestions", IntegerType, nullable = false),
-    StructField("expectedDuration", IntegerType, nullable = false),
-    StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
-  ))
-  val submitAssessmentRequestSchema: StructType = StructType(Seq(
-    StructField("courseId", StringType, nullable = false),
-    StructField("batchId", StringType, nullable = false),
-    StructField("primaryCategory", StringType, nullable = false),
-    StructField("isAssessment", BooleanType, nullable = false),
-    StructField("timeLimit", IntegerType, nullable = false)
-  ))
-  val submitAssessmentResponseSchema: StructType = StructType(Seq(
-    StructField("result", FloatType, nullable = false),
-    StructField("total", IntegerType, nullable = false),
-    StructField("blank", IntegerType, nullable = false),
-    StructField("correct", IntegerType, nullable = false),
-    StructField("incorrect", IntegerType, nullable = false),
-    StructField("pass", BooleanType, nullable = false),
-    StructField("overallResult", FloatType, nullable = false),
-    StructField("passPercentage", FloatType, nullable = false)
-  ))
+
 
   /**
    * gets user assessment data from cassandra
@@ -1087,9 +1228,9 @@ object DataUtil extends Serializable {
         col("submitassessmentrequest")
       )
       .na.fill("{}", Seq("submitassessmentresponse", "submitassessmentrequest"))
-      .withColumn("readResponse", from_json(col("assessmentreadresponse"), assessmentReadResponseSchema))
-      .withColumn("submitRequest", from_json(col("submitassessmentrequest"), submitAssessmentRequestSchema))
-      .withColumn("submitResponse", from_json(col("submitassessmentresponse"), submitAssessmentResponseSchema))
+      .withColumn("readResponse", from_json(col("assessmentreadresponse"), Schema.assessmentReadResponseSchema))
+      .withColumn("submitRequest", from_json(col("submitassessmentrequest"), Schema.submitAssessmentRequestSchema))
+      .withColumn("submitResponse", from_json(col("submitassessmentresponse"), Schema.submitAssessmentResponseSchema))
       .withColumn("assessStartTime", col("assessStartTime").cast("long"))
       .withColumn("assessEndTime", col("assessEndTime").cast("long"))
 
@@ -1212,36 +1353,14 @@ object DataUtil extends Serializable {
 
   def userProfileDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
     var df = userOrgDF
-    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema1))
+    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
     df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
     df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
     df = df.withColumn("personalDetails", explode_outer(col("profileDetails.personalDetails")))
     df
   }
-
-  val professionalDetailsSchema: StructType = StructType(Seq(
-    StructField("designation", StringType, true),
-    StructField("group", StringType, true)
-  ))
-
-  val additionalPropertiesSchema: StructType = StructType(Seq(
-    StructField("tag", StringType, true),
-    StructField("externalSystemId", StringType, true),
-    StructField("externalSystem", StringType, true)
-  ))
-
-  val personalDetailsSchema: StructType = StructType(Seq(
-    StructField("gender", StringType, true),
-    StructField("category", StringType, true)
-  ))
-
-  val profileDetailsSchema1: StructType = StructType(Seq(
-    StructField("professionalDetails", ArrayType(professionalDetailsSchema), true),
-    StructField("additionalProperties", ArrayType(additionalPropertiesSchema), true),
-    StructField("personalDetails", ArrayType(personalDetailsSchema), true)
-  ))
 
   def mdoIDsDF(mdoID: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
     val mdoIDs = mdoID.split(",").map(_.toString).distinct
@@ -1250,11 +1369,40 @@ object DataUtil extends Serializable {
     val rowRDD: RDD[Row] = rdd.map(t => Row(t))
 
     val schema = new StructType()
-      .add(StructField("orgID", StringType, false))
+      .add(StructField("orgID", StringType, nullable = false))
     val df = spark.createDataFrame(rowRDD, schema)
     df
   }
 
+  /* telemetry data frames */
 
+  def loggedInMobileUserDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT DISTINCT(actor_id) AS userID FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND context_pdata_pid IN ('karmayogi-mobile-android', 'karmayogi-mobile-ios')"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.loggedInMobileUserSchema)
+    df = df.withColumn("userLoginFromMobile", lit(true))
+
+    show(df, "loggedInMobileUserDataFrame")
+    df
+  }
+
+  def loggedInWebUserDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT DISTINCT(actor_id) AS userID FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND context_pdata_pid IN ('sunbird-cb-orgportal', 'sunbird-cb-portal')"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.loggedInWebUserSchema)
+    df = df.withColumn("userLoginFromWeb", lit(true))
+
+    show(df, "loggedInWebUserDataFrame")
+    df
+  }
+
+  def actualTimeSpentLearningDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT uid AS userID, SUM(total_time_spent) AS userActualTimeSpentLearning FROM \"summary-events\" WHERE dimensions_type<>'app' AND object_type IN ('Learning Resource', 'Practice Question Set', 'Course Assessment') GROUP BY 1"""
+    val df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.userActualTimeSpentLearningSchema)
+
+    show(df, "actualTimeSpentLearningDataFrame")
+    df
+  }
 
 }

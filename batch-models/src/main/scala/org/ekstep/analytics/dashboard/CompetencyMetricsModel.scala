@@ -3,9 +3,8 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, countDistinct, expr, last}
+import org.apache.spark.sql.functions.{avg, col, countDistinct, expr, last}
 import org.ekstep.analytics.framework._
-
 import DashboardUtil._
 import DataUtil._
 
@@ -107,9 +106,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
-    userDF = userDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-    userOrgDF = userOrgDF.drop("userCreatedTimestamp", "userUpdatedTimestamp")
-
     // obtain and save role count data
     val roleDF = roleDataFrame()
     val userOrgRoleDF = userOrgRoleDataFrame(userOrgDF, roleDF)
@@ -129,6 +125,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
     // get course competency mapping data, dispatch to kafka to be ingested by druid data-source: dashboards-course-competency
@@ -137,7 +134,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+    var allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+    allCourseProgramCompletionWithDetailsDF = addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF, hierarchyDF)
+
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
