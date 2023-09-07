@@ -9,7 +9,7 @@ object CourseReportJob extends optional.Application with IJob{
   override def main(config: String)(implicit sc: Option[SparkContext], fc: Option[FrameworkContext]): Unit ={
     implicit val sparkContext: SparkContext = sc.getOrElse(null);
     JobLogger.log("Started executing Job")
-    JobDriver.run("batch", "config", CourseReportModel)
+    JobDriver.run("batch", config, CourseReportModel)
     JobLogger.log("Job Completed.")
   }
 }
