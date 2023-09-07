@@ -42,7 +42,7 @@ object StorageUtil {
 
   }
 
-  def renameCSV(ids: Array[String], path: String)(): Unit = {
+  def renameCSV(ids: Array[String], path: String): Unit = {
     for (id <- ids) {
       val tmpcsv = new File(path + s"mdoid=${id}")
       val customized = new File(path + s"mdoid=${id}/${id}.csv")

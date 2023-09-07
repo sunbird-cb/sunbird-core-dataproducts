@@ -51,7 +51,8 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val reportPath = s"/tmp/standalone-reports/user-report/${getDate}/"
+    val today = getDate()
+    val reportPath = s"${conf.userReportTempPath}/${today}/"
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
@@ -104,7 +105,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     val storageService = getStorageService(conf)
     storageService.upload(storageConfig.container, reportPath,
-      s"standalone-reports/user-report/${getDate}/", Some(true), Some(0), Some(3), None);
+      s"${conf.userReportPath}/${today}/", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()
   }

@@ -49,7 +49,8 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val reportPath = s"/tmp/standalone-reports/user-enrollment-report/${getDate}/"
+    val today = getDate()
+    val reportPath = s"${conf.userEnrolmentReportTempPath}/${today}/"
 
     val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
@@ -134,7 +135,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val storageService = getStorageService(conf)
 
     storageService.upload(storageConfig.container, reportPath,
-      s"standalone-reports/user-enrollment-report/${getDate}/", Some(true), Some(0), Some(3), None)
+      s"${conf.userEnrolmentReportPath}/${today}/", Some(true), Some(0), Some(3), None)
 
     closeRedisConnect()
   }

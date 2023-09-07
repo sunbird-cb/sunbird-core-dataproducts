@@ -51,7 +51,8 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val reportPath = s"/tmp/standalone-reports/course-report/${getDate}/"
+    val today = getDate()
+    val reportPath = s"${conf.courseReportTempPath}/${today}/"
 
     val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
@@ -133,7 +134,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     val storageService = getStorageService(conf)
     storageService.upload(storageConfig.container, reportPath,
-      s"standalone-reports/course-report/${getDate}/", Some(true), Some(0), Some(3), None);
+      s"${conf.courseReportPath}/${today}/", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()
   }

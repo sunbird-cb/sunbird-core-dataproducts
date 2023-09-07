@@ -71,7 +71,13 @@ case class DashboardConfig (
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
     // for reports
-    mdoIDs: String
+    mdoIDs: String,
+    userReportTempPath: String,
+    userEnrolmentReportTempPath: String,
+    courseReportTempPath: String,
+    userReportPath: String,
+    userEnrolmentReportPath: String,
+    courseReportPath: String
 ) extends Serializable
 
 
@@ -455,7 +461,13 @@ object DashboardUtil extends Serializable {
       redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
 
       // for reports
-      mdoIDs = getConfigModelParam(config, "mdoIDs")
+      mdoIDs = getConfigModelParam(config, "mdoIDs"),
+      userReportTempPath = getConfigModelParam(config, "userReportTempPath"),
+      userEnrolmentReportTempPath = getConfigModelParam(config, "userEnrolmentReportTempPath"),
+      courseReportTempPath = getConfigModelParam(config, "courseReportTempPath"),
+      userReportPath = getConfigModelParam(config, "userReportPath"),
+      userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
+      courseReportPath = getConfigModelParam(config, "courseReportPath")
 
     )
   }

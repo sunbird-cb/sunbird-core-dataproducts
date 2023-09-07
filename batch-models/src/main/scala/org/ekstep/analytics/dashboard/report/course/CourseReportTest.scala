@@ -68,6 +68,10 @@ object CourseReportTest extends Serializable{
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
+      "userReportPath" -> "/tmp/standalone-reports/user-report",
+      "userEnrolmentReportPath" -> "/tmp/standalone-reports/user-enrollment-report",
+      "courseReportPath" -> "/tmp/standalone-reports/course-report",
+
       "sideOutput" -> sideOutput
     )
     modelParams
