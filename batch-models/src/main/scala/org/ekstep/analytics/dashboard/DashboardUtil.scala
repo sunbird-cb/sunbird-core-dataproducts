@@ -124,7 +124,7 @@ object DashboardUtil extends Serializable {
 
   }
 
-  def getDate: String = {
+  def getDate(): String = {
     val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
     dateFormat.print(System.currentTimeMillis());
   }
