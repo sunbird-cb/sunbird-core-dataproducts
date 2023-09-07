@@ -347,7 +347,6 @@ object DataUtil extends Serializable {
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
       .withColumn("userPhoneVerified", col("verificationDetails.personalDetails.phoneVerified"))
       .drop("verificationDetails")
-      .drop("userProfileDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
     show(userDF, "userDataFrame")

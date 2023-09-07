@@ -104,6 +104,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // obtain and save user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    userDF.drop("userProfileDetails")
+    userOrgDF.drop("userProfileDetails")
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
     // obtain and save role count data
