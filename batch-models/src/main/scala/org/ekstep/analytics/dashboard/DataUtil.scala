@@ -57,7 +57,7 @@ object DataUtil extends Serializable {
         fields.append(StructField("competencies", ArrayType(profileCompetencySchema), nullable = true))
       }
       if (additionalProperties) {
-        fields.append(StructField("additionalProperties", ArrayType(additionalPropertiesSchema), nullable = true))
+        fields.append(StructField("additionalProperties", additionalPropertiesSchema, nullable = true))
       }
       if (professionalDetails) {
         fields.append(StructField("professionalDetails", ArrayType(professionalDetailsSchema), nullable = true))
@@ -1355,9 +1355,10 @@ object DataUtil extends Serializable {
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
     var df = userOrgDF
     df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+    df = df.withColumn("additionalProperties", col("profileDetails.additionalProperties"))
+    df = df.withColumn("personalDetails", col("profileDetails.personalDetails"))
     df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
-    df = df.withColumn("additionalProperties", explode_outer(col("profileDetails.additionalProperties")))
-    df = df.withColumn("personalDetails", explode_outer(col("profileDetails.personalDetails")))
+
     df
   }
 
