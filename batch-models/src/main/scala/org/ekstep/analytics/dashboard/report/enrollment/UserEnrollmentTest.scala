@@ -77,6 +77,9 @@ object UserEnrollmentTest extends Serializable{
       "userReportPath" -> "standalone-reports/user-report",
       "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
       "courseReportPath" -> "standalone-reports/course-report",
+      "userReportTempPath" -> "/tmp/standalone-reports/user-report",
+      "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
+      "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
 
       "sideOutput" -> sideOutput
     )

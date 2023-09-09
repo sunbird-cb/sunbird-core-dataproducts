@@ -70,9 +70,12 @@ object UserReportTest extends Serializable{
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
-      "userReportPath" -> "/tmp/standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "/tmp/standalone-reports/user-enrollment-report",
-      "courseReportPath" -> "/tmp/standalone-reports/course-report",
+      "userReportPath" -> "standalone-reports/user-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
+      "courseReportPath" -> "standalone-reports/course-report",
+      "userReportTempPath" -> "/tmp/standalone-reports/user-report",
+      "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
+      "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
 
       "sideOutput" -> sideOutput
     )
