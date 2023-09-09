@@ -76,7 +76,6 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
       .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
       .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
-//      .join(userCourseRatingDataframe, )
 
     df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
 
@@ -95,8 +94,8 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.distinct().dropDuplicates("userID", "courseID").select(
       col("Full Name").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
-      col("maskedEmail").alias("Email"),
-      col("maskedPhone").alias("Phone_Number"),
+      col("personalDetails.primaryEmail").alias("Email"),
+      col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
       col("additionalProperties.tag").alias("Tags"),
       col("ministry_name").alias("Ministry"),
@@ -108,7 +107,8 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("CBP_Duration"),
       from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
       col("userCourseCompletionStatus").alias("Status"),
-      col("courseCompletionPercentage").alias("Completion_Percentage"),
+      col("courseCompletionPercentage").alias("CBP_Progress_Percentage"),
+      from_unixtime(col("courseEnrolledTimestamp"),"dd/MM/yyyy").alias("Enrolled_On"),
       from_unixtime(col("courseCompletedTimestamp"),"dd/MM/yyyy").alias("Completed_On"),
       col("userRating").alias("Rating"),
       col("personalDetails.gender").alias("Gender"),

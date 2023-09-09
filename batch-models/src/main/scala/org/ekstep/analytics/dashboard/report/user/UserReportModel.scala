@@ -77,8 +77,8 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
-      col("maskedEmail").alias("Email"),
-      col("maskedPhone").alias("Phone_Number"),
+      col("personalDetails.primaryEmail").alias("Email"),
+      col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
       col("additionalProperties.tag").alias("Tags"),
       col("ministry_name").alias("Ministry"),
