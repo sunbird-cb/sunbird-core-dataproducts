@@ -785,7 +785,7 @@ object DataUtil extends Serializable {
 
     show(df, "liveCourseCompetencyDataFrame (courseID, courseName, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competencyID, competencyLevel)")
     df
-s  }
+  }
 
 
   /**
