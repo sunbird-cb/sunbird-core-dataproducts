@@ -59,6 +59,7 @@ case class DashboardConfig (
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
     cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
+    cassandraCourseBatchTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -77,7 +78,8 @@ case class DashboardConfig (
     courseReportTempPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
-    courseReportPath: String
+    courseReportPath: String,
+    taggedUsersPath: String
 ) extends Serializable
 
 
@@ -441,6 +443,7 @@ object DashboardUtil extends Serializable {
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
       cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
+      cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
@@ -467,7 +470,8 @@ object DashboardUtil extends Serializable {
       courseReportTempPath = getConfigModelParam(config, "courseReportTempPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
-      courseReportPath = getConfigModelParam(config, "courseReportPath")
+      courseReportPath = getConfigModelParam(config, "courseReportPath"),
+      taggedUsersPath = getConfigModelParam(config, "taggedUsersPath")
 
     )
   }

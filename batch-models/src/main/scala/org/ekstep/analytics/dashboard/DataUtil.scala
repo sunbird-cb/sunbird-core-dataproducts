@@ -45,7 +45,7 @@ object DataUtil extends Serializable {
       StructField("primaryEmail", StringType, nullable = true)
     ))
     val additionalPropertiesSchema: StructType = StructType(Seq(
-      StructField("tag", StringType, nullable = true),
+      StructField("tag", ArrayType(StringType), nullable = true),
       StructField("externalSystemId", StringType, nullable = true),
       StructField("externalSystem", StringType, nullable = true)
     ))
@@ -60,6 +60,7 @@ object DataUtil extends Serializable {
       }
       if (additionalProperties) {
         fields.append(StructField("additionalProperties", additionalPropertiesSchema, nullable = true))
+        fields.append(StructField("additionalPropertis", additionalPropertiesSchema, nullable = true))
       }
       if (professionalDetails) {
         fields.append(StructField("professionalDetails", ArrayType(professionalDetailsSchema), nullable = true))
@@ -1357,7 +1358,10 @@ object DataUtil extends Serializable {
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
     var df = userOrgDF
     df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-    df = df.withColumn("additionalProperties", col("profileDetails.additionalProperties"))
+    df = df.withColumn("additionalProperties", if (df.columns.contains("profileDetails.additionalPropertis")) {
+      col("profileDetails.additionalPropertis")
+    }
+    else col("profileDetails.additionalProperties"))
     df = df.withColumn("personalDetails", col("profileDetails.personalDetails"))
     df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
 
