@@ -59,7 +59,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(org, false, false)
+      contentDataFrames(org, false, false, true)
 
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
       .select(col("courseID"), col("userID"), col("completionPercentage"))
@@ -71,10 +71,12 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     val userRating = userCourseRatingDataframe()
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
+    val courseBatchDF = courseBatchDataFrame()
 
     val orgHierarchyData = orgHierarchyDataframe()
     var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
       .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
+      .join(courseBatchDF, Seq("courseID"), "left")
       .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
@@ -86,9 +88,30 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       expr("courseDuration % 60").cast("int")
     ))
 
+    val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
+    val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+
+    df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
+    df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
+
+    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("contentStatus")).alias("userContents"))
+
+    val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
+      col("liveContentCount"), col("identifier").alias("courseID"), explode(col("liveContents")).alias("liveContents")
+    )
+
+    val userConsumedLiveContents = liveContents.join(userConsumedcontents, col("userContents") === col("liveContents") && col("courseID") === col("courseId") , "inner")
+      .groupBy("courseID", "userID")
+      .agg(countDistinct("userContents").alias("currentlyLiveContents"))
+
+    df = df.join(userConsumedLiveContents, Seq("courseID", "userID"), "left")
+
     val caseExpression = "CASE WHEN userCourseCompletionStatus == 'completed' THEN 100 " +
-      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 ELSE courseCompletionPercentage END"
-    df = df.withColumn("Completion Percentage", expr(caseExpression))
+      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 WHEN userCourseCompletionStatus == 'in-progress' THEN 100 * currentlyLiveContents / courseResourceCount END"
+    df = df.withColumn("Completion Percentage", round(expr(caseExpression), 2))
+
+    val caseExpressionCertificate = "CASE WHEN issued_certificates == '[]' THEN 'No' ELSE 'Yes' END"
+    df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
     df.show()
     df = df.distinct().dropDuplicates("userID", "courseID").select(
@@ -97,7 +120,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags"),
+      col("additionalProperties.tag").alias("Tags").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -105,11 +128,16 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("courseName").alias("CBP Name"),
       col("category").alias("CBP Type"),
       col("CBP_Duration"),
+      col("courseBatchID").alias("Batch_ID"),
+      col("courseBatchName").alias("Batch_Name"),
+      col("Batch_Start_Date"),
+      col("Batch_End_Date"),
       from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
       col("userCourseCompletionStatus").alias("Status"),
-      col("courseCompletionPercentage").alias("CBP_Progress_Percentage"),
+      col("Completion Percentage").alias("CBP_Progress_Percentage"),
       from_unixtime(col("courseEnrolledTimestamp"),"dd/MM/yyyy").alias("Enrolled_On"),
       from_unixtime(col("courseCompletedTimestamp"),"dd/MM/yyyy").alias("Completed_On"),
+      col("Certificate_Generated"),
       col("userRating").alias("Rating"),
       col("personalDetails.gender").alias("Gender"),
       col("personalDetails.category").alias("Category"),
