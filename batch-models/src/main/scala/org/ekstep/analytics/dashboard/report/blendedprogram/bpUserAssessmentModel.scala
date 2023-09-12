@@ -100,7 +100,7 @@ object bpUserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dum
     removeFile(s"/tmp/standalone-reports/blended-program-assessment-report-mdo/${getDate}/_SUCCESS")
 
    //rename the blended program csv file
-    renameCSV(idsBlendedProgram, s"/tmp/standalone-reports/blended-program-assessment-report-mdo/${getDate}/")()
+    renameCSV(idsBlendedProgram, s"/tmp/standalone-reports/blended-program-assessment-report-mdo/${getDate}/")
 
     val storageConfigMdo1 = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/blended-program-assessment-report-mdo/${getDate}")
     val storageService1 = getStorageService(conf)
@@ -115,7 +115,7 @@ object bpUserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dum
       .save(s"/tmp/standalone-reports/blended-program-assessment-report-cbp/${getDate}/")
 
     removeFile(s"/tmp/standalone-reports/blended-program-assessment-report-cbp/${getDate}/_SUCCESS")
-    renameCSV(cbpidsBlendedProgram, s"/tmp/standalone-reports/blended-program-assessment-report-cbp/${getDate}/")()
+    renameCSV(cbpidsBlendedProgram, s"/tmp/standalone-reports/blended-program-assessment-report-cbp/${getDate}/")
 
     // upload cbp files - s3://{container}/standalone-reports/user-assessment-report-cbp/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfigBPCbp = new StorageConfig(conf.store, conf.container, s"/tmp/standalone-reports/blended-program-assessment-report-cbp/${getDate}")

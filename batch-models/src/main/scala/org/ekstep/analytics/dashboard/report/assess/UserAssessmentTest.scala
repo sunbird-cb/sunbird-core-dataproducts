@@ -68,6 +68,8 @@ object UserAssessmentTest extends Serializable {
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
 
+      "mdoIDs" -> "0135071359030722569,01358993635114188855",
+
       "sideOutput" -> sideOutput
     )
     modelParams

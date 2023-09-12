@@ -1,16 +1,16 @@
-package org.ekstep.analytics.dashboard.report.user
+package org.ekstep.analytics.dashboard.report.adhocReports.rozgar
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, expr, from_unixtime, lit}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions.{coalesce, col, explode, expr, from_unixtime, lit}
+import org.ekstep.analytics.dashboard.DashboardUtil.{closeRedisConnect, getDate, parseConfig, validation}
+import org.ekstep.analytics.dashboard.DataUtil.{getOrgUserDataFrames, mdoIDsDF, orgHierarchyDataframe, roleDataFrame, userProfileDetailsDF}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
+import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
-import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
 
-object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
   implicit var debug: Boolean = false
   /**
@@ -53,6 +53,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     val today = getDate()
     val reportPath = s"${conf.userReportTempPath}/${today}/"
+    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
@@ -73,6 +74,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
+    df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
 
     df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),
@@ -80,7 +82,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags"),
+      col("User_Tag"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -92,21 +94,22 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("additionalProperties.externalSystemId").alias("External_System_Id"),
       col("userOrgID").alias("mdoid")
     )
+
     df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
+      .save(taggedUsersPath)
     import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
+    val rozgarIDs = df.select("mdoid").map(row => row.getString(0)).collect().toArray
 
-    removeFile(reportPath + "_SUCCESS")
-    renameCSV(ids, reportPath)
+    removeFile( taggedUsersPath + "_SUCCESS")
+    renameCSV(rozgarIDs, taggedUsersPath)
 
     val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
 
     val storageService = getStorageService(conf)
     storageService.upload(storageConfig.container, reportPath,
-      s"${conf.userReportPath}/${today}/", Some(true), Some(0), Some(3), None);
+      s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()
   }
 }
+

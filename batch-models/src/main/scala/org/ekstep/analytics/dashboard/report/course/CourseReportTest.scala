@@ -1,29 +1,29 @@
-package org.ekstep.analytics.dashboard.report.enrollment
+package org.ekstep.analytics.dashboard.report.course
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-object UserEnrollmentTest extends Serializable{
+object CourseReportTest extends Serializable{
 
   def main(args: Array[String]): Unit = {
 
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("UserEnrollmentTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CourseReportTest", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    UserEnrollmentModel.processUserEnrollmentData(System.currentTimeMillis(), config)
+    CourseReportModel.processCourseReport(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
     val sideOutput = Map(
       "brokerList" -> "",
-      "compression" -> "snappy",
+      "compression" -> "none",
       "topics" -> Map(
         "roleUserCount" -> "dev.dashboards.role.count",
         "orgRoleUserCount" -> "dev.dashboards.org.role.count",
@@ -45,10 +45,10 @@ object UserEnrollmentTest extends Serializable{
       "redisPort" -> "6379",
       "redisDB" -> "12",
 
-      "sparkCassandraConnectionHost" -> "10.0.0.7",
-      "sparkDruidRouterHost" -> "10.0.0.13",
-      "sparkElasticsearchConnectionHost" -> "10.0.0.7",
-      "fracBackendHost" -> "frac-dictionary-backend.igot-dev.in",
+      "sparkCassandraConnectionHost" -> "192.168.3.211",
+      "sparkDruidRouterHost" -> "192.168.3.91",
+      "sparkElasticsearchConnectionHost" -> "192.168.3.211",
+      "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
@@ -60,19 +60,13 @@ object UserEnrollmentTest extends Serializable{
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
-      "cassandraRatingsTable" -> "ratings",
-      "cassandraOrgHierarchyTable" -> "org_hierarchy",
 
-      "store" -> "s3",
-      "container" -> "igot",
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
+      "store" -> "s3",
+      "container" -> "igot",
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
-
-      "userReportTempPath" -> "/tmp/standalone-reports/user-report",
-      "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
-      "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
 
       "userReportPath" -> "standalone-reports/user-report",
       "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
@@ -85,5 +79,6 @@ object UserEnrollmentTest extends Serializable{
     )
     modelParams
   }
-
 }
+
+
