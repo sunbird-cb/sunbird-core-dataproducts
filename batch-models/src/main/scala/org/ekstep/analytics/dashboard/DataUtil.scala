@@ -478,10 +478,12 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false,getBlendedProgram: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
-    } else {
+    } else if (getBlendedProgram)
+      Seq("Course", "Program","Blended Program")
+    else {
       Seq("Course", "Program")
     }
 
