@@ -86,42 +86,24 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
 
     df = df.dropDuplicates("userID").select(
-      col("fullName"),
+      col("userID"),
       col("assessPrimaryCategory").alias("type"),
       col("assessName").alias("assessmentName"),
-      col("assessStatus").alias("assessmentStatus"),
+      col("assessUserStatus").alias("assessmentStatus"),
       col("assessPassPercentage").alias("percentageScore"),
       col("maskedEmail").alias("email"),
       col("maskedPhone").alias("phone"),
       col("userOrgName").alias("provider"),
-      col("userOrgID").alias("mdoid")
+      col("assessOrgID").alias("cbpid")
     )
 
     import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPathMDO)
-
-    // remove the _SUCCESS file
-    removeFile(reportPathMDO + "_SUCCESS")
-
-    //rename the csv file
-    renameCSV(ids, reportPathMDO)
-
-    // upload mdo files - s3://{container}/standalone-reports/user-assessment-report-mdo/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigMdo = new StorageConfig(conf.store, conf.container, reportPathMDO)
     val storageService = getStorageService(conf)
+    val dfCBP = df.drop("provider", "type")
 
-    storageService.upload(storageConfigMdo.container, reportPathMDO,
-      s"standalone-reports/user-assessment-report-mdo/${getDate}/", Some(true), Some(0), Some(3), None)
+    val cbpids = dfCBP.select("cbpid").map(row => row.getString(0)).collect().toArray
 
-
-    var dfCBP = df.drop("provider", "type")
-
-    val cbpids = dfCBP.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
+    dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("cbpid")
       .save(reportPathCBP)
 
     removeFile(reportPathCBP + "_SUCCESS")
