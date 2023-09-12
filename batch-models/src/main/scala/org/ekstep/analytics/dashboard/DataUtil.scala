@@ -116,6 +116,7 @@ object DataUtil extends Serializable {
         StructField("duration", StringType, nullable = true),
         StructField("primaryCategory", StringType, nullable = true),
         StructField("leafNodesCount", IntegerType, nullable = true),
+        StructField("leafNodes", ArrayType(StringType), nullable = true),
         StructField("publish_type", StringType, nullable = true),
         StructField("isExternal", BooleanType, nullable = true),
         StructField("contentType", StringType, nullable = true),
@@ -699,9 +700,11 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
+    } else if (isAllCBP) {
+      Seq("Course", "Program", "Blended Program", "CuratedCollections")
     } else {
       Seq("Course", "Program")
     }
@@ -877,6 +880,23 @@ object DataUtil extends Serializable {
     df
   }
 
+  /**
+   * Batch details for all kind of CBPs
+   *
+   * @return col(courseID, courseBatchID, courseBatchEnrollmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   *         courseBatchStatus, courseBatchUpdatedDate)
+   */
+  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+      col("courseid").alias("courseID"), col("batchid").alias("courseBatchID"),
+      col("enrollmenttype").alias("courseBatchEnrollmentType"), col("name").alias("courseBatchName"),
+      col("start_date").alias("courseBatchStartDate"), col("enddate").alias("courseBatchEndDate"),
+      col("status").alias("courseBatchStatus"), col("updated_date").alias("courseBatchUpdatedDate")
+    )
+    show(df, "Course Batch Data")
+    df
+  }
+
 
   /**
    * Despite the name this gets all rows from user_enrolments table, only filtering out active=false
@@ -898,10 +918,21 @@ object DataUtil extends Serializable {
         col("status").alias("dbCompletionStatus"),
         col("courseCompletedTimestamp"),
         col("courseEnrolledTimestamp"),
-        col("lastContentAccessTimestamp")
+        col("lastContentAccessTimestamp"),
+        col("issued_certificates").cast("String"),
+        col("contentstatus").alias("contentStatus")
       ).na.fill(0, Seq("courseProgress"))
 
     show(df)
+    df
+  }
+
+  def leafNodesDataframe(allCourseProgramDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = hierarchyDF.withColumn("hierarchy", from_json(col("hierarchy"), Schema.makeHierarchySchema()))
+    df = df.select(col("hierarchy.leafNodes").alias("liveContents"),
+      col("hierarchy.leafNodesCount").alias("liveContentCount"),
+      col("identifier"))
+    show(df, "leafNodes data")
     df
   }
 
