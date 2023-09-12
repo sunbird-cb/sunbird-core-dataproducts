@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.course
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, from_unixtime, lit, round}
+import org.apache.spark.sql.functions.{coalesce, col, count, countDistinct, expr, format_string, from_unixtime, lit, max, min, round, when}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
@@ -61,7 +61,10 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
-      contentDataFrames(org, false, false)
+      contentDataFrames(org, false, false, true)
+    val courseBatchData = courseBatchDataFrame()
+
+    val courseStatusUpdateData = courseStatusUpdateDataFrame(hierarchyDF)
 
     //    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
@@ -76,7 +79,8 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
 
     var courseCompletionWithDetailsDFforMDO = allCourseData.join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
-      .join(mdoData, Seq("userOrgID"), "inner")
+      .join(mdoData, Seq("userOrgID"), "inner").join(courseBatchData, Seq("courseID"), "left")
+      .join(courseStatusUpdateData, Seq("courseID"), "left")
 
     // number of enrollments
     val courseEnrolled = courseCompletionWithDetailsDFforMDO.where(expr("completionStatus in ('enrolled', 'started', 'in-progress', 'completed')"))
@@ -103,20 +107,54 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       .join(courseStartedCount, Seq("courseID"), "inner")
 
     df = df.withColumn("notStartedCount", df("enrollmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
-    df = df.withColumn("durationInHour", round(col("courseDuration")/3600, 2))
     df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
 
-    df = df.dropDuplicates("courseID", "userID").select(
+    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
+      expr("courseDuration % 3600 / 60").cast("int"),
+      expr("courseDuration % 60").cast("int")
+    ))
+
+    var certificateIssued = df.filter(col("issued_certificates") =!= "[]").select(col("courseID"), col("issued_certificates"))
+    certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issued_certificates")).alias("Total_Certificates_Issued"))
+
+    df = df.join(certificateIssued, Seq("courseID"), "left")
+
+    val caseExpressionBatchID = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchID END"
+    val caseExpressionBatchName = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchName END"
+    val caseExpressionStartDate = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
+    val caseExpressionEndDate = "CASE WHEN courseBatchEnrollmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+
+    df = df.withColumn("Batch_Start_Date", expr(caseExpressionStartDate))
+    df = df.withColumn("Batch_End_Date", expr(caseExpressionEndDate))
+    df = df.withColumn("Batch_ID", expr(caseExpressionBatchID))
+    df = df.withColumn("Batch_Name", expr(caseExpressionBatchName))
+
+    val completedOn = df.groupBy("courseID").agg(
+      max("courseCompletedTimestamp").alias("LastCompletedOn"),
+      min("courseCompletedTimestamp").alias("FirstCompletedOn")
+    )
+
+    df = df.join(completedOn, Seq("courseID"), "left")
+
+    df = df.dropDuplicates("courseID").select(
       col("courseOrgName").alias("CBP_Provider"),
       col("courseName").alias("CBP_Name"),
       col("category").alias("CBP_Type"),
-      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Published_Date"),
-      col("durationInHour").alias("CBP_Duration"),
+      col("Batch_ID"),
+      col("Batch_Name"),
+      col("Batch_Start_Date"),
+      col("Batch_End_Date"),
+      col("CBP_Duration"),
       col("enrollmentCount").alias("Enrolled"),
       col("notStartedCount").alias("Not_Started"),
       col("inProgressCount").alias("In_Progress"),
       col("completedCount").alias("Completed"),
-      col("Average_Rating"),
+      col("Average_Rating").alias("CBP_Rating"),
+      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
+      from_unixtime(col("FirstCompletedOn").cast("long"),"dd/MM/yyyy").alias("First_Completed_On"),
+      from_unixtime(col("LastCompletedOn").cast("long"),"dd/MM/yyyy").alias("Last_Completed_On"),
+      from_unixtime(col("ArchivedOn").cast("long"),"dd/MM/yyyy").alias("Archived_On"),
+      col("Total_Certificates_Issued"),
       col("userOrgID").alias("mdoid")
 //      col("courseOrgID").alias("mdoid")
     )

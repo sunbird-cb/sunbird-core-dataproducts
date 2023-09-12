@@ -126,7 +126,8 @@ object DataUtil extends Serializable {
         StructField("createdOn", StringType, nullable = true),
         StructField("lastUpdatedOn", StringType, nullable = true),
         StructField("lastPublishedOn", StringType, nullable = true),
-        StructField("lastSubmittedOn", StringType, nullable = true)
+        StructField("lastSubmittedOn", StringType, nullable = true),
+        StructField("lastStatusChangedOn", StringType, nullable = true)
 
       )
       if (children) {
@@ -932,6 +933,17 @@ object DataUtil extends Serializable {
     df = df.select(col("hierarchy.leafNodes").alias("liveContents"),
       col("hierarchy.leafNodesCount").alias("liveContentCount"),
       col("identifier"))
+    show(df, "leafNodes data")
+    df
+  }
+
+  def courseStatusUpdateDataFrame(hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = hierarchyDF.withColumn("hierarchy", from_json(col("hierarchy"), Schema.makeHierarchySchema()))
+    df = df.select(col("hierarchy.lastStatusChangedOn").alias("lastStatusChangedOn"),
+      col("identifier").alias("courseID"), col("hierarchy.status").alias("courseStatus"))
+
+    val caseExpressionStatus = "CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE 'null' END"
+    df = df.withColumn("ArchivedOn", expr(caseExpressionStatus))
     show(df, "leafNodes data")
     df
   }

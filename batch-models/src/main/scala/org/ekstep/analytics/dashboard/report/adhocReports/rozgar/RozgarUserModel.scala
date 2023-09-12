@@ -11,7 +11,7 @@ import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 
 object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.adhocReports.rozgar.RozgarUserModel"
   implicit var debug: Boolean = false
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
@@ -82,7 +82,8 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("User_Tag"),
+//      col("User_Tag"),
+      col("additionalProperties.tag").alias("Tags").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -103,10 +104,10 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     removeFile( taggedUsersPath + "_SUCCESS")
     renameCSV(rozgarIDs, taggedUsersPath)
 
-    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
+    val storageConfig = new StorageConfig(conf.store, conf.container,taggedUsersPath)
 
     val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, reportPath,
+    storageService.upload(storageConfig.container, taggedUsersPath,
       s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", Some(true), Some(0), Some(3), None);
 
     closeRedisConnect()
