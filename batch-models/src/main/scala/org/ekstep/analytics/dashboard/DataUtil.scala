@@ -920,8 +920,8 @@ object DataUtil extends Serializable {
         col("courseCompletedTimestamp"),
         col("courseEnrolledTimestamp"),
         col("lastContentAccessTimestamp"),
-        col("issued_certificates").cast("String"),
-        col("contentstatus").alias("contentStatus")
+        col("issued_certificates").cast("String").alias("issuedCertificates"),
+        col("contentstatus").alias("courseContentStatus")
       ).na.fill(0, Seq("courseProgress"))
 
     show(df)

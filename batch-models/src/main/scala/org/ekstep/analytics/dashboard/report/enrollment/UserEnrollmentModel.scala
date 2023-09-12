@@ -94,7 +94,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
     df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
 
-    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("contentStatus")).alias("userContents"))
+    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("courseContentStatus")).alias("userContents"))
 
     val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
       col("liveContentCount"), col("identifier").alias("courseID"), explode(col("liveContents")).alias("liveContents")
@@ -110,7 +110,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       "WHEN userCourseCompletionStatus == 'not-started' THEN 0 WHEN userCourseCompletionStatus == 'in-progress' THEN 100 * currentlyLiveContents / courseResourceCount END"
     df = df.withColumn("Completion Percentage", round(expr(caseExpression), 2))
 
-    val caseExpressionCertificate = "CASE WHEN issued_certificates == '[]' THEN 'No' ELSE 'Yes' END"
+    val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
     df.show()

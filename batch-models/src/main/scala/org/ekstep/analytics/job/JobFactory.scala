@@ -1,11 +1,11 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
-import org.ekstep.analytics.dashboard.report.adhocReports.rozgar.RozgarUserJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
+import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob
