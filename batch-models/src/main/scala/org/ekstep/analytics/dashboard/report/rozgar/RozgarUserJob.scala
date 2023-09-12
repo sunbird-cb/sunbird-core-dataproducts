@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.adhocReports.rozgar
+package org.ekstep.analytics.dashboard.report.rozgar
 
 import org.apache.spark.SparkContext
 import org.ekstep.analytics.framework.util.JobLogger
