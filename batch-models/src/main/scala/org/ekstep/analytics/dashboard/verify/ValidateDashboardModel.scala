@@ -120,15 +120,15 @@ object ValidateDashboardModel extends IBatchModelTemplate[String, DummyInput, Du
     show(top5MDOsByCompletionDF, "top5MDOsByCompletionDF")
     top5MDOsByCompletionDF.show()
 
-    val enrollmentByStatusDF = filteredProgressDF
+    val enrolmentByStatusDF = filteredProgressDF
       .agg(
         expr("COUNT(userID)").alias("enrolled_count"),
         expr("SUM(CASE WHEN dbCompletionStatus=0 THEN 1 ELSE 0 END)").alias("not_started_count"),
         expr("SUM(CASE WHEN dbCompletionStatus=1 THEN 1 ELSE 0 END)").alias("in_progress_count"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completed_count")
       )
-    show(enrollmentByStatusDF, "enrollmentByStatusDF")
-    enrollmentByStatusDF.show()
+    show(enrolmentByStatusDF, "enrolmentByStatusDF")
+    enrolmentByStatusDF.show()
 
     val uniqueUsersEnrolledDF = filteredProgressDF
       .agg(

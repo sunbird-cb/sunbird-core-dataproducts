@@ -48,7 +48,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/${conf.cbaReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.cbaReportPath}/${today}/"
 
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 

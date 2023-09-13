@@ -10,7 +10,7 @@ object RozgarUserTest extends Serializable{
   def main(args: Array[String]): Unit = {
 
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("UserReportTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("RozgarUserTest", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
@@ -71,12 +71,11 @@ object RozgarUserTest extends Serializable{
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
       "courseReportPath" -> "standalone-reports/course-report",
-      "userReportTempPath" -> "/tmp/standalone-reports/user-report",
-      "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
-      "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
+      "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
+      "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
 
       "sideOutput" -> sideOutput
     )

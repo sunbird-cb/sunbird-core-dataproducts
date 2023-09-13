@@ -890,15 +890,19 @@ object DataUtil extends Serializable {
   /**
    * Batch details for all kind of CBPs
    *
-   * @return col(courseID, courseBatchID, courseBatchEnrollmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
    *         courseBatchStatus, courseBatchUpdatedDate)
    */
   def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-      col("courseid").alias("courseID"), col("batchid").alias("courseBatchID"),
-      col("enrollmenttype").alias("courseBatchEnrollmentType"), col("name").alias("courseBatchName"),
-      col("start_date").alias("courseBatchStartDate"), col("enddate").alias("courseBatchEndDate"),
-      col("status").alias("courseBatchStatus"), col("updated_date").alias("courseBatchUpdatedDate")
+      col("courseid").alias("courseID"),
+      col("batchid").alias("courseBatchID"),
+      col("enrollmenttype").alias("courseBatchEnrolmentType"),
+      col("name").alias("courseBatchName"),
+      col("start_date").alias("courseBatchStartDate"),
+      col("enddate").alias("courseBatchEndDate"),
+      col("status").alias("courseBatchStatus"),
+      col("updated_date").alias("courseBatchUpdatedDate")
     )
     show(df, "Course Batch Data")
     df

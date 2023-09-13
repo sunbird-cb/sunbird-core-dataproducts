@@ -71,22 +71,18 @@ case class DashboardConfig (
     redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
     redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
     redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
-    redisUserCompetencyGapCount: String, redisUserCourseEnrollmentCount: String,
-    redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
+    redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
+    redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
     // for reports
     mdoIDs: String,
-    userReportTempPath: String,
-    userEnrolmentReportTempPath: String,
-    courseReportTempPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
     courseReportPath: String,
     taggedUsersPath: String,
-    cbaReportPath: String,
-    cbaReportTempPath: String
+    cbaReportPath: String
 ) extends Serializable
 
 
@@ -141,8 +137,8 @@ object DashboardUtil extends Serializable {
       val storageType = "s3"
       //    val storageKey = modelParams.getOrElse("storageKeyConfig", "reports_storage_key").asInstanceOf[String]
       //    val storageSecret = modelParams.getOrElse("storageSecretConfig", "reports_storage_secret").asInstanceOf[String];
-      val storageKey = config.key
-      val storageSecret = config.secret
+      val storageKey = AppConf.getConfig(config.key)
+      val storageSecret = AppConf.getConfig(config.secret)
 
       val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
         new CustomS3StorageService(
@@ -518,9 +514,9 @@ object DashboardUtil extends Serializable {
       redisUserCompetencyDeclarationRate = "dashboard_user_competency_declaration_rate",
       redisOrgCompetencyDeclarationRate = "dashboard_org_competency_declaration_rate",
       redisUserCompetencyGapCount = "dashboard_user_competency_gap_count",
-      redisUserCourseEnrollmentCount = "dashboard_user_course_enrollment_count",
-      redisUserCompetencyGapEnrollmentRate = "dashboard_user_competency_gap_enrollment_rate",
-      redisOrgCompetencyGapEnrollmentRate = "dashboard_org_competency_gap_enrollment_rate",
+      redisUserCourseEnrolmentCount = "dashboard_user_course_enrollment_count",
+      redisUserCompetencyGapEnrolmentRate = "dashboard_user_competency_gap_enrollment_rate",
+      redisOrgCompetencyGapEnrolmentRate = "dashboard_org_competency_gap_enrollment_rate",
       redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
@@ -528,15 +524,11 @@ object DashboardUtil extends Serializable {
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
-      userReportTempPath = getConfigModelParam(config, "userReportTempPath"),
-      userEnrolmentReportTempPath = getConfigModelParam(config, "userEnrolmentReportTempPath"),
-      courseReportTempPath = getConfigModelParam(config, "courseReportTempPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
-      cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
-      cbaReportTempPath = getConfigModelParam(config, "cbaReportTempPath")
+      cbaReportPath = getConfigModelParam(config, "cbaReportPath")
 
     )
   }

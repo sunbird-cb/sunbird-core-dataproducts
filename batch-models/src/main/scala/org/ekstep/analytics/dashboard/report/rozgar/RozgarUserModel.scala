@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 
 object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.adhocReports.rozgar.RozgarUserModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.rozgar.RozgarUserModel"
   implicit var debug: Boolean = false
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
@@ -52,7 +52,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"${conf.userReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
     val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
     // get user roles data

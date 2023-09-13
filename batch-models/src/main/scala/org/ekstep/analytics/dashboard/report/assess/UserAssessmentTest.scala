@@ -68,6 +68,13 @@ object UserAssessmentTest extends Serializable {
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
 
+      "userReportPath" -> "standalone-reports/user-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
+      "courseReportPath" -> "standalone-reports/course-report",
+      "cbaReportPath" -> "standalone-reports/cba-report",
+      "taggedUsersPath" -> "tagged-users/",
+      "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
+
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
       "sideOutput" -> sideOutput

@@ -52,7 +52,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"${conf.userReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role

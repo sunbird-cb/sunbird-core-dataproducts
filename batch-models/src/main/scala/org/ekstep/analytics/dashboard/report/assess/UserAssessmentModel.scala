@@ -50,7 +50,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     val today = getDate()
     val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
-    val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
+    // val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
