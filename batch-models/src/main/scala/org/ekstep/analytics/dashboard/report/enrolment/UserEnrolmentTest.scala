@@ -77,7 +77,6 @@ object UserEnrolmentTest extends Serializable{
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
       "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
-      "taggedUsersPath" -> "tagged-users/",
 
       "sideOutput" -> sideOutput
     )
