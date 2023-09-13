@@ -94,7 +94,7 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
     df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
     df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
 
-    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("contentStatus")).alias("userContents"))
+    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("courseContentStatus")).alias("userContents"))
 
     val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
       col("liveContentCount"), col("identifier").alias("courseID"), explode(col("liveContents")).alias("liveContents")
