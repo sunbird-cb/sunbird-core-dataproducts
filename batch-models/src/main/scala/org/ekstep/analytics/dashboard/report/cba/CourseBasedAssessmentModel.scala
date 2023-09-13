@@ -3,11 +3,10 @@ package org.ekstep.analytics.dashboard.report.cba
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, format_string, from_unixtime, lit, max, unix_timestamp}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.{SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
 
 import java.io.Serializable
@@ -49,7 +48,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/${conf.cbaReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.cbaReportPath}/${today}/"
 
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
@@ -129,24 +128,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       col("userOrgID").alias("mdoid")
     )
 
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
-    // remove the _SUCCESS file
-    removeFile(reportPath + "_SUCCESS")
-
-    //rename the csv file
-    renameCSV(ids, reportPath)
-
-    // upload report - s3://{container}/standalone-reports/cba-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigMdo = new StorageConfig(conf.store, conf.container, reportPath)
-    val storageService = getStorageService(conf)
-
-    storageService.upload(storageConfigMdo.container, reportPath,
-      s"${conf.cbaReportPath}/${today}/", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/")
 
     closeRedisConnect()
 
