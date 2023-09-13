@@ -7,10 +7,11 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.storage.StorageLevel
+import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
 import org.joda.time.DateTimeZone
@@ -135,7 +136,13 @@ object DashboardUtil extends Serializable {
 
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.format("csv").option("header", header.toString).save(path)
+    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+      .save(path)
+  }
+
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, fileCount: Int = 1, header: Boolean = true): Unit = {
+    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+      .partitionBy(partitionKey).save(path)
   }
 
   def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {

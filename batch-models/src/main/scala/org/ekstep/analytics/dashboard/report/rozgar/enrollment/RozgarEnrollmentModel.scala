@@ -149,24 +149,7 @@ object RozgarEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dum
       col("userOrgID").alias("mdoid")
     )
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(taggedUsersPath)
-
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    // remove _SUCCESS file
-    removeFile(taggedUsersPath + "_SUCCESS")
-
-    // rename csv
-    renameCSV(ids, taggedUsersPath)
-
-    //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, taggedUsersPath)
-    val storageService = getStorageService(conf)
-
-    storageService.upload(storageConfig.container, taggedUsersPath,
-      s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}")
 
     closeRedisConnect()
   }

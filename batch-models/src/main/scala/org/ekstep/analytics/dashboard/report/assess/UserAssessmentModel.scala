@@ -49,8 +49,9 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/"
-    val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/"
+    val today = getDate()
+    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
+    val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -97,22 +98,8 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("assessOrgID").alias("cbpid")
     )
 
-    import spark.implicits._
-    val storageService = getStorageService(conf)
     val dfCBP = df.drop("provider", "type")
-
-    val cbpids = dfCBP.select("cbpid").map(row => row.getString(0)).collect().toArray
-
-    dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("cbpid")
-      .save(reportPathCBP)
-
-    removeFile(reportPathCBP + "_SUCCESS")
-    renameCSV(cbpids, reportPathCBP)
-
-    // upload cbp files - s3://{container}/standalone-reports/user-assessment-report-cbp/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigCbp = new StorageConfig(conf.store, conf.container, reportPathCBP)
-    storageService.upload(storageConfigCbp.container, reportPathCBP,
-      s"standalone-reports/user-assessment-report-cbp/${getDate}/", Some(true), Some(0), Some(3), None)
+    uploadReports(dfCBP, "cbpid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
 
     closeRedisConnect()
 

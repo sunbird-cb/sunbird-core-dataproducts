@@ -124,24 +124,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       col("userOrgID").alias("mdoid")
     )
 
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
-    // remove the _SUCCESS file
-    removeFile(reportPath + "_SUCCESS")
-
-    //rename the csv file
-    renameCSV(ids, reportPath)
-
-    // upload report - s3://{container}/standalone-reports/cba-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigMdo = new StorageConfig(conf.store, conf.container, reportPath)
-    val storageService = getStorageService(conf)
-
-    storageService.upload(storageConfigMdo.container, reportPath,
-      s"${conf.cbaReportPath}/${today}/", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/")
 
     closeRedisConnect()
 

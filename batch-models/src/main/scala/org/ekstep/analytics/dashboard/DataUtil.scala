@@ -7,9 +7,9 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.framework.FrameworkContext
-
+import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
+import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
 
 import java.io.Serializable
 import java.util
@@ -1462,6 +1462,21 @@ object DataUtil extends Serializable {
 
     show(df, "actualTimeSpentLearningDataFrame")
     df
+  }
+
+  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    import spark.implicits._
+    val storageService = getStorageService(conf)
+    val ids = df.select(partitionKey).map(row => row.getString(0)).collect().toArray
+
+    csvWritePartition(df, reportTempPath, partitionKey)
+    removeFile(reportTempPath + "_SUCCESS")
+    renameCSV(ids, reportTempPath)
+
+    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
+    val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
+    storageService.upload(storageConfig.container, reportTempPath,
+      s"${reportPath}", Some(true), Some(0), Some(3), None)
   }
 
 }

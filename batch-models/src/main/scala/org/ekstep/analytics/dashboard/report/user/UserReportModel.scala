@@ -92,20 +92,8 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("additionalProperties.externalSystemId").alias("External_System_Id"),
       col("userOrgID").alias("mdoid")
     )
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
 
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    removeFile(reportPath + "_SUCCESS")
-    renameCSV(ids, reportPath)
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
-
-    val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, reportPath,
-      s"${conf.userReportPath}/${today}/", Some(true), Some(0), Some(3), None);
+    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/")
 
     closeRedisConnect()
   }

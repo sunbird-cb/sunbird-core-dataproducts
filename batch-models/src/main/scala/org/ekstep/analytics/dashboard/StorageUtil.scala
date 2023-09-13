@@ -5,10 +5,12 @@ import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.sunbird.cloud.storage.BaseStorageService
 import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
+
 import java.io.File
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-object StorageUtil {
+
+object StorageUtil extends Serializable {
 
   def getStorageService(config: DashboardConfig): BaseStorageService = {
     //    val modelParams = config.modelParams.getOrElse(Map[String, Option[AnyRef]]());

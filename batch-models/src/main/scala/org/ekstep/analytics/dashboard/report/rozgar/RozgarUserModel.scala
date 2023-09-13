@@ -2,13 +2,13 @@ package org.ekstep.analytics.dashboard.report.rozgar
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.{SparkSession, functions}
 import org.apache.spark.sql.functions.{coalesce, col, explode, expr, from_unixtime, lit}
-import org.ekstep.analytics.dashboard.DashboardUtil.{closeRedisConnect, getDate, parseConfig, validation}
-import org.ekstep.analytics.dashboard.DataUtil.{getOrgUserDataFrames, mdoIDsDF, orgHierarchyDataframe, roleDataFrame, userProfileDetailsDF}
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+
 
 object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.adhocReports.rozgar.RozgarUserModel"
@@ -96,19 +96,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("userOrgID").alias("mdoid")
     )
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(taggedUsersPath)
-    import spark.implicits._
-    val rozgarIDs = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    removeFile( taggedUsersPath + "_SUCCESS")
-    renameCSV(rozgarIDs, taggedUsersPath)
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,taggedUsersPath)
-
-    val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, taggedUsersPath,
-      s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", Some(true), Some(0), Some(3), None);
+    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}")
 
     closeRedisConnect()
   }

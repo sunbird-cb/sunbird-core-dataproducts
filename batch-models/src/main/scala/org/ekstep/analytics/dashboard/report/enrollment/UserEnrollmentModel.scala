@@ -146,24 +146,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("userOrgID").alias("mdoid")
     )
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    // remove _SUCCESS file
-    removeFile(reportPath + "_SUCCESS")
-
-    // rename csv
-    renameCSV(ids, reportPath)
-
-    //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, reportPath)
-    val storageService = getStorageService(conf)
-
-    storageService.upload(storageConfig.container, reportPath,
-      s"${conf.userEnrolmentReportPath}/${today}/", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     closeRedisConnect()
   }
