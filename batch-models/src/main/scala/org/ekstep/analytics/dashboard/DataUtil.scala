@@ -7,9 +7,9 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.framework.FrameworkContext
-
+import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
+import DashboardUtil.StorageUtil._
 
 import java.io.Serializable
 import java.util
@@ -890,15 +890,19 @@ object DataUtil extends Serializable {
   /**
    * Batch details for all kind of CBPs
    *
-   * @return col(courseID, courseBatchID, courseBatchEnrollmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
    *         courseBatchStatus, courseBatchUpdatedDate)
    */
   def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-      col("courseid").alias("courseID"), col("batchid").alias("courseBatchID"),
-      col("enrollmenttype").alias("courseBatchEnrollmentType"), col("name").alias("courseBatchName"),
-      col("start_date").alias("courseBatchStartDate"), col("enddate").alias("courseBatchEndDate"),
-      col("status").alias("courseBatchStatus"), col("updated_date").alias("courseBatchUpdatedDate")
+      col("courseid").alias("courseID"),
+      col("batchid").alias("courseBatchID"),
+      col("enrollmenttype").alias("courseBatchEnrolmentType"),
+      col("name").alias("courseBatchName"),
+      col("start_date").alias("courseBatchStartDate"),
+      col("enddate").alias("courseBatchEndDate"),
+      col("status").alias("courseBatchStatus"),
+      col("updated_date").alias("courseBatchUpdatedDate")
     )
     show(df, "Course Batch Data")
     df
@@ -1462,6 +1466,23 @@ object DataUtil extends Serializable {
 
     show(df, "actualTimeSpentLearningDataFrame")
     df
+  }
+
+  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    import spark.implicits._
+    val storageService = getStorageService(conf)
+    val ids = df.select(partitionKey).map(row => row.getString(0)).collect().toArray
+
+    csvWritePartition(df, reportTempPath, partitionKey)
+    removeFile(reportTempPath + "_SUCCESS")
+    renameCSV(ids, reportTempPath)
+
+    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
+    val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
+    storageService.upload(storageConfig.container, reportTempPath,
+      s"${reportPath}", Some(true), Some(0), Some(3), None)
+
+    storageService.closeContext()
   }
 
 }

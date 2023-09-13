@@ -1,5 +1,6 @@
 package org.ekstep.analytics.dashboard
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import redis.clients.jedis.Jedis
 import org.apache.spark.SparkContext
 import org.apache.http.client.methods.HttpPost
@@ -7,18 +8,22 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
-import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
+import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
+import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.joda.time.DateTimeZone
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
+import org.sunbird.cloud.storage.BaseStorageService
+import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
 
-import java.io.Serializable
+import java.io.{File, Serializable}
 import java.util
 import scala.util.Try
 import scala.collection.JavaConversions._
@@ -66,22 +71,18 @@ case class DashboardConfig (
     redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
     redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
     redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
-    redisUserCompetencyGapCount: String, redisUserCourseEnrollmentCount: String,
-    redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
+    redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
+    redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
     // for reports
     mdoIDs: String,
-    userReportTempPath: String,
-    userEnrolmentReportTempPath: String,
-    courseReportTempPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
     courseReportPath: String,
     taggedUsersPath: String,
-    cbaReportPath: String,
-    cbaReportTempPath: String
+    cbaReportPath: String
 ) extends Serializable
 
 
@@ -128,6 +129,56 @@ object DashboardUtil extends Serializable {
 
   }
 
+  object StorageUtil extends Serializable {
+
+    def getStorageService(config: DashboardConfig): BaseStorageService = {
+      //    val modelParams = config.modelParams.getOrElse(Map[String, Option[AnyRef]]());
+      val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
+      val storageType = "s3"
+      //    val storageKey = modelParams.getOrElse("storageKeyConfig", "reports_storage_key").asInstanceOf[String]
+      //    val storageSecret = modelParams.getOrElse("storageSecretConfig", "reports_storage_secret").asInstanceOf[String];
+      val storageKey = AppConf.getConfig(config.key)
+      val storageSecret = AppConf.getConfig(config.secret)
+
+      val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
+        new CustomS3StorageService(
+          //        StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(storageEndpoint))
+          StorageConfig(storageType, storageKey, storageSecret, Option(storageEndpoint))
+        )
+      } else {
+        StorageServiceFactory.getStorageService(
+          StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"))
+        )
+      }
+      storageService
+    }
+
+
+    def removeFile(path: String)(implicit spark: SparkSession): Unit = {
+      val successFile = new Path(path)
+      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+      if (fs.exists(successFile)) {
+        fs.delete(successFile, true)
+      }
+
+    }
+
+    def renameCSV(ids: Array[String], path: String): Unit = {
+      for (id <- ids) {
+        val tmpcsv = new File(path + s"mdoid=${id}")
+        val customized = new File(path + s"mdoid=${id}/${id}.csv")
+
+        val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+
+        if (tempCsvFileOpt != None) {
+          val finalFile = tempCsvFileOpt.get
+          finalFile.renameTo(customized)
+        }
+      }
+    }
+
+  }
+
   def getDate(): String = {
     val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
     dateFormat.print(System.currentTimeMillis());
@@ -135,7 +186,13 @@ object DashboardUtil extends Serializable {
 
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.format("csv").option("header", header.toString).save(path)
+    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+      .save(path)
+  }
+
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, fileCount: Int = 1, header: Boolean = true): Unit = {
+    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+      .partitionBy(partitionKey).save(path)
   }
 
   def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {
@@ -457,9 +514,9 @@ object DashboardUtil extends Serializable {
       redisUserCompetencyDeclarationRate = "dashboard_user_competency_declaration_rate",
       redisOrgCompetencyDeclarationRate = "dashboard_org_competency_declaration_rate",
       redisUserCompetencyGapCount = "dashboard_user_competency_gap_count",
-      redisUserCourseEnrollmentCount = "dashboard_user_course_enrollment_count",
-      redisUserCompetencyGapEnrollmentRate = "dashboard_user_competency_gap_enrollment_rate",
-      redisOrgCompetencyGapEnrollmentRate = "dashboard_org_competency_gap_enrollment_rate",
+      redisUserCourseEnrolmentCount = "dashboard_user_course_enrollment_count",
+      redisUserCompetencyGapEnrolmentRate = "dashboard_user_competency_gap_enrollment_rate",
+      redisOrgCompetencyGapEnrolmentRate = "dashboard_org_competency_gap_enrollment_rate",
       redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
@@ -467,15 +524,11 @@ object DashboardUtil extends Serializable {
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
-      userReportTempPath = getConfigModelParam(config, "userReportTempPath"),
-      userEnrolmentReportTempPath = getConfigModelParam(config, "userEnrolmentReportTempPath"),
-      courseReportTempPath = getConfigModelParam(config, "courseReportTempPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
-      cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
-      cbaReportTempPath = getConfigModelParam(config, "cbaReportTempPath")
+      cbaReportPath = getConfigModelParam(config, "cbaReportPath")
 
     )
   }

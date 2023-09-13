@@ -1,10 +1,10 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
-import org.ekstep.analytics.dashboard.report.adhocReports.rozgar.enrollment.RozgarEnrollmentJob
+import org.ekstep.analytics.dashboard.report.rozgar.enrolment.RozgarEnrolmentJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
-import org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentJob
+import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
 import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
@@ -39,16 +39,16 @@ object JobFactory {
         UserAssessmentJob
       case "user-report" =>
         UserReportJob
-      case "user-enrollment-report" =>
-        UserEnrollmentJob
+      case "user-enrolment-report" =>
+        UserEnrolmentJob
       case "course-report" =>
         CourseReportJob
       case "course-based-assessment-report" =>
         CourseBasedAssessmentJob
       case "rozgar-user-report" =>
         RozgarUserJob
-      case "rozgar-enrollment-report" =>
-        RozgarEnrollmentJob
+      case "rozgar-enrolment-report" =>
+        RozgarEnrolmentJob
       case "video-streaming" =>
         VideoStreamingJob
       case "telemetry-replay" =>

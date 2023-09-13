@@ -71,13 +71,11 @@ object CourseBasedAssessmentTest extends Serializable {
       "secret" -> "aws_storage_secret",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
       "courseReportPath" -> "standalone-reports/course-report",
-      "userReportTempPath" -> "/tmp/standalone-reports/user-report",
-      "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
-      "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
-      "cbaReportTempPath" -> "/tmp/standalone-reports/cba-report",
+      "taggedUsersPath" -> "tagged-users/",
+      "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 

@@ -2,13 +2,13 @@ package org.ekstep.analytics.dashboard.report.user
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, expr, from_unixtime, lit}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
+
 
 object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
@@ -52,12 +52,12 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"${conf.userReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
 
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+    val userDataDF = userProfileDetailsDF().withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
 
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -92,20 +92,8 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("additionalProperties.externalSystemId").alias("External_System_Id"),
       col("userOrgID").alias("mdoid")
     )
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
 
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    removeFile(reportPath + "_SUCCESS")
-    renameCSV(ids, reportPath)
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
-
-    val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, reportPath,
-      s"${conf.userReportPath}/${today}/", Some(true), Some(0), Some(3), None);
+    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/")
 
     closeRedisConnect()
   }
