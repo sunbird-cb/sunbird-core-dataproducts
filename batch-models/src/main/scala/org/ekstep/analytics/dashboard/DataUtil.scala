@@ -526,7 +526,7 @@ object DataUtil extends Serializable {
   def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val primaryCategories = if (isCBA) {
-      Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+      Seq("Course", "Standalone Assessment")
     } else {
       Seq("Standalone Assessment")
     }

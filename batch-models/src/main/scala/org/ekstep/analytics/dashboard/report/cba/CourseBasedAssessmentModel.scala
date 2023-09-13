@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.cba
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, count, countDistinct, expr, format_string, from_unixtime, lit, max, unix_timestamp}
+import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, format_string, from_unixtime, lit, max, unix_timestamp}
 import org.apache.spark.sql.{SaveMode, SparkSession, functions}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
@@ -79,6 +79,11 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       coalesce(col("lastName"), lit(""))))
 
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
+
+    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+    latest.show()
+
+    df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
 
     df = df.withColumn("actualDuration", format_string("%02d:%02d:%02d", expr("userAssessmentDuration / 3600").cast("int"),
       expr("userAssessmentDuration % 3600 / 60").cast("int"),

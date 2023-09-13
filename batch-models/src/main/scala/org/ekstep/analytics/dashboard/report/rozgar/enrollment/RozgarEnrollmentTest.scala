@@ -81,6 +81,7 @@ object RozgarEnrollmentTest extends Serializable{
       "userReportTempPath" -> "/tmp/standalone-reports/user-report",
       "userEnrolmentReportTempPath" -> "/tmp/standalone-reports/user-enrollment-report",
       "courseReportTempPath" -> "/tmp/standalone-reports/course-report",
+      "taggedUsersPath" -> "tagged-users/",
 
       "sideOutput" -> sideOutput
     )
