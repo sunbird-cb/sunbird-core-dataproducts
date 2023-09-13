@@ -79,6 +79,11 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
 
+    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+    latest.show()
+
+    df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
+
     df = df.withColumn("actualDuration", format_string("%02d:%02d:%02d", expr("userAssessmentDuration / 3600").cast("int"),
       expr("userAssessmentDuration % 3600 / 60").cast("int"),
       expr("userAssessmentDuration % 60").cast("int")

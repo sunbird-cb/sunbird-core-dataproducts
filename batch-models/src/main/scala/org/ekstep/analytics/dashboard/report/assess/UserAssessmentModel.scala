@@ -80,25 +80,35 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val mdoID = conf.mdoIDs
     val mdoIDDF = mdoIDsDF(mdoID)
 
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
 
-    df = df.join(mdoData, Seq("userOrgID"), "inner")
+    df = df.join(mdoData, Seq("assessOrgID"), "inner")
     df = df.withColumn("fullName", concat(col("firstName"), lit(' '), col("lastName")))
 
+    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+    latest.show()
+
+    df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
+
+    val caseExpression = "CASE WHEN assessPass == 1 AND assessUserStatus == 'SUBMITTED' THEN 'Pass' WHEN assessPass == 0 AND assessUserStatus == 'SUBMITTED' THEN 'Fail' " +
+      " ELSE 'N/A' END"
+    df = df.withColumn("Assessment_Status", expr(caseExpression))
+
+    val caseExpressionCompletionStatus = "CASE WHEN assessUserStatus == 'SUBMITTED' THEN 'Completed' ELSE 'In progress' END"
+    df = df.withColumn("Overall_Status", expr(caseExpressionCompletionStatus))
+
     df = df.dropDuplicates("userID").select(
-      col("userID"),
-      col("assessPrimaryCategory").alias("type"),
-      col("assessName").alias("assessmentName"),
-      col("assessUserStatus").alias("assessmentStatus"),
-      col("assessPassPercentage").alias("percentageScore"),
-      col("maskedEmail").alias("email"),
-      col("maskedPhone").alias("phone"),
-      col("userOrgName").alias("provider"),
-      col("assessOrgID").alias("cbpid")
+      col("userID").alias("User_id"),
+      col("assessName").alias("Assessment_Name"),
+      col("Overall_Status"),
+      col("Assessment_Status"),
+      col("assessPassPercentage").alias("Percentage_Of_Score"),
+      col("maskedEmail").alias("Email"),
+      col("maskedPhone").alias("Phone"),
+      col("assessOrgID").alias("mdoid")
     )
 
-    val dfCBP = df.drop("provider", "type")
-    uploadReports(dfCBP, "cbpid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
+    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
 
     closeRedisConnect()
 
