@@ -523,8 +523,14 @@ object DataUtil extends Serializable {
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
    *         assessChildCount)
    */
-  def assessmentESDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = elasticSearchCourseProgramDataFrame(Seq("Standalone Assessment"))
+  def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+
+    val primaryCategories = if (isCBA) {
+      Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+    } else {
+      Seq("Standalone Assessment")
+    }
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
 
     // now that error handling is done, proceed with business as usual
     df = df.select(
@@ -1276,6 +1282,8 @@ object DataUtil extends Serializable {
       .withColumn("readResponse", from_json(col("assessmentreadresponse"), Schema.assessmentReadResponseSchema))
       .withColumn("submitRequest", from_json(col("submitassessmentrequest"), Schema.submitAssessmentRequestSchema))
       .withColumn("submitResponse", from_json(col("submitassessmentresponse"), Schema.submitAssessmentResponseSchema))
+      .withColumn("assessStartTimestamp", col("assessStartTime"))
+      .withColumn("assessEndTimestamp", col("assessEndTime"))
       .withColumn("assessStartTime", col("assessStartTime").cast("long"))
       .withColumn("assessEndTime", col("assessEndTime").cast("long"))
 
@@ -1285,6 +1293,8 @@ object DataUtil extends Serializable {
       col("assessEndTime"),
       col("assessUserStatus"),
       col("userID"),
+      col("assessStartTimestamp"),
+      col("assessEndTimestamp"),
 
       col("readResponse.totalQuestions").alias("assessTotalQuestions"),
       col("readResponse.maxQuestions").alias("assessMaxQuestions"),

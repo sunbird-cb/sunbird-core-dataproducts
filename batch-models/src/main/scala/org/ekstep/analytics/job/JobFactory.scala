@@ -3,6 +3,7 @@ package org.ekstep.analytics.job
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
 import org.ekstep.analytics.dashboard.report.adhocReports.rozgar.enrollment.RozgarEnrollmentJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
+import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
@@ -42,6 +43,8 @@ object JobFactory {
         UserEnrollmentJob
       case "course-report" =>
         CourseReportJob
+      case "course-based-assessment-report" =>
+        CourseBasedAssessmentJob
       case "rozgar-user-report" =>
         RozgarUserJob
       case "rozgar-enrollment-report" =>

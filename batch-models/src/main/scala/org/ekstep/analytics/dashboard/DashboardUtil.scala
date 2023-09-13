@@ -79,7 +79,9 @@ case class DashboardConfig (
     userReportPath: String,
     userEnrolmentReportPath: String,
     courseReportPath: String,
-    taggedUsersPath: String
+    taggedUsersPath: String,
+    cbaReportPath: String,
+    cbaReportTempPath: String
 ) extends Serializable
 
 
@@ -471,7 +473,9 @@ object DashboardUtil extends Serializable {
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
-      taggedUsersPath = getConfigModelParam(config, "taggedUsersPath")
+      taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
+      cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
+      cbaReportTempPath = getConfigModelParam(config, "cbaReportTempPath")
 
     )
   }
