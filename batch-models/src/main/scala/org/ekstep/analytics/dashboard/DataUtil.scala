@@ -1477,6 +1477,8 @@ object DataUtil extends Serializable {
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)
+
+    storageService.closeContext()
   }
 
 }
