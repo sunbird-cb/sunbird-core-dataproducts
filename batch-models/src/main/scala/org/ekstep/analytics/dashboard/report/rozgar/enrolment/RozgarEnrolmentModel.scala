@@ -117,7 +117,7 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
       "WHEN userCourseCompletionStatus == 'not-started' THEN 0 WHEN userCourseCompletionStatus == 'in-progress' THEN 100 * currentlyLiveContents / courseResourceCount END"
     df = df.withColumn("Completion Percentage", round(expr(caseExpression), 2))
 
-    val caseExpressionCertificate = "CASE WHEN issued_certificates == '[]' THEN 'No' ELSE 'Yes' END"
+    val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
     df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")

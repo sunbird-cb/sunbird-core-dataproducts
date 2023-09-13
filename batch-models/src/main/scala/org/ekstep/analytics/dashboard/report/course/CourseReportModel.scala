@@ -114,8 +114,8 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       expr("courseDuration % 60").cast("int")
     ))
 
-    var certificateIssued = df.filter(col("issued_certificates") =!= "[]").select(col("courseID"), col("issued_certificates"))
-    certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issued_certificates")).alias("Total_Certificates_Issued"))
+    var certificateIssued = df.filter(col("issuedCertificates") =!= "[]").select(col("courseID"), col("issuedCertificates"))
+    certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issuedCertificates")).alias("Total_Certificates_Issued"))
 
     df = df.join(certificateIssued, Seq("courseID"), "left")
 
