@@ -2,12 +2,12 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, expr, lit, max}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
@@ -49,8 +49,8 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/"
-    //val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/"
+    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
+    // val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -83,7 +83,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
 
     df = df.join(mdoData, Seq("assessOrgID"), "inner")
-    df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+    df = df.withColumn("fullName", concat(col("firstName"), lit(' '), col("lastName")))
 
     val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
     latest.show()

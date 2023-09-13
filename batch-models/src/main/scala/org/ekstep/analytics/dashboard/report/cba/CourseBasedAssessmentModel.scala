@@ -2,12 +2,12 @@ package org.ekstep.analytics.dashboard.report.cba
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, format_string, from_unixtime, lit, max, unix_timestamp}
-import org.apache.spark.sql.{SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
@@ -74,7 +74,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     var df = userAssessChildrenDetailsDF.join(userProfileDetails, Seq("userID"), "inner").join(orgHierarchyData, Seq("userOrgName"), "left")
 
-    df = df.withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+    df = df.withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
 
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
