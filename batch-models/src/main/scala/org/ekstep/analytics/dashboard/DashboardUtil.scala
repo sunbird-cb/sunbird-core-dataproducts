@@ -1,5 +1,6 @@
 package org.ekstep.analytics.dashboard
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import redis.clients.jedis.Jedis
 import org.apache.spark.SparkContext
 import org.apache.http.client.methods.HttpPost
@@ -8,18 +9,21 @@ import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
 import org.ekstep.analytics.framework._
+import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
+import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.joda.time.DateTimeZone
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
+import org.sunbird.cloud.storage.BaseStorageService
+import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
 
-import java.io.Serializable
+import java.io.{File, Serializable}
 import java.util
 import scala.util.Try
 import scala.collection.JavaConversions._
@@ -125,6 +129,56 @@ object DashboardUtil extends Serializable {
       val result = block // call-by-name
       val t1 = System.currentTimeMillis()
       ((t1 - t0), result)
+    }
+
+  }
+
+  object StorageUtil extends Serializable {
+
+    def getStorageService(config: DashboardConfig): BaseStorageService = {
+      //    val modelParams = config.modelParams.getOrElse(Map[String, Option[AnyRef]]());
+      val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
+      val storageType = "s3"
+      //    val storageKey = modelParams.getOrElse("storageKeyConfig", "reports_storage_key").asInstanceOf[String]
+      //    val storageSecret = modelParams.getOrElse("storageSecretConfig", "reports_storage_secret").asInstanceOf[String];
+      val storageKey = config.key
+      val storageSecret = config.secret
+
+      val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
+        new CustomS3StorageService(
+          //        StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(storageEndpoint))
+          StorageConfig(storageType, storageKey, storageSecret, Option(storageEndpoint))
+        )
+      } else {
+        StorageServiceFactory.getStorageService(
+          StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"))
+        )
+      }
+      storageService
+    }
+
+
+    def removeFile(path: String)(implicit spark: SparkSession): Unit = {
+      val successFile = new Path(path)
+      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+      if (fs.exists(successFile)) {
+        fs.delete(successFile, true)
+      }
+
+    }
+
+    def renameCSV(ids: Array[String], path: String): Unit = {
+      for (id <- ids) {
+        val tmpcsv = new File(path + s"mdoid=${id}")
+        val customized = new File(path + s"mdoid=${id}/${id}.csv")
+
+        val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+
+        if (tempCsvFileOpt != None) {
+          val finalFile = tempCsvFileOpt.get
+          finalFile.renameTo(customized)
+        }
+      }
     }
 
   }

@@ -3,12 +3,11 @@ package org.ekstep.analytics.dashboard.report.enrollment
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
@@ -52,7 +51,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val today = getDate()
     val reportPath = s"${conf.userEnrolmentReportTempPath}/${today}/"
 
-    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+    val userDataDF = userProfileDetailsDF().withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     val org = orgDataFrame()

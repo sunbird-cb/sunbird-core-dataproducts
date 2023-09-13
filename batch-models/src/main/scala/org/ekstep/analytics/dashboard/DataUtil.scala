@@ -9,7 +9,7 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
-import org.ekstep.analytics.dashboard.StorageUtil.{getStorageService, removeFile, renameCSV}
+import DashboardUtil.StorageUtil._
 
 import java.io.Serializable
 import java.util

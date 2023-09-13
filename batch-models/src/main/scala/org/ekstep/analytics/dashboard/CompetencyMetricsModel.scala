@@ -3,7 +3,7 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, col, countDistinct, expr, last}
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.framework._
 import DashboardUtil._
 import DataUtil._

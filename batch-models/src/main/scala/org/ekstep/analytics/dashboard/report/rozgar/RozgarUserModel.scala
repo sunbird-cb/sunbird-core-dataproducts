@@ -2,8 +2,8 @@ package org.ekstep.analytics.dashboard.report.rozgar
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SparkSession, functions}
-import org.apache.spark.sql.functions.{coalesce, col, explode, expr, from_unixtime, lit}
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
@@ -58,7 +58,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
 
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+    val userDataDF = userProfileDetailsDF().withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
 
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()

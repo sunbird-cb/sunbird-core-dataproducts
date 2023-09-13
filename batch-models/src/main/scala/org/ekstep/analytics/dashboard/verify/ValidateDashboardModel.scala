@@ -3,7 +3,7 @@ package org.ekstep.analytics.dashboard.verify
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, col, countDistinct, expr, last}
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.FloatType
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._

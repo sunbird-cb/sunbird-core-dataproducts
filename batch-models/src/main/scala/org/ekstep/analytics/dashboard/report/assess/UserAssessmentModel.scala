@@ -2,13 +2,12 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, lit}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
@@ -84,7 +83,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
     df = df.join(mdoData, Seq("userOrgID"), "inner")
-    df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+    df = df.withColumn("fullName", concat(col("firstName"), lit(' '), col("lastName")))
 
     df = df.dropDuplicates("userID").select(
       col("userID"),

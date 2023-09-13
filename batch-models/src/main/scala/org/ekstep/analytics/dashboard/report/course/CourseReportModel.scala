@@ -2,13 +2,13 @@ package org.ekstep.analytics.dashboard.report.course
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, count, countDistinct, expr, format_string, from_unixtime, lit, max, min, round, when}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
+
 
 object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.course.CourseReportModel"
@@ -54,7 +54,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val today = getDate()
     val reportPath = s"${conf.courseReportTempPath}/${today}/"
 
-    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
+    val userDataDF = userProfileDetailsDF().withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     val org = orgDataFrame();
