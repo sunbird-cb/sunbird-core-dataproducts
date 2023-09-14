@@ -55,7 +55,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
-    val userRolesDF = roleDataFrame().groupBy("userID").agg(collect_list("role").alias("role"))    // return - userID, role
+    val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
 
     val userDataDF = userProfileDetailsDF().withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
