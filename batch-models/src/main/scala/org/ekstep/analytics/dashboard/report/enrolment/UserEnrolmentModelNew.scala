@@ -66,8 +66,13 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
+    val userRatingDF = userCourseRatingDataframe()
+
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+
+    val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
+
     allCourseProgramCompletionWithDetailsDF.select("personalDetails.primaryEmail", "professionalDetails.designation", "orgName", "courseOrgName", "courseName", "courseDuration", "courseLastPublishedOn", "userCourseCompletionStatus")
       .coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
