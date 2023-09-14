@@ -74,6 +74,8 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .select(
         col("userID"),
         col("fullName"),
