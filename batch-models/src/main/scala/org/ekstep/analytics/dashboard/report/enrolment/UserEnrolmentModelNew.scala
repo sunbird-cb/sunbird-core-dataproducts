@@ -62,7 +62,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
 
     //GET ORG DATW
-    val userDataDF = userProfileDetailsDF(orgDF)
+    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
@@ -70,10 +70,25 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
-
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    allCourseProgramCompletionWithDetailsDF.select("personalDetails.primaryEmail", "professionalDetails.designation", "orgName", "courseOrgName", "courseName", "courseDuration", "courseLastPublishedOn", "userCourseCompletionStatus")
+    allCourseProgramCompletionWithDetailsDFWithRating
+      .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+      .select(
+        col("userID"),
+        col("fullName"),
+        col("personalDetails.primaryEmail").alias("email"),
+        col("professionalDetails.designation").alias("designation"),
+        col("orgName"),
+        col("courseName"),
+        col("courseDuration").alias("duration"),
+        col("courseOrgName"),
+        col("courseLastPublishedOn").alias("lastPublishedOn"),
+        col("userCourseCompletionStatus").alias("status"),
+        col("completionPercentage"),
+        col("completedOn"),
+        col("userRating").alias("rating")
+      )
       .coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
 }
