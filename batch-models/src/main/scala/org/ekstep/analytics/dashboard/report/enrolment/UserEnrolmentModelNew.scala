@@ -54,7 +54,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     val orgDF = orgDataFrame()
 
     //Get course data first
-    val allCourseProgramDetailsDF = contentDataFrames(false, true
+    val allCourseProgramDetailsDF = contentDataFrames(false, true)
     val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF.join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
       .withColumnRenamed("orgName", "courseOrgName")
         //add alias for orgName col to avoid conflict with userDF orgName col
@@ -68,7 +68,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
-    allCourseProgramCompletionWithDetailsDF.select("personalDetails.primaryEmail", "professionalDetails.designation", "orgName", "courseOrgName", "courseName", "courseDuration", "courseLastPublishedOn", "userCourseCompletionStatus", "")
+    allCourseProgramCompletionWithDetailsDF.select("personalDetails.primaryEmail", "professionalDetails.designation", "orgName", "courseOrgName", "courseName", "courseDuration", "courseLastPublishedOn", "userCourseCompletionStatus")
       .coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
 }

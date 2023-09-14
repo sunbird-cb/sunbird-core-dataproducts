@@ -312,9 +312,8 @@ object DataUtilNew extends Serializable {
     var orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
       .select(
         col("id").alias("orgID"),
-        col("orgname").alias("orgName")
-//        ,col("status").alias("orgStatus"),
-//        col("createddate").alias("orgCreatedDate"),
+        col("orgname").alias("orgName"),
+        col("createddate").alias("orgCreatedDate")
 //        col("organisationtype").alias("orgType"),
 //        col("organisationsubtype").alias("orgSubType")
       ).na.fill("", Seq("orgName"))
@@ -514,7 +513,7 @@ object DataUtilNew extends Serializable {
     )
     df = df.dropDuplicates("courseID", "category")
     // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
-    df = timestampStringToLong(df, Seq("lastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
+    df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
 
     show(df, "allCourseProgramESDataFrame")
     df
@@ -724,7 +723,7 @@ object DataUtilNew extends Serializable {
       .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
 
     val courseWithHierarchyInfo = allCourseProgramESDF.join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
-      .select("courseID", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId")
+      .select("courseID", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount")
 
     courseWithHierarchyInfo
 
@@ -993,7 +992,7 @@ object DataUtilNew extends Serializable {
 
     df = df.join(userOrgDF, Seq("userID"), "left")
     df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
-    df = withCompletionStatusColumn(df)
+    df = userCourseCompletionStatus(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")
 
