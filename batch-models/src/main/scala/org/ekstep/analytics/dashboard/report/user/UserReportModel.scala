@@ -55,7 +55,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
-    val userRolesDF = roleDataFrame()     // return - userID, role
+    val userRolesDF = roleDataFrame().groupBy("userID").agg(collect_list("role"))    // return - userID, role
 
     val userDataDF = userProfileDetailsDF().withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
@@ -69,7 +69,9 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "left")
+    df = df
+      .join(userDataDF, Seq("userOrgID"), "inner")
+      .join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
