@@ -514,10 +514,14 @@ object DataUtilNew extends Serializable {
     df = df.dropDuplicates("courseID", "category")
     // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
     // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
-    df = df.withColumn("duration", format_string("%02d:%02d:%02d", expr("duration / 3600").cast("int"),
-      expr("duration % 3600 / 60").cast("int"),
-      expr("duration % 60").cast("int")
-    ))
+    df = df
+      .na.fill(0, Seq("courseDuration"))
+      .withColumn("courseDuration",
+      format_string("%02d:%02d",
+        expr("courseDuration / 3600").cast("int"),
+        expr("courseDuration % 3600 / 60").cast("int")
+      )
+    )
     show(df, "allCourseProgramESDataFrame")
     df
   }
@@ -904,7 +908,7 @@ object DataUtilNew extends Serializable {
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
-      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
+      .withColumn("courseCompletedTimestamp", col("completedon"))
       .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .select(
@@ -994,7 +998,7 @@ object DataUtilNew extends Serializable {
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
-    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=1 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
     df = userCourseCompletionStatus(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")

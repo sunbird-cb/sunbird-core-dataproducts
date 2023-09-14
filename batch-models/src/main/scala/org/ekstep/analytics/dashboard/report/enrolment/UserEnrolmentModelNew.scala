@@ -66,11 +66,31 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
+    val userRatingDF = userCourseRatingDataframe()
+
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
-    allCourseProgramCompletionWithDetailsDF
-      .select("fullName", "personalDetails.primaryEmail", "professionalDetails.designation", "orgName", "courseOrgName", "courseName", "courseDuration", "courseLastPublishedOn",
-        "userCourseCompletionStatus", "completionPercentage", "courseCompletedTimestamp")
+    val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
+
+    allCourseProgramCompletionWithDetailsDFWithRating
+      .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("completionPercentage", round(col("completionPercentage"), 2))
+      .select(
+        col("userID"),
+        col("fullName"),
+        col("personalDetails.primaryEmail").alias("email"),
+        col("professionalDetails.designation").alias("designation"),
+        col("orgName"),
+        col("courseName"),
+        col("courseDuration").alias("duration"),
+        col("courseOrgName"),
+        col("courseLastPublishedOn").alias("lastPublishedOn"),
+        col("userCourseCompletionStatus").alias("status"),
+        col("completionPercentage"),
+        col("completedOn"),
+        col("userRating").alias("rating")
+      )
       .coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
 }
