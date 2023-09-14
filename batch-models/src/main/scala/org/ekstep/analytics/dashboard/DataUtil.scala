@@ -127,8 +127,8 @@ object DataUtil extends Serializable {
         StructField("lastUpdatedOn", StringType, nullable = true),
         StructField("lastPublishedOn", StringType, nullable = true),
         StructField("lastSubmittedOn", StringType, nullable = true),
-        StructField("lastStatusChangedOn", StringType, nullable = true)
-
+        StructField("lastStatusChangedOn", StringType, nullable = true),
+        StructField("createdFor", ArrayType(StringType), nullable = true)
       )
       if (children) {
         fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
@@ -887,27 +887,27 @@ object DataUtil extends Serializable {
     show(df)
     df
   }
-
-  /**
-   * Batch details for all kind of CBPs
-   *
-   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
-   *         courseBatchStatus, courseBatchUpdatedDate)
-   */
-  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-      col("courseid").alias("courseID"),
-      col("batchid").alias("courseBatchID"),
-      col("enrollmenttype").alias("courseBatchEnrolmentType"),
-      col("name").alias("courseBatchName"),
-      col("start_date").alias("courseBatchStartDate"),
-      col("enddate").alias("courseBatchEndDate"),
-      col("status").alias("courseBatchStatus"),
-      col("updated_date").alias("courseBatchUpdatedDate")
-    )
-    show(df, "Course Batch Data")
-    df
-  }
+//
+//  /**
+//   * Batch details for all kind of CBPs
+//   *
+//   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+//   *         courseBatchStatus, courseBatchUpdatedDate)
+//   */
+//  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+//      col("courseid").alias("courseID"),
+//      col("batchid").alias("courseBatchID"),
+//      col("enrollmenttype").alias("courseBatchEnrolmentType"),
+//      col("name").alias("courseBatchName"),
+//      col("start_date").alias("courseBatchStartDate"),
+//      col("enddate").alias("courseBatchEndDate"),
+//      col("status").alias("courseBatchStatus"),
+//      col("updated_date").alias("courseBatchUpdatedDate")
+//    )
+//    show(df, "Course Batch Data")
+//    df
+//  }
 
 
   /**

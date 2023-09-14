@@ -62,7 +62,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
       contentDataFrames(org, false, false, true)
-    val courseBatchData = courseBatchDataFrame()
+    //val courseBatchData = courseBatchDataFrame()
 
     val courseStatusUpdateData = courseStatusUpdateDataFrame(hierarchyDF)
 
@@ -79,7 +79,8 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
 
     var courseCompletionWithDetailsDFforMDO = allCourseData.join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
-      .join(mdoData, Seq("userOrgID"), "inner").join(courseBatchData, Seq("courseID"), "left")
+      .join(mdoData, Seq("userOrgID"), "inner")
+      //.join(courseBatchData, Seq("courseID"), "left")
       .join(courseStatusUpdateData, Seq("courseID"), "left")
 
     // number of enrolments
@@ -119,15 +120,20 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     df = df.join(certificateIssued, Seq("courseID"), "left")
 
-    val caseExpressionBatchID = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchID END"
-    val caseExpressionBatchName = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchName END"
-    val caseExpressionStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
-    val caseExpressionEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+//    val caseExpressionBatchID = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchID END"
+//    val caseExpressionBatchName = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchName END"
+//    val caseExpressionStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
+//    val caseExpressionEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+//
+//    df = df.withColumn("Batch_Start_Date", expr(caseExpressionStartDate))
+//    df = df.withColumn("Batch_End_Date", expr(caseExpressionEndDate))
+//    df = df.withColumn("Batch_ID", expr(caseExpressionBatchID))
+//    df = df.withColumn("Batch_Name", expr(caseExpressionBatchName))
 
-    df = df.withColumn("Batch_Start_Date", expr(caseExpressionStartDate))
-    df = df.withColumn("Batch_End_Date", expr(caseExpressionEndDate))
-    df = df.withColumn("Batch_ID", expr(caseExpressionBatchID))
-    df = df.withColumn("Batch_Name", expr(caseExpressionBatchName))
+    df = df.withColumn("Batch_Start_Date", lit(""))
+    df = df.withColumn("Batch_End_Date", lit(""))
+    df = df.withColumn("Batch_ID", lit(""))
+    df = df.withColumn("Batch_Name", lit(""))
 
     val completedOn = df.groupBy("courseID").agg(
       max("courseCompletedTimestamp").alias("LastCompletedOn"),

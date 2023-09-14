@@ -70,12 +70,12 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val userRating = userCourseRatingDataframe()
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
-    val courseBatchDF = courseBatchDataFrame()
+    // val courseBatchDF = courseBatchDataFrame()
 
     val orgHierarchyData = orgHierarchyDataframe()
     var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
       .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
-      .join(courseBatchDF, Seq("courseID"), "left")
+      //.join(courseBatchDF, Seq("courseID"), "left")
       .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
