@@ -650,7 +650,7 @@ object DataUtil extends Serializable {
     var df = addHierarchyColumn(allCourseProgramDF, hierarchyDF, "courseID", "data", competencies = true)
 
     df = df.withColumn("competenciesJson", col("data.competencies_v3"))
-           .withColumn("createdFor", explode(col("data.createdFor")).alias("courseOrgID"))
+           .withColumn("createdFor", explode(col("data.createdFor"))).alias("courseOrgID")
 
 //      .withColumn("courseName", col("data.name"))
 //      .withColumn("courseStatus", col("data.status"))
