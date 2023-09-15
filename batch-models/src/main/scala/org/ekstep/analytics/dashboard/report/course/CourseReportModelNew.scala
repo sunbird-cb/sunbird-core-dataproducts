@@ -70,7 +70,9 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .withColumnRenamed("orgName", "courseOrgName")
     show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
 
-    val userEnrolmentDF = userCourseProgramCompletionDataFrame()
+    val courseResCountDF = allCourseProgramDetailsDF.select("courseID", "courseResourceCount")
+
+    val userEnrolmentDF = userCourseProgramCompletionDataFrame().join(courseResCountDF, Seq("courseID"), "left")
 
     show(userEnrolmentDF, "userEnrolmentDF")
 
@@ -141,8 +143,10 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
           col("completedCount").alias("Completed")
         )
 
+    csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
+
 //    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
 //
-//    closeRedisConnect()
+    closeRedisConnect()
   }
 }

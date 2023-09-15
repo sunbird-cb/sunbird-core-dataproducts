@@ -7,8 +7,8 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.dashboard.DashboardUtil.StorageUtil._
-import org.ekstep.analytics.dashboard.DashboardUtil._
+import DashboardUtil.StorageUtil._
+import DashboardUtil._
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 
 import java.io.Serializable
@@ -1495,7 +1495,7 @@ object DataUtilNew extends Serializable {
 
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
-    val ids = df.select(partitionKey).map(row => row.getString(0)).collect().toArray
+    val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray
 
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile(reportTempPath + "_SUCCESS")

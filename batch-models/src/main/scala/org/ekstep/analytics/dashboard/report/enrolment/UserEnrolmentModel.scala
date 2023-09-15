@@ -113,8 +113,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
     df.show()
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "yyyy-MM-dd"))
-
     df = df.distinct().dropDuplicates("userID", "courseID").select(
       col("Full Name").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
@@ -144,8 +142,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("personalDetails.category").alias("Category"),
       col("additionalProperties.externalSystem").alias("External System"),
       col("additionalProperties.externalSystemId").alias("External System Id"),
-      col("userOrgID").alias("mdoid"),
-      col("Report_Last_Generated_On")
+      col("userOrgID").alias("mdoid")
     )
 
     uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")

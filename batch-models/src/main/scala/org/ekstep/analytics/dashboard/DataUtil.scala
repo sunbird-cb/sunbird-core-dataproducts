@@ -588,9 +588,7 @@ object DataUtil extends Serializable {
         col("assessReviewStatus"),
         col("assessDuration"),
         col("assessChildCount"),
-        col("assessOrgID"),
-        col("assessOrgName"),
-        col("assessStatus"),
+
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),
         col("data.isExternal").cast(IntegerType).alias("assessIsExternal"),
@@ -1479,15 +1477,19 @@ object DataUtil extends Serializable {
     df
   }
 
-  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
-    val storageService = getStorageService(conf)
-    val ids = df.select(partitionKey).map(row => row.getString(0)).collect().toArray
+    val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray
 
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile(reportTempPath + "_SUCCESS")
     renameCSV(ids, reportTempPath)
+  }
 
+  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)
+
+    val storageService = getStorageService(conf)
     // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
