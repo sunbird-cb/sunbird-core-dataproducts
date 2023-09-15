@@ -97,7 +97,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userID"),
         col("fullName").alias("Full_Name"),
         col("personalDetails.primaryEmail").alias("Email"),
-        col("personalDetails.mobile").alias("Phone_NUmber"),
+        col("personalDetails.mobile").alias("Phone_Number"),
         col("personalDetails.gender").alias("Gender"),
         col("personalDetails.category").alias("Category"),
         col("professionalDetails.designation").alias("Designation"),
