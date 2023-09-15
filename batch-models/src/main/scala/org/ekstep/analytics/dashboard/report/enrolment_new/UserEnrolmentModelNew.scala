@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.enrolment_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtilNew._
@@ -54,7 +54,6 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     val orgDF = orgDataFrame()
 
     val orgHierarchyData = orgHierarchyDataframe()
-
 
     //Get course data first
     val allCourseProgramDetailsDF = contentDataFrames(false, true)
@@ -128,7 +127,8 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     show(finalDF, "finalDF")
 
-    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
+    generateReports(finalDF, "mdoid", reportPath)
+    // uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
