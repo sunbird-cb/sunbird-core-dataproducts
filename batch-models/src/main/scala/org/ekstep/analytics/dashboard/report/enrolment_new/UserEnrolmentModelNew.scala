@@ -52,40 +52,42 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     //GET ORG DATA
     val orgDF = orgDataFrame()
-
     val orgHierarchyData = orgHierarchyDataframe()
-
-    //Get course data first
-    val allCourseProgramDetailsDF = contentDataFrames(false, true)
-    val courseBatchDF = courseBatchDataFrame()
-    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category").filter(col("category").isin("Blended Program"))
-      .join(courseBatchDF, Seq("courseID"), "left")
-      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
-    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF.join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "courseOrgName")
-    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
-    val allCourseProgramDetailsDFWithOrgNameAndBatchInfo = allCourseProgramDetailsDFWithOrgName.join(relevantBatchInfoDF, Seq("courseID"), "left")
-    show(allCourseProgramDetailsDFWithOrgNameAndBatchInfo, "allCourseProgramDetailsDFWithOrgNameAndBatchInfo")
-    //add alias for orgName col to avoid conflict with userDF orgName col
-
-    //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
-
     //GET ORG DATW
     var userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
       .withColumnRenamed("orgName", "userOrgName")
       .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
-    show(userDataDF, "userDataDF")
-
     userDataDF = userDataDF
       .join(orgHierarchyData, Seq("userOrgName"), "left")
+    show(userDataDF, "userDataDF")
+
+    //Get course data first
+    val allCourseProgramDetailsDF = contentDataFrames(false, true)
+    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
+      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
+      .withColumnRenamed("orgName", "courseOrgName")
+    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
+    show(userEnrolmentDF, "userEnrolmentDF")
 
     val userRatingDF = userCourseRatingDataframe()
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithBatchDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgNameAndBatchInfo, userDataDF)
-    val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
+
+    val courseBatchDF = courseBatchDataFrame()
+    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
+      .where(expr("category IN ('Blended Program')"))
+      .join(courseBatchDF, Seq("courseID"), "left")
+      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
+    show(relevantBatchInfoDF, "relevantBatchInfoDF")
+
+    val allCourseProgramCompletionWithDetailsWithBatchInfoDF = allCourseProgramCompletionWithDetailsDF.join(relevantBatchInfoDF, Seq("courseID", "batchID"), "left")
+    show(allCourseProgramCompletionWithDetailsWithBatchInfoDF, "allCourseProgramCompletionWithDetailsWithBatchInfoDF")
+
+    val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
     val finalDF = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
@@ -95,6 +97,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .select(
         col("userID"),
+        col("courseID"),
         col("fullName").alias("Full_Name"),
         col("personalDetails.primaryEmail").alias("Email"),
         col("personalDetails.mobile").alias("Phone_Number"),
@@ -127,7 +130,9 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     show(finalDF, "finalDF")
 
-    generateReports(finalDF, "mdoid", reportPath)
+    csvWrite(finalDF, s"${reportPath}-${System.currentTimeMillis()}-full")
+
+    // generateReports(finalDF, "mdoid", reportPath)
     // uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )

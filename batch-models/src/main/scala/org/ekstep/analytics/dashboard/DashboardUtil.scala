@@ -170,7 +170,7 @@ object DashboardUtil extends Serializable {
 
         val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
 
-        if (tempCsvFileOpt != None) {
+        if (tempCsvFileOpt.isDefined) {
           val finalFile = tempCsvFileOpt.get
           finalFile.renameTo(customized)
         }

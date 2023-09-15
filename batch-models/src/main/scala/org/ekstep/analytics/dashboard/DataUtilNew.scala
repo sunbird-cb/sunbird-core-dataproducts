@@ -512,10 +512,11 @@ object DataUtilNew extends Serializable {
       col("leafNodesCount").alias("courseResourceCount")
     )
     df = df.dropDuplicates("courseID", "category")
-    // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
     // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
     df = df
-      .na.fill(0, Seq("courseDuration"))
       .withColumn("courseDuration",
       format_string("%02d:%02d",
         expr("courseDuration / 3600").cast("int"),
@@ -1009,7 +1010,7 @@ object DataUtilNew extends Serializable {
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
-    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 WHEN courseResourceCount=0 THEN 0.0 WHEN dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
     df = userCourseCompletionStatus(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")
