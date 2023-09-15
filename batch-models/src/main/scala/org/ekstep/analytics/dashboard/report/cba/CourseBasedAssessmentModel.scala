@@ -57,8 +57,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     val assessmentDF = assessmentESDataFrame()
-    val assessmentWithOrgDF = assessWithOrgDataFrame(assessmentDF, orgDF)
-    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentWithOrgDF, hierarchyDF)
+    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
     val assessChildrenDF = assessmentChildrenDataFrame(assessWithHierarchyDF)

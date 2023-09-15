@@ -60,9 +60,9 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     val assessmentDF = assessmentESDataFrame()
-    val assessmentWithOrgDF = assessWithOrgDataFrame(assessmentDF, orgDF)
-    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentWithOrgDF, hierarchyDF)
+    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
+
     // kafka dispatch to dashboard.assessment
     kafkaDispatch(withTimestamp(assessWithDetailsDF, timestamp), conf.assessmentTopic)
 

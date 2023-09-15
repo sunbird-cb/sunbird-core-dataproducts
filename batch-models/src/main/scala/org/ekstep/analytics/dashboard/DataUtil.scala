@@ -551,7 +551,7 @@ object DataUtil extends Serializable {
     df
   }
 
-  def assessWithOrgDataFrame(assessmentDF: DataFrame, orgDF: DataFrame): DataFrame = {
+  def addAssessOrgDetails(assessmentDF: DataFrame, orgDF: DataFrame): DataFrame = {
     val assessOrgDF = orgDF.select(
       col("orgID").alias("assessOrgID"),
       col("orgName").alias("assessOrgName"),
@@ -559,26 +559,34 @@ object DataUtil extends Serializable {
     )
     val df = assessmentDF.join(assessOrgDF, Seq("assessOrgID"), "left")
 
-    show(df, "assessWithOrgDataFrame")
+    show(df, "addAssessOrgDetails")
     df
   }
 
   /**
    *
-   * @param assessmentWithOrgDF
+   * @param assessmentDF
    * @param hierarchyDF
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID,
    *         assessOrgName, assessOrgStatus, assessDuration, assessChildCount, children,
    *         assessPublishType, assessIsExternal, assessContentType, assessObjectType, assessUserConsent,
    *         assessVisibility, assessCreatedOn, assessLastUpdatedOn, assessLastPublishedOn, assessLastSubmittedOn)
    */
-  def assessWithHierarchyDataFrame(assessmentWithOrgDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def assessWithHierarchyDataFrame(assessmentDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
-    var df = addHierarchyColumn(assessmentWithOrgDF, hierarchyDF, "assessID", "data", children = true)
+    var df = addHierarchyColumn(assessmentDF, hierarchyDF, "assessID", "data", children = true)
+      .withColumn("assessOrgID", explode(col("data.createdFor")))
+
+    df = addAssessOrgDetails(df, orgDF)
+
+    df = df
       .select(
-        col("assessID"), col("assessCategory"), col("assessName"),
-        col("assessStatus"), col("assessReviewStatus"), col("assessOrgID"),
-        col("assessOrgName"), col("assessOrgStatus"), col("assessDuration"),
+        col("assessID"),
+        col("assessCategory"),
+        col("assessName"),
+        col("assessStatus"),
+        col("assessReviewStatus"),
+        col("assessDuration"),
         col("assessChildCount"),
 
         col("data.children").alias("children"),
@@ -604,21 +612,21 @@ object DataUtil extends Serializable {
 
   /**
    * Attach org info to course/program data
-   * @param allCourseProgramESDF DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID)
+   * @param courseDF DataFrame(courseOrgID, ...)
    * @param orgDF DataFrame(orgID, orgName, orgStatus)
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName,
    *         courseOrgStatus)
    */
-  def allCourseProgramDataFrame(allCourseProgramESDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def addCourseOrgDetails(courseDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val joinOrgDF = orgDF.select(
       col("orgID").alias("courseOrgID"),
       col("orgName").alias("courseOrgName"),
       col("orgStatus").alias("courseOrgStatus")
     )
-    val df = allCourseProgramESDF.join(joinOrgDF, Seq("courseOrgID"), "left")
+    val df = courseDF.join(joinOrgDF, Seq("courseOrgID"), "left")
 
-    show(df, "allCourseProgramDataFrame")
+    show(df, "addCourseOrgDetails")
     df
   }
 
@@ -651,22 +659,23 @@ object DataUtil extends Serializable {
 
   /**
    * course details with competencies json from cassandra dev_hierarchy_store:content_hierarchy
-   * @param allCourseProgramDF Dataframe(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus)
+   * @param allCourseProgramESDF
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
    */
-  def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = addHierarchyColumn(allCourseProgramDF, hierarchyDF, "courseID", "data", competencies = true)
+  def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = addHierarchyColumn(allCourseProgramESDF, hierarchyDF, "courseID", "data", competencies = true)
 
     df = df.withColumn("competenciesJson", col("data.competencies_v3"))
            .withColumn("courseOrgID", explode(col("data.createdFor")))
 
-//      .withColumn("courseName", col("data.name"))
-//      .withColumn("courseStatus", col("data.status"))
-//      .withColumn("courseDuration", col("data.duration").cast(FloatType))
-//      .withColumn("category", col("data.primaryCategory"))
-//      .withColumn("courseReviewStatus", col("data.reviewStatus"))
-//      .withColumn("courseResourceCount", col("data.leafNodesCount"))
+    //      .withColumn("courseName", col("data.name"))
+    //      .withColumn("courseStatus", col("data.status"))
+    //      .withColumn("courseDuration", col("data.duration").cast(FloatType))
+    //      .withColumn("category", col("data.primaryCategory"))
+    //      .withColumn("courseReviewStatus", col("data.reviewStatus"))
+    //      .withColumn("courseResourceCount", col("data.leafNodesCount"))
 
+    df = addCourseOrgDetails(df, orgDF)
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
@@ -719,8 +728,7 @@ object DataUtil extends Serializable {
 
     val hierarchyDF = contentHierarchyDataFrame()
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
-    val allCourseProgramDF = allCourseProgramDataFrame(allCourseProgramESDF, orgDF)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramDF, hierarchyDF)
+    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
     val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
     val courseRatingDF = courseRatingSummaryDataFrame()
     val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)

@@ -132,10 +132,10 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     show(finalDF, "finalDF")
 
-    csvWrite(finalDF, s"${reportPath}-${System.currentTimeMillis()}-full")
+    // csvWrite(finalDF, s"${reportPath}-${System.currentTimeMillis()}-full")
 
     // generateReports(finalDF, "mdoid", reportPath)
-    // uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
+    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
