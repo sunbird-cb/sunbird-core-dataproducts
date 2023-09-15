@@ -13,9 +13,9 @@ import java.io.Serializable
 
 object RozgarReportModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModelNew"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.RozgarReportModelNew"
 
-  override def name() = "UserEnrolmentModelNew"
+  override def name() = "RozgarReportModelNew"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
