@@ -75,6 +75,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
 
     df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),
@@ -92,7 +93,8 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("personalDetails.category").alias("Category"),
       col("additionalProperties.externalSystem").alias("External_System"),
       col("additionalProperties.externalSystemId").alias("External_System_Id"),
-      col("userOrgID").alias("mdoid")
+      col("userOrgID").alias("mdoid"),
+      col("Report_Last_Generated_On")
     )
 
     uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/")

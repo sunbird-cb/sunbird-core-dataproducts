@@ -588,6 +588,9 @@ object DataUtil extends Serializable {
         col("assessReviewStatus"),
         col("assessDuration"),
         col("assessChildCount"),
+        col("assessOrgID"),
+        col("assessOrgName"),
+        col("assessStatus"),
 
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),

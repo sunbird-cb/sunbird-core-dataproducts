@@ -97,6 +97,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
       .select(
         col("userID"),
         col("courseID"),
@@ -127,9 +128,9 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("batchID").alias("Batch_ID"),
         col("courseBatchName").alias("Batch_Name"),
         col("courseBatchStartDate").alias("Batch_Start_Date"),
-        col("courseBatchEndDate").alias("Batch_End_Date")
+        col("courseBatchEndDate").alias("Batch_End_Date"),
+        col("Report_Last_Generated_On")
       )
-      .withColumn("Date_Of_Generation",date_format(current_timestamp(),"yyyy-MM-dd"))
 
     show(finalDF, "finalDF")
 

@@ -81,12 +81,10 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val mdoIDDF = mdoIDsDF(mdoID)
 
     val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
-
     df = df.join(mdoData, Seq("assessOrgID"), "inner")
     df = df.withColumn("fullName", concat(col("firstName"), lit(' '), col("lastName")))
 
     val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
-    latest.show()
 
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
 
@@ -97,6 +95,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val caseExpressionCompletionStatus = "CASE WHEN assessUserStatus == 'SUBMITTED' THEN 'Completed' ELSE 'In progress' END"
     df = df.withColumn("Overall_Status", expr(caseExpressionCompletionStatus))
 
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
     df = df.dropDuplicates("userID").select(
       col("userID").alias("User_id"),
       col("assessName").alias("Assessment_Name"),
@@ -105,7 +104,8 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("assessPassPercentage").alias("Percentage_Of_Score"),
       col("maskedEmail").alias("Email"),
       col("maskedPhone").alias("Phone"),
-      col("assessOrgID").alias("mdoid")
+      col("assessOrgID").alias("mdoid"),
+      col("Report_Last_Generated_On")
     )
 
     uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
