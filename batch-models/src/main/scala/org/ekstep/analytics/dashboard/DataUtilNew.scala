@@ -1017,6 +1017,18 @@ object DataUtilNew extends Serializable {
     df
   }
 
+  def calculateCourseProgress(userCourseProgramCompletionDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+
+    var df = userCourseProgramCompletionDF.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+
+    df = userCourseCompletionStatus(df)
+
+    show(df, "allCourseProgramCompletionWithDetailsDataFrame")
+
+    df
+  }
+
   def allCourseProgramCompletionWithBatchDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
     var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID", "batchID"), "left")
