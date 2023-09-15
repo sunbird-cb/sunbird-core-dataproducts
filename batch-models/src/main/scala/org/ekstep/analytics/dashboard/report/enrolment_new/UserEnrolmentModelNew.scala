@@ -93,6 +93,8 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .select(

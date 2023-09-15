@@ -890,7 +890,7 @@ object DataUtilNew extends Serializable {
       col("batchid").alias("batchID"),
       col("name").alias("courseBatchName"),
       col("start_date").alias("courseBatchStartDate"),
-      col("enddate").alias("courseBatchEndDate")
+      col("end_date").alias("courseBatchEndDate")
     )
     show(df, "Course Batch Data")
     df
