@@ -10,7 +10,7 @@ object CourseReportTestNew extends Serializable{
   def main(args: Array[String]): Unit = {
 
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CourseReportTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CourseReportTestNew", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();

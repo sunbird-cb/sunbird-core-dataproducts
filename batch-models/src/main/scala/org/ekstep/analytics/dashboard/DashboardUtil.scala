@@ -132,17 +132,13 @@ object DashboardUtil extends Serializable {
   object StorageUtil extends Serializable {
 
     def getStorageService(config: DashboardConfig): BaseStorageService = {
-      //    val modelParams = config.modelParams.getOrElse(Map[String, Option[AnyRef]]());
       val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
       val storageType = "s3"
-      //    val storageKey = modelParams.getOrElse("storageKeyConfig", "reports_storage_key").asInstanceOf[String]
-      //    val storageSecret = modelParams.getOrElse("storageSecretConfig", "reports_storage_secret").asInstanceOf[String];
       val storageKey = AppConf.getConfig(config.key)
       val storageSecret = AppConf.getConfig(config.secret)
 
       val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
         new CustomS3StorageService(
-          //        StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"), Option(storageEndpoint))
           StorageConfig(storageType, storageKey, storageSecret, Option(storageEndpoint))
         )
       } else {
