@@ -55,11 +55,18 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val orgHierarchyData = orgHierarchyDataframe()
 
+
     //Get course data first
     val allCourseProgramDetailsDF = contentDataFrames(false, true)
+    val courseBatchDF = courseBatchDataFrame()
+    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category").filter(col("category").isin("Blended Program"))
+      .join(courseBatchDF, Seq("courseID"), "left")
+      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
     val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF.join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
       .withColumnRenamed("orgName", "courseOrgName")
     show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+    val allCourseProgramDetailsDFWithOrgNameAndBatchInfo = allCourseProgramDetailsDFWithOrgName.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    show(allCourseProgramDetailsDFWithOrgNameAndBatchInfo, "allCourseProgramDetailsDFWithOrgNameAndBatchInfo")
     //add alias for orgName col to avoid conflict with userDF orgName col
 
     //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
@@ -78,7 +85,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     val userRatingDF = userCourseRatingDataframe()
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithBatchDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgNameAndBatchInfo, userDataDF)
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
     val finalDF = allCourseProgramCompletionWithDetailsDFWithRating
@@ -112,12 +119,12 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("completionPercentage").alias("CBP_Progress_Percentage"),
         col("completedOn").alias("Completed_On"),
         col("userRating").alias("User_Rating"),
-        col("userOrgID").alias("mdoid")
+        col("userOrgID").alias("mdoid"),
+        col("batchID").alias("Batch_ID"),
+        col("courseBatchName").alias("Batch_Name"),
+        col("courseBatchStartDate").alias("Batch_Start_Date"),
+        col("courseBatchEndDate").alias("Batch_End_Date")
       )
-      .withColumn("Batch_Start_Date", lit(""))
-      .withColumn("Batch_End_Date", lit(""))
-      .withColumn("Batch_ID", lit(""))
-      .withColumn("Batch_Name", lit(""))
 
     show(finalDF, "finalDF")
 

@@ -876,27 +876,24 @@ object DataUtilNew extends Serializable {
     show(df)
     df
   }
-//
-//  /**
-//   * Batch details for all kind of CBPs
-//   *
-//   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
-//   *         courseBatchStatus, courseBatchUpdatedDate)
-//   */
-//  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-//      col("courseid").alias("courseID"),
-//      col("batchid").alias("courseBatchID"),
-//      col("enrollmenttype").alias("courseBatchEnrolmentType"),
-//      col("name").alias("courseBatchName"),
-//      col("start_date").alias("courseBatchStartDate"),
-//      col("enddate").alias("courseBatchEndDate"),
-//      col("status").alias("courseBatchStatus"),
-//      col("updated_date").alias("courseBatchUpdatedDate")
-//    )
-//    show(df, "Course Batch Data")
-//    df
-//  }
+
+  /**
+   * Batch details for all kind of CBPs
+   *
+   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   *         courseBatchStatus, courseBatchUpdatedDate)
+   */
+  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+      col("courseid").alias("courseID"),
+      col("batchid").alias("batchID"),
+      col("name").alias("courseBatchName"),
+      col("start_date").alias("courseBatchStartDate"),
+      col("enddate").alias("courseBatchEndDate")
+    )
+    show(df, "Course Batch Data")
+    df
+  }
 
 
   /**
@@ -995,6 +992,20 @@ object DataUtilNew extends Serializable {
   def allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
     var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "left")
+    show(df, "userAllCourseProgramCompletionDataFrame s=1")
+
+    df = df.join(userOrgDF, Seq("userID"), "left")
+    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = userCourseCompletionStatus(df)
+
+    show(df, "allCourseProgramCompletionWithDetailsDataFrame")
+
+    df
+  }
+
+  def allCourseProgramCompletionWithBatchDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID", "batchID"), "left")
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
