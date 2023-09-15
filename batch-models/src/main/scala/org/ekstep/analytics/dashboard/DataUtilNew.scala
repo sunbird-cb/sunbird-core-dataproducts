@@ -730,7 +730,7 @@ object DataUtilNew extends Serializable {
       .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
 
     val courseWithHierarchyInfo = allCourseProgramESDF.join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
-      .select("courseID", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount")
+      .select("courseID", "category", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount")
 
     courseWithHierarchyInfo
 
@@ -909,7 +909,7 @@ object DataUtilNew extends Serializable {
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
       .withColumn("courseCompletedTimestamp", col("completedon"))
-      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
+      .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .select(
         col("userid").alias("userID"),
@@ -1400,9 +1400,15 @@ object DataUtilNew extends Serializable {
     val userDF = userDataFrame()
 
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    val df = userDF.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+    var df = userDF.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
             .withColumn("personalDetails", col("profileDetails.personalDetails"))
             .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+
+    df = df.withColumn("additionalProperties", if (df.columns.contains("profileDetails.additionalPropertis")) {
+      col("profileDetails.additionalPropertis")
+    }
+    else col("profileDetails.additionalProperties"))
+
     val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
     userDFWithOrg
   }

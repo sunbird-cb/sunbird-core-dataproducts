@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.enrolment
+package org.ekstep.analytics.dashboard.report.enrolment_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
+object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModelNew"
 
@@ -53,16 +53,25 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     //GET ORG DATA
     val orgDF = orgDataFrame()
 
+    val orgHierarchyData = orgHierarchyDataframe()
+
     //Get course data first
     val allCourseProgramDetailsDF = contentDataFrames(false, true)
     val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF.join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
       .withColumnRenamed("orgName", "courseOrgName")
-        //add alias for orgName col to avoid conflict with userDF orgName col
+    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+    //add alias for orgName col to avoid conflict with userDF orgName col
 
     //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
 
     //GET ORG DATW
-    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
+    var userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
+      .withColumnRenamed("orgName", "userOrgName")
+      .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
+    show(userDataDF, "userDataDF")
+
+    userDataDF = userDataDF
+      .join(orgHierarchyData, Seq("userOrgName"), "left")
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
@@ -72,25 +81,48 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    allCourseProgramCompletionWithDetailsDFWithRating
+    val finalDF = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+      .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
+      .withColumn("Tag", concat_ws(", ", col("Tag")))
       .select(
         col("userID"),
-        col("fullName"),
-        col("personalDetails.primaryEmail").alias("email"),
-        col("professionalDetails.designation").alias("designation"),
-        col("orgName"),
-        col("courseName"),
-        col("courseDuration").alias("duration"),
-        col("courseOrgName"),
-        col("courseLastPublishedOn").alias("lastPublishedOn"),
-        col("userCourseCompletionStatus").alias("status"),
-        col("completionPercentage"),
-        col("completedOn"),
-        col("userRating").alias("rating")
+        col("fullName").alias("Full_Name"),
+        col("personalDetails.primaryEmail").alias("Email"),
+        col("personalDetails.mobile").alias("Phone_NUmber"),
+        col("personalDetails.gender").alias("Gender"),
+        col("personalDetails.category").alias("Category"),
+        col("professionalDetails.designation").alias("Designation"),
+        col("professionalDetails.group").alias("Group"),
+        col("Tag").alias("Tag"),
+        col("additionalProperties.externalSystemId").alias("External_System_Id"),
+        col("additionalProperties.externalSystem").alias("External_System"),
+        col("userOrgName").alias("Organization"),
+        col("ministry_name").alias("Ministry"),
+        col("dept_name").alias("Department"),
+        col("courseName").alias("CBP_Name"),
+        col("category").alias("CBP_Type"),
+        col("issuedCertificates").alias("Certificate_Generated"),
+        col("courseDuration").alias("CBP_Duration"),
+        col("courseOrgName").alias("CBP_Provider"),
+        col("courseLastPublishedOn").alias("Last_Published_On"),
+        col("userCourseCompletionStatus").alias("Status"),
+        col("completionPercentage").alias("CBP_Progress_Percentage"),
+        col("completedOn").alias("Completed_On"),
+        col("userRating").alias("User_Rating"),
+        col("userOrgID").alias("mdoid")
       )
-      .coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
+      .withColumn("Batch_Start_Date", lit(""))
+      .withColumn("Batch_End_Date", lit(""))
+      .withColumn("Batch_ID", lit(""))
+      .withColumn("Batch_Name", lit(""))
+
+    show(finalDF, "finalDF")
+
+    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
+
+    //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
   }
 }
