@@ -104,7 +104,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("dept_name").alias("Department"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
-        col("issuedCertificates").alias("Certificate_Generated"),
+        // col("issuedCertificates").alias("Certificate_Generated"),
         col("courseDuration").alias("CBP_Duration"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
