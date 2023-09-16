@@ -58,7 +58,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
 
-    val userDataDF = userProfileDetailsDF().withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
+    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
 
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()

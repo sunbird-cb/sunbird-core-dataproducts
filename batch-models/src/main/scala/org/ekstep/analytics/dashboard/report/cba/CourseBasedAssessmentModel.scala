@@ -68,7 +68,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     val orgHierarchyData = orgHierarchyDataframe()
 
-    val userProfileDetails = userProfileDetailsDF().select(
+    val userProfileDetails = userProfileDetailsDF(orgDF).select(
       col("profileDetails"), col("additionalProperties"), col("personalDetails"), col("professionalDetails"), col("userID"))
 
     var df = userAssessChildrenDetailsDF.join(userProfileDetails, Seq("userID"), "inner").join(orgHierarchyData, Seq("userOrgName"), "left")
