@@ -38,7 +38,7 @@ object DataUtilNew extends Serializable {
       StructField("group", StringType, nullable = true)
     ))
     val personalDetailsSchema: StructType = StructType(Seq(
-      StructField("phoneVerified", BooleanType, nullable = true),
+      StructField("phoneVerified", StringType, nullable = true),
       StructField("gender", StringType, nullable = true),
       StructField("category", StringType, nullable = true),
       StructField("mobile", StringType, nullable = true),
@@ -350,7 +350,7 @@ object DataUtilNew extends Serializable {
       .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
       .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
-      .withColumn("userPhoneVerified", col("verificationDetails.personalDetails.phoneVerified"))
+      .withColumn("userPhoneVerified", expr("LOWER(verificationDetails.personalDetails.phoneVerified) = 'true'"))
       .drop("verificationDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
@@ -1437,14 +1437,15 @@ object DataUtilNew extends Serializable {
     val userDF = userDataFrame()
 
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    var df = userDF.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-            .withColumn("personalDetails", col("profileDetails.personalDetails"))
-            .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+    var df = userDF
+      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+      .withColumn("personalDetails", col("profileDetails.personalDetails"))
+      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
 
-    df = df.withColumn("additionalProperties", if (df.columns.contains("profileDetails.additionalPropertis")) {
-      col("profileDetails.additionalPropertis")
-    }
-    else col("profileDetails.additionalProperties"))
+    df = df.withColumn("additionalProperties",
+      if (df.columns.contains("profileDetails.additionalPropertis")) {
+        col("profileDetails.additionalPropertis")
+      } else col("profileDetails.additionalProperties"))
 
     val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
     userDFWithOrg

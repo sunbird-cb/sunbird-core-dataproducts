@@ -38,7 +38,7 @@ object DataUtil extends Serializable {
       StructField("group", StringType, nullable = true)
     ))
     val personalDetailsSchema: StructType = StructType(Seq(
-      StructField("phoneVerified", BooleanType, nullable = true),
+      StructField("phoneVerified", StringType, nullable = true),
       StructField("gender", StringType, nullable = true),
       StructField("category", StringType, nullable = true),
       StructField("mobile", StringType, nullable = true),
@@ -350,7 +350,7 @@ object DataUtil extends Serializable {
       .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
       .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
-      .withColumn("userPhoneVerified", col("verificationDetails.personalDetails.phoneVerified"))
+      .withColumn("userPhoneVerified", expr("LOWER(verificationDetails.personalDetails.phoneVerified) = 'true'"))
       .drop("verificationDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
@@ -1422,19 +1422,22 @@ object DataUtil extends Serializable {
     df
   }
 
-  def userProfileDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    var df = userOrgDF
-    df = df.withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-    df = df.withColumn("additionalProperties", if (df.columns.contains("profileDetails.additionalPropertis")) {
-      col("profileDetails.additionalPropertis")
-    }
-    else col("profileDetails.additionalProperties"))
-    df = df.withColumn("personalDetails", col("profileDetails.personalDetails"))
-    df = df.withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+  def userProfileDetailsDF(orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val userDF = userDataFrame()
 
-    df
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
+    var df = userDF
+      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+      .withColumn("personalDetails", col("profileDetails.personalDetails"))
+      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+
+    df = df.withColumn("additionalProperties",
+      if (df.columns.contains("profileDetails.additionalPropertis")) {
+        col("profileDetails.additionalPropertis")
+      } else col("profileDetails.additionalProperties"))
+
+    val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
+    userDFWithOrg
   }
 
   def mdoIDsDF(mdoID: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
