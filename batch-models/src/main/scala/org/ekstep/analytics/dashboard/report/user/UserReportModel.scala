@@ -57,11 +57,11 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // get user roles data
     val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
 
-    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
-
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
+
+    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
+      coalesce(col("lastName"), lit(""))))
 
     // get the mdoids for which the report are requesting
     val mdoID = conf.mdoIDs

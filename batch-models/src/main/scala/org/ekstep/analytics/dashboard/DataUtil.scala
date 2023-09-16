@@ -1495,6 +1495,11 @@ object DataUtil extends Serializable {
   def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)
 
+    if (debug) {
+      println("WARN! Debug mode skipping upload")
+      return
+    }
+
     val storageService = getStorageService(conf)
     // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
