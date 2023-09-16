@@ -9,9 +9,10 @@ import org.ekstep.analytics.dashboard.DataUtilNew._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
+
 object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.course.CourseReportModelNew"
-  implicit var debug: Boolean = true
+  override def name() = "CourseReportModelNew"
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
    * 1. Transforming input - Filter/Map etc.
