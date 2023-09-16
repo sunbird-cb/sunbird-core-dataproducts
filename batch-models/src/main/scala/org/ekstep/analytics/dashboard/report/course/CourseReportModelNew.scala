@@ -75,25 +75,27 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val userEnrolmentDF = userCourseProgramCompletionDataFrame().join(courseResCountDF, Seq("courseID"), "left")
     show(userEnrolmentDF, "userEnrolmentDF")
 
-    //val userRatingDF = userCourseRatingDataframe()
+    val userRatingDF = userCourseRatingDataframe().groupBy("courseID").agg(
+      avg(col("userRating")).alias("rating")
+    )
 
     val allCourseProgramCompletionWithDetailsDF = calculateCourseProgress(userEnrolmentDF)
     show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
 
     val minMaxCompletionDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
       .agg(
-        min("courseEnrolledTimestamp").alias("earliestCourseEnrollment"),
-        max("courseEnrolledTimestamp").alias("latestCourseEnrollment")
+        min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
+        max("courseCompletedTimestamp").alias("latestCourseCompleted")
       )
-      .withColumn("firstCompletedOn", to_date(col("earliestCourseEnrollment"), "dd/MM/yyyy"))
-      .withColumn("lastCompletedOn", to_date(col("latestCourseEnrollment"), "dd/MM/yyyy"))
+      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
+      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
     show(minMaxCompletionDF, "minMaxCompletionDF")
 
-    val countOfCertsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-      .agg(
-        count(when(col("issuedCertificates").isNotNull, 1)).alias("totalCertificatesIssued")
-      )
-    show(countOfCertsDF, "countOfCertsDF")
+//    val countOfCertsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//      .agg(
+//        count(when(col("issuedCertificates").isNotNull, 1)).alias("totalCertificatesIssued")
+//      )
+//    show(countOfCertsDF, "countOfCertsDF")
 
     val enrolledUserCount = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
       .agg(
@@ -111,9 +113,10 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
     val allCBPAndAggDF = allCourseProgramDetailsDFWithOrgName
       .join(minMaxCompletionDF, Seq("courseID"), "left")
-      .join(countOfCertsDF, Seq("courseID"), "left")
+      //.join(countOfCertsDF, Seq("courseID"), "left")
       .join(enrolledUserCount, Seq("courseID"), "left")
       .join(courseProgressCountsDF, Seq("courseID"), "left")
+      .join(userRatingDF, Seq("courseID"), "left")
     show(allCBPAndAggDF, "allCBPAndAggDF")
 
 //    val curatedCourseDataDF = minMaxCompletionDF.join(countOfCertsDF, Seq("courseID"), "inner")
@@ -134,11 +137,13 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
     val finalDf = curatedCourseDataDFWithBatchInfo
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("Archived_On", lit(""))
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
       .select(
           col("courseName").alias("CBP_Name"),
           col("category").alias("CBP_Type"),
           col("courseOrgName").alias("CBP_Provider"),
-          col("courseActualOrgId"),
+          // col("courseActualOrgId"),
           col("courseLastPublishedOn").alias("LastPublishedOn"),
           col("courseDuration").alias("CBP_Duration"),
           col("batchID").alias("BatchID"),
@@ -147,20 +152,25 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
           col("courseBatchEndDate").alias("Batch_End_Date"),
           col("firstCompletedOn").alias("First_Completed_On"),
           col("lastCompletedOn").alias("Last_Completed_On"),
-          col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
+          col("Archived_On"),
+          col("completedCount").alias("Total_Certificates_Issued"),
           col("enrolledUserCount").alias("Enrolled"),
           col("notStartedCount").alias("Not_Started"),
           col("inProgressCount").alias("In_Progress"),
-          col("completedCount").alias("Completed")
+          col("completedCount").alias("Completed"),
+          col("rating").alias("CBP_Rating"),
+          col("courseActualOrgId").alias("mdoid"),
+          col("Report_Last_Generated_On")
         )
+
 
     show(finalDf)
     // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
 
-    finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
 
-//    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
 
-    //closeRedisConnect()
+    closeRedisConnect()
   }
 }

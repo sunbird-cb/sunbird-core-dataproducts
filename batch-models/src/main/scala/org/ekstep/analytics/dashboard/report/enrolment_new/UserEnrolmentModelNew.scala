@@ -98,6 +98,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+      .withColumn("Certificate_Generated", expr("CASE WHEN userCourseCompletionStatus='completed' THEN 'Yes' ELSE 'No' END"))
       .select(
         col("userID"),
         col("courseID"),
@@ -134,11 +135,14 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     show(finalDF, "finalDF")
 
+    // finalDF.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+
     // csvWrite(finalDF, s"${reportPath}-${System.currentTimeMillis()}-full")
 
     // generateReports(finalDF, "mdoid", reportPath)
     uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
+    closeRedisConnect()
   }
 }
