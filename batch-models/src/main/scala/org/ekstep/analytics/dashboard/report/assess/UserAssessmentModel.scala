@@ -107,6 +107,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("assessOrgID").alias("mdoid"),
       col("Report_Last_Generated_On")
     )
+    show(df)
 
     uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
 

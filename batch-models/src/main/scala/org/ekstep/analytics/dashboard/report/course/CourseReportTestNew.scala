@@ -62,6 +62,7 @@ object CourseReportTestNew extends Serializable{
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
       "cassandraCourseBatchTable" -> "course_batch",
+      "cassandraRatingsTable" -> "ratings",
 
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",

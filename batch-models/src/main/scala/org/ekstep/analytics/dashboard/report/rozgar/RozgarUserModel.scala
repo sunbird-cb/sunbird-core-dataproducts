@@ -12,7 +12,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.rozgar.RozgarUserModel"
-  implicit var debug: Boolean = false
+  override def name() = "RozgarUserModel"
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
    * 1. Transforming input - Filter/Map etc.
