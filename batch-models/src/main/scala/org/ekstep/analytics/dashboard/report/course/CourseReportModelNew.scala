@@ -155,7 +155,9 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         )
 
     show(finalDf)
-    csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
+    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
+
+    finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
 
 //    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
 
