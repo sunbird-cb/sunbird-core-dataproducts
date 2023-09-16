@@ -7,6 +7,8 @@ import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
+import org.ekstep.analytics.dashboard.report.course_new.CourseReportJobNew
+import org.ekstep.analytics.dashboard.report.enrolment_new.UserEnrolmentJobNew
 import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
 
 import scala.reflect.runtime.universe
@@ -40,9 +42,9 @@ object JobFactory {
       case "user-report" =>
         UserReportJob
       case "user-enrolment-report" =>
-        UserEnrolmentJob
+        UserEnrolmentJobNew
       case "course-report" =>
-        CourseReportJob
+        CourseReportJobNew
       case "course-based-assessment-report" =>
         CourseBasedAssessmentJob
       case "rozgar-user-report" =>

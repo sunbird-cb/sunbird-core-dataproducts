@@ -1,11 +1,11 @@
-package org.ekstep.analytics.dashboard.report.course
+package org.ekstep.analytics.dashboard.report.course_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-object CourseReportTestNew extends Serializable{
+object CourseReportTestNew extends Serializable {
 
   def main(args: Array[String]): Unit = {
 
@@ -83,5 +83,3 @@ object CourseReportTestNew extends Serializable{
     modelParams
   }
 }
-
-
