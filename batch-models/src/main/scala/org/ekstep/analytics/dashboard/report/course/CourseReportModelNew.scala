@@ -159,6 +159,6 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
 //    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
 
-    closeRedisConnect()
+    //closeRedisConnect()
   }
 }
