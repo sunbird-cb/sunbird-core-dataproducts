@@ -518,9 +518,10 @@ object DataUtilNew extends Serializable {
     // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
     df = df
       .withColumn("courseDuration",
-      format_string("%02d:%02d",
+      format_string("%02d:%02d:%02d",
         expr("courseDuration / 3600").cast("int"),
-        expr("courseDuration % 3600 / 60").cast("int")
+        expr("courseDuration % 3600 / 60").cast("int"),
+        expr("courseDuration % 60").cast("int")
       )
     )
     show(df, "allCourseProgramESDataFrame")
