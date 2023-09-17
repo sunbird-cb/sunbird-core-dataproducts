@@ -88,7 +88,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    val finalDF = allCourseProgramCompletionWithDetailsDFWithRating
+    var finalDF = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
@@ -96,39 +96,40 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN userCourseCompletionStatus='completed' THEN 'Yes' ELSE 'No' END"))
+
+    finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
       .select(
-        col("userID"),
-        col("courseID"),
         col("fullName").alias("Full_Name"),
+        col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("Email"),
         col("personalDetails.mobile").alias("Phone_Number"),
-        col("personalDetails.gender").alias("Gender"),
-        col("personalDetails.category").alias("Category"),
-        col("professionalDetails.designation").alias("Designation"),
         col("professionalDetails.group").alias("Group"),
-        col("Tag").alias("Tag"),
-        col("additionalProperties.externalSystemId").alias("External_System_Id"),
-        col("additionalProperties.externalSystem").alias("External_System"),
-        col("userOrgName").alias("Organization"),
+        col("Tag"),
         col("ministry_name").alias("Ministry"),
         col("dept_name").alias("Department"),
+        col("userOrgName").alias("Organization"),
+        col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
-        // col("issuedCertificates").alias("Certificate_Generated"),
         col("courseDuration").alias("CBP_Duration"),
-        col("courseOrgName").alias("CBP_Provider"),
-        col("courseLastPublishedOn").alias("Last_Published_On"),
-        col("userCourseCompletionStatus").alias("Status"),
-        col("completionPercentage").alias("CBP_Progress_Percentage"),
-        col("completedOn").alias("Completed_On"),
-        col("userRating").alias("User_Rating"),
-        col("userOrgID").alias("mdoid"),
-        col("batchID").alias("Batch_ID"),
+        col("batchID").alias("Batch_Id"),
         col("courseBatchName").alias("Batch_Name"),
         col("courseBatchStartDate").alias("Batch_Start_Date"),
         col("courseBatchEndDate").alias("Batch_End_Date"),
+        col("enrolledOn"),
+        col("userCourseCompletionStatus").alias("Status"),
+        col("completionPercentage").alias("CBP_Progress_Percentage"),
+        col("courseLastPublishedOn").alias("Last_Published_On"),
+        col("completedOn").alias("Completed_On"),
+        col("Certificate_Generated"),
+        col("userRating").alias("User_Rating"),
+        col("personalDetails.gender").alias("Gender"),
+        col("personalDetails.category").alias("Category"),
+        col("additionalProperties.externalSystem").alias("External_System"),
+        col("additionalProperties.externalSystemId").alias("External_System_Id"),
+        col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
 

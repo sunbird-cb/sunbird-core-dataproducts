@@ -110,14 +110,14 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
     df = df.distinct().dropDuplicates("userID", "courseID").select(
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags").cast("string"),
+      col("additionalProperties.tag").alias("Tag").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
