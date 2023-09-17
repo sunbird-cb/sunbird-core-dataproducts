@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.course_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtilNew._
@@ -55,57 +55,40 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val today = getDate()
     val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
+    val finalDf = finalDataFrame()
+
+    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
+
+    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+
+    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+
+    closeRedisConnect()
+  }
+
+
+
+  def finalDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+
     val orgDF = orgDataFrame()
 
     //Get course data first
     val allCourseProgramDetailsDF = contentDataFrames(false, true)
-    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
-      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "courseOrgName")
-    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+    val cbpDetailsDF = cbpDetailsDataFrame(allCourseProgramDetailsDF, orgDF)
 
-    val courseResCountDF = allCourseProgramDetailsDF.select("courseID", "courseResourceCount")
-    val userEnrolmentDF = userCourseProgramCompletionDataFrame().join(courseResCountDF, Seq("courseID"), "left")
-    show(userEnrolmentDF, "userEnrolmentDF")
+    val aggregatedDF = courseAggregatedDataFrame(allCourseProgramDetailsDF)
 
-    val userRatingDF = userCourseRatingDataframe().groupBy("courseID").agg(
-      avg(col("userRating")).alias("rating")
-    )
-
-    val allCourseProgramCompletionWithDetailsDF = calculateCourseProgress(userEnrolmentDF)
-    show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
-
-    val aggregatedDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-      .agg(
-        min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
-        max("courseCompletedTimestamp").alias("latestCourseCompleted"),
-        count("*").alias("enrolledUserCount"),
-        sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
-        sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
-        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount"),
-        sum(col("issuedCertificateCount")).alias("totalCertificatesIssued")
-      )
-      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
-      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
-    show(aggregatedDF, "aggregatedDF")
-
-    val allCBPAndAggDF = allCourseProgramDetailsDFWithOrgName
-      .join(aggregatedDF, Seq("courseID"), "left")
-      .join(userRatingDF, Seq("courseID"), "left")
+    val allCBPAndAggDF = cbpDetailsDF.join(aggregatedDF, Seq("courseID"), "left")
     show(allCBPAndAggDF, "allCBPAndAggDF")
 
-    val courseBatchDF = courseBatchDataFrame()
-    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
-      .where(expr("category IN ('Blended Program')"))
-      .join(courseBatchDF, Seq("courseID"), "left")
-      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
-    show(relevantBatchInfoDF, "relevantBatchInfoDF")
-
+    val relevantBatchInfoDF = relevantBatchInfoDataFrame(allCourseProgramDetailsDF)
     val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
     val finalDf = curatedCourseDataDFWithBatchInfo
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("Archived_On", lit(""))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
@@ -114,8 +97,8 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("category").alias("CBP_Type"),
         col("batchID").alias("Batch_Id"),
         col("courseBatchName").alias("Batch_Name"),
-        from_unixtime(col("courseBatchStartDate").cast("long"), "dd/MM/yyyy").alias("Batch_Start_Date"),
-        from_unixtime(col("courseBatchEndDate").cast("long"), "dd/MM/yyyy").alias("Batch_End_Date"),
+        col("courseBatchStartDate").alias("Batch_Start_Date"),
+        col("courseBatchEndDate").alias("Batch_End_Date"),
         col("courseDuration").alias("CBP_Duration"),
         col("enrolledUserCount").alias("Enrolled"),
         col("notStartedCount").alias("Not_Started"),
@@ -130,15 +113,57 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
-
       )
     show(finalDf)
-    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
-
-    closeRedisConnect()
+    finalDf
   }
+
+  def courseAggregatedDataFrame(allCourseProgramDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    val courseResCountDF = allCourseProgramDetailsDF.select("courseID", "courseResourceCount")
+    val userEnrolmentDF = userCourseProgramCompletionDataFrame().join(courseResCountDF, Seq("courseID"), "left")
+    val allCBPCompletionWithDetailsDF = calculateCourseProgress(userEnrolmentDF)
+    show(allCBPCompletionWithDetailsDF, "allCBPCompletionWithDetailsDF")
+
+    val aggregatedDF = allCBPCompletionWithDetailsDF.groupBy("courseID")
+      .agg(
+        min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
+        max("courseCompletedTimestamp").alias("latestCourseCompleted"),
+        count("*").alias("enrolledUserCount"),
+        sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
+        sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
+        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount"),
+        sum(col("issuedCertificateCount")).alias("totalCertificatesIssued")
+      )
+      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
+      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
+    show(aggregatedDF, "aggregatedDF")
+    aggregatedDF
+  }
+
+  def relevantBatchInfoDataFrame(allCourseProgramDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    val courseBatchDF = courseBatchDataFrame()
+    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
+      .where(expr("category IN ('Blended Program')"))
+      .join(courseBatchDF, Seq("courseID"), "left")
+      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
+    show(relevantBatchInfoDF, "relevantBatchInfoDF")
+    relevantBatchInfoDF
+  }
+
+  def cbpDetailsDataFrame(allCourseProgramDetailsDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+
+    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
+      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
+      .withColumnRenamed("orgName", "courseOrgName")
+    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+
+    val userRatingDF = userCourseRatingDataframe().groupBy("courseID").agg(
+      avg(col("userRating")).alias("rating")
+    )
+    val cbpDetailsDF = allCourseProgramDetailsDFWithOrgName.join(userRatingDF, Seq("courseID"), "left")
+    show(cbpDetailsDF, "cbpDetailsDataFrame")
+
+    cbpDetailsDF
+  }
+
 }

@@ -97,7 +97,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-      .withColumn("Certificate_Generated", expr("CASE WHEN userCourseCompletionStatus='completed' THEN 'Yes' ELSE 'No' END"))
+      .withColumn("Certificate_Generated", expr("CASE WHEN issuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
 
     finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
       .select(
