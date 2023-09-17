@@ -83,7 +83,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags").cast("string"),
+      col("additionalProperties.tag").alias("Tag").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
