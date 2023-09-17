@@ -83,35 +83,6 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val allCourseProgramCompletionWithDetailsDF = calculateCourseProgress(userEnrolmentDF)
     show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
 
-//    val minMaxCompletionDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-//      .agg(
-//        min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
-//        max("courseCompletedTimestamp").alias("latestCourseCompleted")
-//      )
-//      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
-//      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
-//    show(minMaxCompletionDF, "minMaxCompletionDF")
-//
-//    //    val countOfCertsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-//    //      .agg(
-//    //        count(when(col("issuedCertificates").isNotNull, 1)).alias("totalCertificatesIssued")
-//    //      )
-//    //    show(countOfCertsDF, "countOfCertsDF")
-//
-//    val enrolledUserCount = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-//      .agg(
-//        count("*").alias("enrolledUserCount")
-//      )
-//    show(enrolledUserCount, "enrolledUserCount")
-//
-//    val courseProgressCountsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-//      .agg(
-//        sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
-//        sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
-//        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount")
-//      )
-//    show(courseProgressCountsDF, "courseProgressCountsDF")
-
     val aggregatedDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
       .agg(
         min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
@@ -119,25 +90,17 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         count("*").alias("enrolledUserCount"),
         sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
         sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
-        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount")
+        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount"),
+        sum(col("issuedCertificateCount")).alias("totalCertificatesIssued")
       )
       .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
       .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
-
+    show(aggregatedDF, "aggregatedDF")
 
     val allCBPAndAggDF = allCourseProgramDetailsDFWithOrgName
       .join(aggregatedDF, Seq("courseID"), "left")
-      //.join(countOfCertsDF, Seq("courseID"), "left")
-//      .join(enrolledUserCount, Seq("courseID"), "left")
-//      .join(courseProgressCountsDF, Seq("courseID"), "left")
       .join(userRatingDF, Seq("courseID"), "left")
     show(allCBPAndAggDF, "allCBPAndAggDF")
-
-    //    val curatedCourseDataDF = minMaxCompletionDF.join(countOfCertsDF, Seq("courseID"), "inner")
-    //                              .join(enrolledUserCount, Seq("courseID"), "inner")
-    //                              .join(courseProgressCountsDF, Seq("courseID"), "inner")
-    //                              .join(allCourseProgramDetailsDFWithOrgName, Seq("courseID"), "left")
-    //    show(curatedCourseDataDF, "curatedCourseDataDF")
 
     val courseBatchDF = courseBatchDataFrame()
     val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
@@ -167,7 +130,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("firstCompletedOn").alias("First_Completed_On"),
         col("lastCompletedOn").alias("Last_Completed_On"),
         col("Archived_On"),
-        col("completedCount").alias("Total_Certificates_Issued"),
+        col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("enrolledUserCount").alias("Enrolled"),
         col("notStartedCount").alias("Not_Started"),
         col("inProgressCount").alias("In_Progress"),
@@ -176,8 +139,6 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
-
-
     show(finalDf)
     // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
 
