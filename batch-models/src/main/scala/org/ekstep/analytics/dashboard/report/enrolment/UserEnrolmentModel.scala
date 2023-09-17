@@ -51,7 +51,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val today = getDate()
     val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
-    val userDataDF = userProfileDetailsDF(orgDF).withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
+:wq    val userDataDF = userProfileDetailsDF(orgDF).withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     val org = orgDataFrame()
@@ -112,7 +112,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
     df = df.distinct().dropDuplicates("userID", "courseID").select(
       col("Full Name").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),

@@ -75,7 +75,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
 
     df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),

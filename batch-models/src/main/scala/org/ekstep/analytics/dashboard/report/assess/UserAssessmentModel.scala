@@ -95,7 +95,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val caseExpressionCompletionStatus = "CASE WHEN assessUserStatus == 'SUBMITTED' THEN 'Completed' ELSE 'In progress' END"
     df = df.withColumn("Overall_Status", expr(caseExpressionCompletionStatus))
 
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
     df = df.dropDuplicates("userID").select(
       col("userID").alias("User_id"),
       col("assessName").alias("Assessment_Name"),

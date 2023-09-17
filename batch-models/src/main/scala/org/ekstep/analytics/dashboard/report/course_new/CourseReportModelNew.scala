@@ -139,29 +139,32 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val finalDf = curatedCourseDataDFWithBatchInfo
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("Archived_On", lit(""))
-      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
       .select(
+        col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
-        col("courseOrgName").alias("CBP_Provider"),
-        // col("courseActualOrgId"),
-        col("courseLastPublishedOn").alias("LastPublishedOn"),
-        col("courseDuration").alias("CBP_Duration"),
-        col("batchID").alias("BatchID"),
+        col("batchID").alias("Batch_Id"),
         col("courseBatchName").alias("Batch_Name"),
-        col("courseBatchStartDate").alias("Batch_Start_Date"),
-        col("courseBatchEndDate").alias("Batch_End_Date"),
-        col("firstCompletedOn").alias("First_Completed_On"),
-        col("lastCompletedOn").alias("Last_Completed_On"),
-        col("Archived_On"),
-        col("completedCount").alias("Total_Certificates_Issued"),
+      //  col("courseBatchStartDate").alias("Batch_Start_Date"),
+      //  col("courseBatchEndDate").alias("Batch_End_Date"),
+        from_unixtime(col("courseBatchStartDate").cast("long"), "dd/MM/yyyy HH:mm:ss").alias("Batch_Start_Date"),
+        from_unixtime(col("courseBatchEndDate").cast("long"), "dd/MM/yyyy").alias("Batch_End_Date"),
+        col("courseDuration").alias("CBP_Duration"),
         col("enrolledUserCount").alias("Enrolled"),
         col("notStartedCount").alias("Not_Started"),
         col("inProgressCount").alias("In_Progress"),
         col("completedCount").alias("Completed"),
         col("rating").alias("CBP_Rating"),
+        // col("courseActualOrgId"),
+        from_unixtime(col("courseLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Last_Published_On"),
+        from_unixtime(col("firstCompletedOn").cast("long"), "dd/MM/yyyy").alias("First_Completed_On"),
+        from_unixtime(col("lastCompletedOn").cast("long"), "dd/MM/yyyy").alias("Last_Completed_On"),
+        from_unixtime(col("Archived_On").cast("long"), "dd/MM/yyyy").alias("Archived_On"),
+        col("completedCount").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
+
       )
 
 
