@@ -56,14 +56,6 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
     val orgDF = orgDataFrame()
-    //    val orgHierarchyData = orgHierarchyDataframe()
-    //    //GET ORG DATW
-    //    var userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
-    //      .withColumnRenamed("orgName", "userOrgName")
-    //      .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
-    //    userDataDF = userDataDF
-    //      .join(orgHierarchyData, Seq("userOrgName"), "left")
-    //    show(userDataDF, "userDataDF")
 
     //Get course data first
     val allCourseProgramDetailsDF = contentDataFrames(false, true)

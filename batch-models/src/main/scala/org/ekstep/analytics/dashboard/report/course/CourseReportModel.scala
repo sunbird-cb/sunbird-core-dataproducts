@@ -54,14 +54,13 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val today = getDate()
     val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
-    val userDataDF = userProfileDetailsDF(orgDF).withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val org = orgDataFrame();
+
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
-      contentDataFrames(org, false, false, true)
+      contentDataFrames(orgDF, false, false, true)
     //val courseBatchData = courseBatchDataFrame()
 
     val courseStatusUpdateData = courseStatusUpdateDataFrame(hierarchyDF)

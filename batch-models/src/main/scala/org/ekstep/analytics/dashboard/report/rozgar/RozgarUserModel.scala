@@ -58,10 +58,9 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
 
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", concat(coalesce(col("firstName"), lit("")), lit(' '),
       coalesce(col("lastName"), lit(""))))
-
-    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
 
     // get the mdoids for which the report are requesting

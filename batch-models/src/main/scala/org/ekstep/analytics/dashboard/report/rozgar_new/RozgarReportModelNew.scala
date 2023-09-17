@@ -62,7 +62,7 @@ object RozgarReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
 
     //GET ORG DATW
-    val userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
+    val userDataDF = userProfileDetailsDF(orgDF)
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 

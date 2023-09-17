@@ -345,12 +345,13 @@ object DataUtil extends Serializable {
         col("createddate").alias("userCreatedTimestamp"),
         col("updateddate").alias("userUpdatedTimestamp")
       )
-      .na.fill("", Seq("userOrgID"))
+      .na.fill("", Seq("userOrgID", "firstName", "lastName"))
       .na.fill("{}", Seq("userProfileDetails"))
       .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
       .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
       .withColumn("userPhoneVerified", expr("LOWER(verificationDetails.personalDetails.phoneVerified) = 'true'"))
+      .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
       .drop("verificationDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
