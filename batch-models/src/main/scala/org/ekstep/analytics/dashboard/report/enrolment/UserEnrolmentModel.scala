@@ -50,15 +50,13 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val today = getDate()
     val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
-    val orgDDF = orgDataFrame()
-   val userDataDF = userProfileDetailsDF(orgDDF).withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
+
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val org = orgDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(org, false, false, true)
+      contentDataFrames(orgDF, false, false, true)
 
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
       .select(col("courseID"), col("userID"), col("completionPercentage"))
@@ -112,9 +110,9 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
     df = df.distinct().dropDuplicates("userID", "courseID").select(
-      col("Full Name").alias("Full_Name"),
+      col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),

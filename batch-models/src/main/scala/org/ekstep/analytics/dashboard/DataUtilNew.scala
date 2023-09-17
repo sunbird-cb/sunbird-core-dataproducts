@@ -345,12 +345,13 @@ object DataUtilNew extends Serializable {
         col("createddate").alias("userCreatedTimestamp"),
         col("updateddate").alias("userUpdatedTimestamp")
       )
-      .na.fill("", Seq("userOrgID"))
+      .na.fill("", Seq("userOrgID", "firstName", "lastName"))
       .na.fill("{}", Seq("userProfileDetails"))
       .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
       .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
       .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
       .withColumn("userPhoneVerified", expr("LOWER(verificationDetails.personalDetails.phoneVerified) = 'true'"))
+      .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
       .drop("verificationDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
@@ -923,6 +924,7 @@ object DataUtilNew extends Serializable {
       .withColumn("courseCompletedTimestamp", col("completedon"))
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
+      .withColumn("issuedCertificateCount", size(col("issued_certificates")))
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
@@ -932,9 +934,9 @@ object DataUtilNew extends Serializable {
         col("courseCompletedTimestamp"),
         col("courseEnrolledTimestamp"),
         col("lastContentAccessTimestamp"),
-        col("issued_certificates").cast("String").alias("issuedCertificates"),
-        col("contentstatus").alias("courseContentStatus")
-      ).na.fill(0, Seq("courseProgress"))
+        col("issuedCertificateCount")
+      )
+      .na.fill(0, Seq("courseProgress", "issuedCertificateCount"))
 
     show(df)
     df

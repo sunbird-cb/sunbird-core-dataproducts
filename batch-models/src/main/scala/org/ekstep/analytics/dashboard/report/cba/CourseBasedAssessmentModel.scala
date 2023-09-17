@@ -71,10 +71,9 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     val userProfileDetails = userProfileDetailsDF(orgDF).select(
       col("profileDetails"), col("additionalProperties"), col("personalDetails"), col("professionalDetails"), col("userID"))
 
-    var df = userAssessChildrenDetailsDF.join(userProfileDetails, Seq("userID"), "inner").join(orgHierarchyData, Seq("userOrgName"), "left")
-
-    df = df.withColumn("Full Name", concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
+    var df = userAssessChildrenDetailsDF
+      .join(userProfileDetails, Seq("userID"), "inner")
+      .join(orgHierarchyData, Seq("userOrgName"), "left")
 
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
 
@@ -101,7 +100,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.join(retaks, Seq("assessChildID"), "left")
 
     df = df.dropDuplicates("userID", "assessChildID").select(
-      col("Full Name"),
+      col("fullName").alias("Full Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("E mail"),
       col("personalDetails.mobile").alias("Phone Number"),
