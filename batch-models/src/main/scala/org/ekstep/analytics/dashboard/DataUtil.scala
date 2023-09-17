@@ -1437,6 +1437,8 @@ object DataUtil extends Serializable {
       } else col("profileDetails.additionalProperties"))
 
     val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
+      .withColumnRenamed("orgName", "userOrgName")
+      .withColumnRenamed("orgStatus", "userOrgStatus")
     userDFWithOrg
   }
 
