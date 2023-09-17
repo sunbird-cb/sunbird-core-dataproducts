@@ -51,7 +51,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val today = getDate()
     val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
-
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val userDataDF = userProfileDetailsDF(orgDF)
