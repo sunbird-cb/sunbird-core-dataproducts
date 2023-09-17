@@ -59,7 +59,6 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     val orgDF = orgDataFrame()
     val userDataDF = userProfileDetailsDF(orgDF)
-      .withColumn("fullName", concat_ws(" ", coalesce(col("firstName"), col("lastName"))))
 
     val orgHierarchyData = orgHierarchyDataframe()
 
