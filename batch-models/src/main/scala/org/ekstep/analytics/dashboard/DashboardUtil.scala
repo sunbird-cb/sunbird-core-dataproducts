@@ -13,6 +13,7 @@ import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
+import com.mongodb.spark.MongoSpark
 import org.joda.time.DateTimeZone
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import redis.clients.jedis.exceptions.JedisException
@@ -54,11 +55,15 @@ case class DashboardConfig (
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+    cassandraNpsKeyspace: String,
+    cassandraUserFeedKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
     cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
+    cassandraNpsTable: String,
+    cassandraUserFeedTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -69,6 +74,11 @@ case class DashboardConfig (
     redisUserCompetencyGapEnrollmentRate: String, redisOrgCompetencyGapEnrollmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+
+
+    // mongoDB configurations
+    mongoDBHost: String,
+    mongoDBCollection: String,
 
     // for reports
     mdoIDs: String,
@@ -381,6 +391,17 @@ object DashboardUtil extends Serializable {
     df
   }
 
+  def mongodbTableAsDataFrame(mongoDBhost: String, collection: String)(implicit spark: SparkSession): DataFrame = {
+    val mongodbURI = "mongodb://"+mongoDBhost+"/"+collection
+    val df = spark.read
+      .format("mongo")
+      .option("uri", mongodbURI)
+      .option("pipeline", "[{ $match: { $and: [{ username: { $exists: true } }, { $or: [ { topiccount: { $gt: 0 } }, { postcount: { $gt: 0 } } ] } ] } }]")
+      .load()
+
+    df.persist(StorageLevel.MEMORY_ONLY)
+  }
+
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
     val path = key.split('.')
@@ -431,6 +452,8 @@ object DashboardUtil extends Serializable {
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      cassandraNpsKeyspace = getConfigModelParam(config, "cassandraNpsKeyspace"),
+      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
       // cassandra table details
       cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
       cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
@@ -441,6 +464,8 @@ object DashboardUtil extends Serializable {
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
       cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
+      cassandraNpsTable = getConfigModelParam(config, "cassandraNpsTable"),
+      cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
@@ -459,6 +484,12 @@ object DashboardUtil extends Serializable {
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
       redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
+
+
+      //mongoBD configurations
+
+      mongoDBHost =  getConfigModelParam(config, "mongoDBHost"),
+      mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),

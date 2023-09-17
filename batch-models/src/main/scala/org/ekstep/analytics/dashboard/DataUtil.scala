@@ -8,10 +8,10 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.FrameworkContext
-
 import DashboardUtil._
 
 import java.io.Serializable
+import java.time.LocalDate
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
@@ -1407,4 +1407,39 @@ object DataUtil extends Serializable {
     df
   }
 
+  /** gets the user_id and survey_submitted_time from cassandra */
+
+  /** gets the user_ids who have submitted the survey in last 3 months */
+
+
+  def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val currentTimeMillis = System.currentTimeMillis()
+    val threeMonthsAgo = currentTimeMillis - (90L * 24L * 3600L * 1000L)
+    val threeMonthsAgoEpochSeconds = threeMonthsAgo / 1000
+    val df = cassandraTableAsDataFrame(conf.cassandraNpsKeyspace, conf.cassandraNpsTable)
+      .filter(col("last_submitted_timestamp") <= lit(threeMonthsAgoEpochSeconds))
+      .select("user_id").alias("userid")
+    show(df)
+    df
+
+  }
+
+  def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY AND category = 'Course' AND dbCompletionStatus = 2)UNION ALL (SELECT actor_id AS userid FROM \"telemetry-events-syncts\" WHERE actor_type='User' AND eid='INTERACT' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY (actor_id) HAVING count(actor_id) > 30)"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.userActualTimeSpentLearningSchema)
+    df = df.dropDuplicates("userid")
+    show(df, "usersCompleted1CourseORhavingMoreThan30TelemetryEvents")
+    df
+  }
+
+
+  def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = mongodbTableAsDataFrame(conf.mongoDBHost, conf.mongoDBCollection)
+    df.show(10)
+    val keyToExtract = "sunbird-oidcId"
+    val explodedDF = df.select(col("arrayOfObjects")(keyToExtract).as("userid"))
+    show(explodedDF)
+    explodedDF
+  }
 }
