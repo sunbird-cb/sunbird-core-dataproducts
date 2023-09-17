@@ -53,7 +53,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     //GET ORG DATA
     val orgDF = orgDataFrame()
     val orgHierarchyData = orgHierarchyDataframe()
-    var userDataDF = userProfileDetailsDF(orgDF).withColumn("fullName", col("firstName"))
+    var userDataDF = userProfileDetailsDF(orgDF)
       .withColumnRenamed("orgName", "userOrgName")
       .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
     userDataDF = userDataDF

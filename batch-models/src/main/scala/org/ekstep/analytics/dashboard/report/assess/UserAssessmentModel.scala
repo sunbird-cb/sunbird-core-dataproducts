@@ -82,7 +82,6 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
     df = df.join(mdoData, Seq("assessOrgID"), "inner")
-    df = df.withColumn("fullName", concat(col("firstName"), lit(' '), col("lastName")))
 
     val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
 
