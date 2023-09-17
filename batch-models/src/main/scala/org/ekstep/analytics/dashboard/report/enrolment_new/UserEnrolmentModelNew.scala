@@ -88,7 +88,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    val finalDF = allCourseProgramCompletionWithDetailsDFWithRating
+    var finalDF = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
@@ -98,6 +98,8 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss"))
       .withColumn("Certificate_Generated", expr("CASE WHEN userCourseCompletionStatus='completed' THEN 'Yes' ELSE 'No' END"))
+
+    finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
       .select(
         col("userID"),
         col("courseID"),
