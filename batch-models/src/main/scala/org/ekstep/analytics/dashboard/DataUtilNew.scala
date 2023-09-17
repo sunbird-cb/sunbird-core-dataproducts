@@ -933,8 +933,6 @@ object DataUtilNew extends Serializable {
         col("courseEnrolledTimestamp"),
         col("lastContentAccessTimestamp"),
         col("issuedCertificateCount")
-        // col("issued_certificates").cast("String").alias("issuedCertificates"),
-        // col("contentstatus").alias("courseContentStatus")
       )
       .na.fill(0, Seq("courseProgress", "issuedCertificateCount"))
 
