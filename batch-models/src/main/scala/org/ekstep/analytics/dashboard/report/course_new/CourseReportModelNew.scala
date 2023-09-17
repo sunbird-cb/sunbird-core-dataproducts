@@ -83,40 +83,53 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val allCourseProgramCompletionWithDetailsDF = calculateCourseProgress(userEnrolmentDF)
     show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
 
-    val minMaxCompletionDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//    val minMaxCompletionDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//      .agg(
+//        min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
+//        max("courseCompletedTimestamp").alias("latestCourseCompleted")
+//      )
+//      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
+//      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
+//    show(minMaxCompletionDF, "minMaxCompletionDF")
+//
+//    //    val countOfCertsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//    //      .agg(
+//    //        count(when(col("issuedCertificates").isNotNull, 1)).alias("totalCertificatesIssued")
+//    //      )
+//    //    show(countOfCertsDF, "countOfCertsDF")
+//
+//    val enrolledUserCount = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//      .agg(
+//        count("*").alias("enrolledUserCount")
+//      )
+//    show(enrolledUserCount, "enrolledUserCount")
+//
+//    val courseProgressCountsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
+//      .agg(
+//        sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
+//        sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
+//        sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount")
+//      )
+//    show(courseProgressCountsDF, "courseProgressCountsDF")
+
+    val aggregatedDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
       .agg(
         min("courseCompletedTimestamp").alias("earliestCourseCompleted"),
-        max("courseCompletedTimestamp").alias("latestCourseCompleted")
-      )
-      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
-      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
-    show(minMaxCompletionDF, "minMaxCompletionDF")
-
-    //    val countOfCertsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-    //      .agg(
-    //        count(when(col("issuedCertificates").isNotNull, 1)).alias("totalCertificatesIssued")
-    //      )
-    //    show(countOfCertsDF, "countOfCertsDF")
-
-    val enrolledUserCount = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-      .agg(
-        count("*").alias("enrolledUserCount")
-      )
-    show(enrolledUserCount, "enrolledUserCount")
-
-    val courseProgressCountsDF = allCourseProgramCompletionWithDetailsDF.groupBy("courseID")
-      .agg(
+        max("courseCompletedTimestamp").alias("latestCourseCompleted"),
+        count("*").alias("enrolledUserCount"),
         sum(when(col("userCourseCompletionStatus") === "in-progress", 1).otherwise(0)).alias("inProgressCount"),
         sum(when(col("userCourseCompletionStatus") === "not-started", 1).otherwise(0)).alias("notStartedCount"),
         sum(when(col("userCourseCompletionStatus") === "completed", 1).otherwise(0)).alias("completedCount")
       )
-    show(courseProgressCountsDF, "courseProgressCountsDF")
+      .withColumn("firstCompletedOn", to_date(col("earliestCourseCompleted"), "dd/MM/yyyy"))
+      .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
+
 
     val allCBPAndAggDF = allCourseProgramDetailsDFWithOrgName
-      .join(minMaxCompletionDF, Seq("courseID"), "left")
+      .join(aggregatedDF, Seq("courseID"), "left")
       //.join(countOfCertsDF, Seq("courseID"), "left")
-      .join(enrolledUserCount, Seq("courseID"), "left")
-      .join(courseProgressCountsDF, Seq("courseID"), "left")
+//      .join(enrolledUserCount, Seq("courseID"), "left")
+//      .join(courseProgressCountsDF, Seq("courseID"), "left")
       .join(userRatingDF, Seq("courseID"), "left")
     show(allCBPAndAggDF, "allCBPAndAggDF")
 
