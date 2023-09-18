@@ -746,8 +746,9 @@ object DataUtilNew extends Serializable {
       .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
       .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
-    val courseWithHierarchyInfo = allCourseProgramESDF.join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
-      .select("courseID", "category", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
+    val courseWithHierarchyInfo = allCourseProgramESDF
+      .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
+      .select("courseID", "category", "courseName", "courseStatus", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
 
     courseWithHierarchyInfo
 
