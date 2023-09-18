@@ -99,13 +99,15 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       countDistinct("assessStartTime").alias("retakes"))
     df = df.join(retaks, Seq("assessChildID"), "left")
 
-    df = df.dropDuplicates("userID", "assessChildID").select(
+    df = df.dropDuplicates("userID", "assessChildID")
+      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .select(
       col("fullName").alias("Full Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("E mail"),
       col("personalDetails.mobile").alias("Phone Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags").cast("string"),
+      col("Tag"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organisation"),

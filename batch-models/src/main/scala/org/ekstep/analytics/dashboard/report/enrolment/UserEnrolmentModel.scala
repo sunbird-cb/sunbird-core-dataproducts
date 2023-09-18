@@ -111,13 +111,15 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-    df = df.distinct().dropDuplicates("userID", "courseID").select(
+    df = df.distinct().dropDuplicates("userID", "courseID")
+      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .select(
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tag").cast("string"),
+      col("Tag"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -143,7 +145,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("userOrgID").alias("mdoid"),
       col("Report_Last_Generated_On")
     )
-df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy"))
     uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     closeRedisConnect()

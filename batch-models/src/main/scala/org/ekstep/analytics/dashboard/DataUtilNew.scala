@@ -744,9 +744,10 @@ object DataUtilNew extends Serializable {
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
     val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
       .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
+      .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
     val courseWithHierarchyInfo = allCourseProgramESDF.join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
-      .select("courseID", "category", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount")
+      .select("courseID", "category", "courseName", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
 
     courseWithHierarchyInfo
 

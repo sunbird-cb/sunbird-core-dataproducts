@@ -106,8 +106,9 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
-      .withColumn("Archived_On", lit(""))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
+      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
       .select(
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
@@ -122,11 +123,10 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("inProgressCount").alias("In_Progress"),
         col("completedCount").alias("Completed"),
         col("rating").alias("CBP_Rating"),
-        // col("courseActualOrgId"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
         col("firstCompletedOn").alias("First_Completed_On"),
         col("lastCompletedOn").alias("Last_Completed_On"),
-        col("Archived_On"),
+        col("ArchivedOn").alias("CBP_Archived_On"),
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")

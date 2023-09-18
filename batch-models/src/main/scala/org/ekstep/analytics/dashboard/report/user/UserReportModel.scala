@@ -76,13 +76,15 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     df = df.where(expr("userStatus=1"))
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    df = df.dropDuplicates("userID").select(
+    df = df.dropDuplicates("userID")
+      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .select(
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tag").cast("string"),
+      col("Tag"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),

@@ -98,9 +98,13 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN issuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
+      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
+      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
 
     finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
       .select(
+        col("userID"),
+        col("userOrgID"),
         col("fullName").alias("Full_Name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("Email"),
@@ -122,6 +126,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userCourseCompletionStatus").alias("Status"),
         col("completionPercentage").alias("CBP_Progress_Percentage"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
+        col("ArchivedOn").alias("CBP_Archived_On"),
         col("completedOn").alias("Completed_On"),
         col("Certificate_Generated"),
         col("userRating").alias("User_Rating"),
@@ -137,9 +142,10 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     // finalDF.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
 
-    // csvWrite(finalDF, s"${reportPath}-${System.currentTimeMillis()}-full")
+    csvWrite(finalDF, s"${reportPath}/full/")
 
     // generateReports(finalDF, "mdoid", reportPath)
+    finalDF.drop("userID", "userOrgID")
     uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
