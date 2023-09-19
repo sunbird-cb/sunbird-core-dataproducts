@@ -100,7 +100,6 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .where(expr("category IN ('Blended Program')"))
       .join(courseBatchDF, Seq("courseID"), "left")
       .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
-      .dropDuplicates("courseID")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
     // val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
