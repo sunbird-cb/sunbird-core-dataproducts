@@ -178,6 +178,9 @@ object DataUtil extends Serializable {
       StructField("userID", StringType, nullable = true),
       StructField("userActualTimeSpentLearning", FloatType, nullable = true)
     ))
+    val npsUserIds: StructType = StructType(Seq(
+      StructField("userid", StringType, nullable = true)
+    ))
   }
 
 
@@ -1413,33 +1416,28 @@ object DataUtil extends Serializable {
 
 
   def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val currentTimeMillis = System.currentTimeMillis()
-    val threeMonthsAgo = currentTimeMillis - (90L * 24L * 3600L * 1000L)
-    val threeMonthsAgoEpochSeconds = threeMonthsAgo / 1000
-    val df = cassandraTableAsDataFrame(conf.cassandraNpsKeyspace, conf.cassandraNpsTable)
-      .filter(col("last_submitted_timestamp") <= lit(threeMonthsAgoEpochSeconds))
-      .select("user_id").alias("userid")
-    show(df)
+    val query = """SELECT userID as userid FROM \"nps-users-data\" where submitted = true AND __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    show(df, "usersSubmittedFormInLast3Months")
     df
 
   }
 
   def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY AND category = 'Course' AND dbCompletionStatus = 2)UNION ALL (SELECT actor_id AS userid FROM \"telemetry-events-syncts\" WHERE actor_type='User' AND eid='INTERACT' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY (actor_id) HAVING count(actor_id) > 30)"""
+    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY AND category = 'Course' AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT  COUNT(uid) AS session_count, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY GROUP BY 2) WHERE session_count >= 15)"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.userActualTimeSpentLearningSchema)
+    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     df = df.dropDuplicates("userid")
-    show(df, "usersCompleted1CourseORhavingMoreThan30TelemetryEvents")
+    show(df, "usersCompleted1CourseORhavingMoreThan15Sessions")
     df
   }
 
 
   def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = mongodbTableAsDataFrame(conf.mongoDBHost, conf.mongoDBCollection)
-    df.show(10)
-    val keyToExtract = "sunbird-oidcId"
-    val explodedDF = df.select(col("arrayOfObjects")(keyToExtract).as("userid"))
-    show(explodedDF)
-    explodedDF
+    var df = mongodbTableAsDataFrame(conf.mongoDatabase, conf.mongoDBCollection)
+    df = df.na.drop(Seq("userid"))
+    show(df, "userWhohavePostedAtleast1Discussions")
+    df
   }
 }

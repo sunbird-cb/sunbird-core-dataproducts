@@ -50,7 +50,7 @@ object NpsTest extends Serializable{
       "sparkDruidRouterHost" -> "192.168.3.91",
       "sparkElasticsearchConnectionHost" -> "192.168.3.211",
       "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
-
+      "sparkMongoConnectionHost" -> "192.168.3.178",
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
@@ -67,7 +67,7 @@ object NpsTest extends Serializable{
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
       "cassandraNpsTable" -> "nps_user_data",
       "cassandraUserFeedTable" -> "user_feed",
-      "mongoDBHost" -> "",
+      "mongoDatabase" -> "Nodebb",
       "mongoDBCollection" -> "Objects",
 
       "key" -> "aws_storage_key",

@@ -51,18 +51,20 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
 
-    val cassandraData = npsTriggerC1DataFrame() //gives data from cassandra for users who have submitted the surveyform in last 3 months
-    val druidData = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
+    val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the surveyform in last 3 months
+    val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 15 sessions in last 3 months
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
-
-    val df = druidData.join(mongodbData, Seq("userid"), "inner").select(col("userid").alias("userid"))
-    val filteredDF = df.except(cassandraData)
-
+    val df = druidData2.union(mongodbData)
+    show(df)
+    val filteredDF = df.except(druidData1)
     show(filteredDF)
+
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
 
     val additionalDF = filteredDF.withColumn("category", lit("NPS"))
-      .withColumn("createdby", lit(null.asInstanceOf[String]))
+      //val additionalDF = df.withColumn("category", lit("NPS"))
+      .withColumn("id", expr("uuid()").cast(StringType))
+      .withColumn("createdby", lit("platform_rating"))
       .withColumn("createdon", current_date())
       .withColumn("data", lit("{\"formId\":1694585805603}"))
       .withColumn("expireon", lit(null.asInstanceOf[String]))
@@ -71,6 +73,8 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .withColumn("updatedby", lit(null.asInstanceOf[String]))
       .withColumn("updatedon", lit(null.asInstanceOf[String]))
 
+
+    show(additionalDF)
 
 // write the dataframe to cassandra user_feed table
 
