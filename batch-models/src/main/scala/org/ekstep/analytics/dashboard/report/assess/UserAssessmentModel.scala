@@ -95,17 +95,24 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.withColumn("Overall_Status", expr(caseExpressionCompletionStatus))
 
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-    df = df.dropDuplicates("userID").select(
-      col("userID").alias("User_id"),
-      col("assessName").alias("Assessment_Name"),
-      col("Overall_Status"),
-      col("Assessment_Status"),
-      col("assessPassPercentage").alias("Percentage_Of_Score"),
-      col("maskedEmail").alias("Email"),
-      col("maskedPhone").alias("Phone"),
-      col("assessOrgID").alias("mdoid"),
-      col("Report_Last_Generated_On")
-    )
+
+    val attemptCountDF = df.groupBy("userID", "assessID").agg(expr("COUNT(*)").alias("noOfAttempts"))
+
+    df = df
+      .dropDuplicates("userID", "assessID")
+      .join(attemptCountDF, Seq("userID", "assessID"), "left")
+      .select(
+        col("fullName").alias("Full_Name"),
+        col("assessName").alias("Assessment_Name"),
+        col("Overall_Status"),
+        col("Assessment_Status"),
+        col("assessPassPercentage").alias("Percentage_Of_Score"),
+        col("noOfAttempts").alias("Number_of_Attempts"),
+        col("maskedEmail").alias("Email"),
+        col("maskedPhone").alias("Phone"),
+        col("assessOrgID").alias("mdoid"),
+        col("Report_Last_Generated_On")
+      )
     show(df)
 
     uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/", "StandaloneAssessmentReport")
