@@ -54,8 +54,6 @@ object NpsTest extends Serializable{
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
-      "cassandraNpsKeyspace" -> "nps",
-      "cassandraUserFeedKeyspace" -> "sunbird",
 
       "cassandraUserTable" -> "user",
       "cassandraUserRolesTable" -> "user_roles",
@@ -65,7 +63,6 @@ object NpsTest extends Serializable{
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraRatingsTable" -> "ratings",
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
-      "cassandraNpsTable" -> "nps_user_data",
       "cassandraUserFeedTable" -> "user_feed",
       "mongoDatabase" -> "Nodebb",
       "mongoDBCollection" -> "Objects",

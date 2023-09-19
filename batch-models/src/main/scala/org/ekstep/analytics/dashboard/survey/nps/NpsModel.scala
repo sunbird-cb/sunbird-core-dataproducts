@@ -80,7 +80,7 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
 
     additionalDF.write
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
+      .options(Map("keyspace" -> conf.cassandraUserKeyspace , "table" -> conf.cassandraUserFeedTable))
       .mode("append")
       .save()
   }

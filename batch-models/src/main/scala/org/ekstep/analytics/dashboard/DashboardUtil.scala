@@ -56,14 +56,11 @@ case class DashboardConfig (
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
-    cassandraNpsKeyspace: String,
-    cassandraUserFeedKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
     cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
-    cassandraNpsTable: String,
     cassandraUserFeedTable: String,
 
     // redis keys
@@ -461,8 +458,6 @@ object DashboardUtil extends Serializable {
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
-      cassandraNpsKeyspace = getConfigModelParam(config, "cassandraNpsKeyspace"),
-      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
       // cassandra table details
       cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
       cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
@@ -473,7 +468,6 @@ object DashboardUtil extends Serializable {
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
       cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
-      cassandraNpsTable = getConfigModelParam(config, "cassandraNpsTable"),
       cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
