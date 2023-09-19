@@ -102,48 +102,49 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
-    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID", "batchID"), "left")
+    // val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.coalesce(1).join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
-    // csvWrite(curatedCourseDataDFWithBatchInfo, s"${reportPath}agg/")
+    csvWrite(curatedCourseDataDFWithBatchInfo, s"${reportPath}agg/")
     // fails here
-
-    val finalDf = curatedCourseDataDFWithBatchInfo
-      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
-      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
-      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
-      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
-      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
-      .select(
-        col("courseOrgName").alias("CBP_Provider"),
-        col("courseName").alias("CBP_Name"),
-        col("category").alias("CBP_Type"),
-        col("batchID").alias("Batch_Id"),
-        col("courseBatchName").alias("Batch_Name"),
-        col("courseBatchStartDate").alias("Batch_Start_Date"),
-        col("courseBatchEndDate").alias("Batch_End_Date"),
-        col("courseDuration").alias("CBP_Duration"),
-        col("enrolledUserCount").alias("Enrolled"),
-        col("notStartedCount").alias("Not_Started"),
-        col("inProgressCount").alias("In_Progress"),
-        col("completedCount").alias("Completed"),
-        col("rating").alias("CBP_Rating"),
-        col("courseLastPublishedOn").alias("Last_Published_On"),
-        col("firstCompletedOn").alias("First_Completed_On"),
-        col("lastCompletedOn").alias("Last_Completed_On"),
-        col("ArchivedOn").alias("CBP_Archived_On"),
-        col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
-        col("courseActualOrgId").alias("mdoid"),
-        col("Report_Last_Generated_On")
-      )
-    show(finalDf)
-
-    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+//
+//    val finalDf = curatedCourseDataDFWithBatchInfo
+//      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+//      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
+//      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
+//      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+//      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
+//      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
+//      .select(
+//        col("courseOrgName").alias("CBP_Provider"),
+//        col("courseName").alias("CBP_Name"),
+//        col("category").alias("CBP_Type"),
+//        col("batchID").alias("Batch_Id"),
+//        col("courseBatchName").alias("Batch_Name"),
+//        col("courseBatchStartDate").alias("Batch_Start_Date"),
+//        col("courseBatchEndDate").alias("Batch_End_Date"),
+//        col("courseDuration").alias("CBP_Duration"),
+//        col("enrolledUserCount").alias("Enrolled"),
+//        col("notStartedCount").alias("Not_Started"),
+//        col("inProgressCount").alias("In_Progress"),
+//        col("completedCount").alias("Completed"),
+//        col("rating").alias("CBP_Rating"),
+//        col("courseLastPublishedOn").alias("Last_Published_On"),
+//        col("firstCompletedOn").alias("First_Completed_On"),
+//        col("lastCompletedOn").alias("Last_Completed_On"),
+//        col("ArchivedOn").alias("CBP_Archived_On"),
+//        col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
+//        col("courseActualOrgId").alias("mdoid"),
+//        col("Report_Last_Generated_On")
+//      )
+//    show(finalDf)
+//
+//    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
+//
+//    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+//
+//    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
 
     closeRedisConnect()
   }
