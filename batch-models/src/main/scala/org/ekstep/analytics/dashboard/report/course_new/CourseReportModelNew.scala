@@ -104,7 +104,9 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
     // val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
-    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.coalesce(1).join(relevantBatchInfoDF, Seq("courseID"), "left")
+    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF
+      .coalesce(1) // gives OOM without this
+      .join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
     // csvWrite(curatedCourseDataDFWithBatchInfo, s"${reportPath}agg/")
