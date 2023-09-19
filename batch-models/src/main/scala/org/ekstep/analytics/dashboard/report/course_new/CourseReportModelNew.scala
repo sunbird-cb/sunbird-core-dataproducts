@@ -92,17 +92,21 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     val allCBPAndAggDF = cbpDetailsDF.join(aggregatedDF, Seq("courseID"), "left")
     show(allCBPAndAggDF, "allCBPAndAggDF")
 
-    csvWrite(allCBPAndAggDF, s"${reportPath}agg/")
+    // csvWrite(allCBPAndAggDF, s"${reportPath}agg/")
+    // works till here
 
-//    val courseBatchDF = courseBatchDataFrame()
-//    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
-//      .where(expr("category IN ('Blended Program')"))
-//      .join(courseBatchDF, Seq("courseID"), "left")
-//      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
-//    show(relevantBatchInfoDF, "relevantBatchInfoDF")
-//
-//    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
-//    show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
+    val courseBatchDF = courseBatchDataFrame()
+    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
+      .where(expr("category IN ('Blended Program')"))
+      .join(courseBatchDF, Seq("courseID"), "left")
+      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
+    show(relevantBatchInfoDF, "relevantBatchInfoDF")
+
+    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
+
+    csvWrite(curatedCourseDataDFWithBatchInfo, s"${reportPath}agg/")
+
 //
 //    val finalDf = curatedCourseDataDFWithBatchInfo
 //      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
