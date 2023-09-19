@@ -89,13 +89,11 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .withColumn("lastCompletedOn", to_date(col("latestCourseCompleted"), "dd/MM/yyyy"))
     show(aggregatedDF, "aggregatedDF")
 
-    csvWrite(aggregatedDF, s"${reportPath}agg/")
+    val allCBPAndAggDF = cbpDetailsDF.join(aggregatedDF, Seq("courseID"), "left")
+    show(allCBPAndAggDF, "allCBPAndAggDF")
 
-//
-//
-//    val allCBPAndAggDF = cbpDetailsDF.join(aggregatedDF, Seq("courseID"), "left")
-//    show(allCBPAndAggDF, "allCBPAndAggDF")
-//
+    csvWrite(allCBPAndAggDF, s"${reportPath}agg/")
+
 //    val courseBatchDF = courseBatchDataFrame()
 //    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
 //      .where(expr("category IN ('Blended Program')"))
