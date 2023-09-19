@@ -159,10 +159,10 @@ object DashboardUtil extends Serializable {
 
     }
 
-    def renameCSV(ids: Array[String], path: String): Unit = {
+    def renameCSV(ids: Array[String], path: String, name: String = "report"): Unit = {
       for (id <- ids) {
         val tmpcsv = new File(path + s"mdoid=${id}")
-        val customized = new File(path + s"mdoid=${id}/${id}.csv")
+        val customized = new File(path + s"mdoid=${id}/${name}.csv")
 
         val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
 

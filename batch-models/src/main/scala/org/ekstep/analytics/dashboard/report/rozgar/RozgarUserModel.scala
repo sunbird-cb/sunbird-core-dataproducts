@@ -94,7 +94,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}")
+    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", "RozgarReport")
 
     closeRedisConnect()
   }

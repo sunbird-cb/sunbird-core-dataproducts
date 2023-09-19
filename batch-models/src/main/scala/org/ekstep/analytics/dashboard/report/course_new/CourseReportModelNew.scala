@@ -137,7 +137,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
     //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
 
-    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/", "CBPReport")
 
     closeRedisConnect()
   }

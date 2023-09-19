@@ -966,7 +966,7 @@ object DataUtil extends Serializable {
     df = df.select(col("hierarchy.lastStatusChangedOn").alias("lastStatusChangedOn"),
       col("identifier").alias("courseID"), col("hierarchy.status").alias("courseStatus"))
 
-    val caseExpressionStatus = "CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE 'null' END"
+    val caseExpressionStatus = "CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"
     df = df.withColumn("ArchivedOn", expr(caseExpressionStatus))
     show(df, "leafNodes data")
     df
@@ -1487,20 +1487,20 @@ object DataUtil extends Serializable {
     df
   }
 
-  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray
 
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile(reportTempPath + "_SUCCESS")
-    renameCSV(ids, reportTempPath)
+    renameCSV(ids, reportTempPath, fileName)
   }
 
-  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)
+  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    generateReports(df, partitionKey, reportTempPath, fileName)
 
     val storageService = getStorageService(conf)
-    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
+    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{fileName}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)

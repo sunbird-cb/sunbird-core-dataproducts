@@ -145,7 +145,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("userOrgID").alias("mdoid"),
       col("Report_Last_Generated_On")
     )
-    uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
+    uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
 
     closeRedisConnect()
   }

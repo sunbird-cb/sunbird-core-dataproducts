@@ -122,7 +122,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("courseBatchName").alias("Batch_Name"),
         col("courseBatchStartDate").alias("Batch_Start_Date"),
         col("courseBatchEndDate").alias("Batch_End_Date"),
-        col("enrolledOn"),
+        col("enrolledOn").alias("Enrolled_On"),
         col("userCourseCompletionStatus").alias("Status"),
         col("completionPercentage").alias("CBP_Progress_Percentage"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
@@ -144,9 +144,9 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     csvWrite(finalDF, s"${reportPath}/full/")
 
-    // generateReports(finalDF, "mdoid", reportPath)
-    finalDF.drop("userID", "userOrgID")
-    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/")
+    // generateReports(finalDF, "mdoid", reportPath, "ConsumptionReport")
+    finalDF = finalDF.drop("userID", "userOrgID")
+    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
 
     //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
     closeRedisConnect()

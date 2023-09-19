@@ -108,7 +108,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     )
     show(df)
 
-    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/")
+    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/", "StandaloneAssessmentReport")
 
     closeRedisConnect()
 

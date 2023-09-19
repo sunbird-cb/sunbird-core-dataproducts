@@ -128,7 +128,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/")
+    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/", "CBAssessmentReport")
 
     closeRedisConnect()
 

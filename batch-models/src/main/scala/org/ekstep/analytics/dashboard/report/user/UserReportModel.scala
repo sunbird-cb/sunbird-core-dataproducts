@@ -98,7 +98,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("Report_Last_Generated_On")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/")
+    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/", "UserReport")
 
     closeRedisConnect()
   }

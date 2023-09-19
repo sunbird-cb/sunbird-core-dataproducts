@@ -158,13 +158,13 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
       from_unixtime(col("FirstCompletedOn").cast("long"),"dd/MM/yyyy").alias("First_Completed_On"),
       from_unixtime(col("LastCompletedOn").cast("long"),"dd/MM/yyyy").alias("Last_Completed_On"),
-      from_unixtime(col("ArchivedOn").cast("long"),"dd/MM/yyyy").alias("Archived_On"),
+      from_unixtime(col("ArchivedOn").cast("long"),"dd/MM/yyyy").alias("CBP_Archived_On"),
       col("Total_Certificates_Issued"),
       col("userOrgID").alias("mdoid")
 //      col("courseOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/", "CBPReport")
 
     closeRedisConnect()
   }
