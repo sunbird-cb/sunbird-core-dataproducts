@@ -1,22 +1,21 @@
-package org.ekstep.analytics.dashboard.report.enrollment
+package org.ekstep.analytics.dashboard.report.rozgar.enrolment
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
+object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.rozgar.enrolment.RozgarEnrolmentModel"
 
-  override def name() = "UserEnrollmentModel"
+  override def name() = "RozgarEnrolmentModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
@@ -27,7 +26,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
   override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
     val timestamp = data.first().timestamp // extract timestamp from input
     implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processUserEnrollmentData(timestamp, config)
+    processUserEnrolmentData(timestamp, config)
     sc.parallelize(Seq()) // return empty rdd
   }
 
@@ -42,7 +41,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
    * @param timestamp unique timestamp from the start of the processing
    * @param config    model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
-  def processUserEnrollmentData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+  def processUserEnrolmentData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
@@ -50,16 +49,15 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"${conf.userEnrolmentReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
+    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
-    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val org = orgDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(org, false, false)
+      contentDataFrames(orgDF, false, false, true)
 
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
       .select(col("courseID"), col("userID"), col("completionPercentage"))
@@ -71,10 +69,12 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     val userRating = userCourseRatingDataframe()
     val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
+    //val courseBatchDF = courseBatchDataFrame()
 
     val orgHierarchyData = orgHierarchyDataframe()
     var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
       .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
+      //.join(courseBatchDF, Seq("courseID"), "left")
       .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
@@ -86,18 +86,48 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       expr("courseDuration % 60").cast("int")
     ))
 
-    val caseExpression = "CASE WHEN userCourseCompletionStatus == 'completed' THEN 100 " +
-      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 ELSE courseCompletionPercentage END"
-    df = df.withColumn("Completion Percentage", expr(caseExpression))
+    val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
+    val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
 
+    df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
+    df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
+
+    val userConsumedcontents = df.select(
+      col("courseID"),
+      col("userID"),
+      explode(col("courseContentStatus"))
+    ).toDF("courseID", "userID", "userContents", "userContentsValue")
+
+    val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
+      col("liveContentCount"),
+      col("identifier").alias("courseID"),
+      explode(col("liveContents")).alias("userContents")
+    )
+
+    val userConsumedLiveContents = liveContents.join(userConsumedcontents,
+      Seq("userContents", "courseID"), "inner")
+      .groupBy("courseID", "userID")
+      .agg(countDistinct("userContents").alias("currentlyLiveContents"))
+
+    df = df.join(userConsumedLiveContents, Seq("courseID", "userID"), "left")
+
+    val caseExpression = "CASE WHEN userCourseCompletionStatus == 'completed' THEN 100 " +
+      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 WHEN userCourseCompletionStatus == 'in-progress' THEN 100 * currentlyLiveContents / courseResourceCount END"
+    df = df.withColumn("Completion Percentage", round(expr(caseExpression), 2))
+
+    val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
+    df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
+
+    df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
     df.show()
     df = df.distinct().dropDuplicates("userID", "courseID").select(
-      col("Full Name").alias("Full_Name"),
+      col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("additionalProperties.tag").alias("Tags"),
+//      col("User_Tag"),
+      col("additionalProperties.tag").alias("Tags").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -105,11 +135,16 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("courseName").alias("CBP Name"),
       col("category").alias("CBP Type"),
       col("CBP_Duration"),
+      col("courseBatchID").alias("Batch_ID"),
+      col("courseBatchName").alias("Batch_Name"),
+      col("Batch_Start_Date"),
+      col("Batch_End_Date"),
       from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
       col("userCourseCompletionStatus").alias("Status"),
-      col("courseCompletionPercentage").alias("CBP_Progress_Percentage"),
+      col("Completion Percentage").alias("CBP_Progress_Percentage"),
       from_unixtime(col("courseEnrolledTimestamp"),"dd/MM/yyyy").alias("Enrolled_On"),
       from_unixtime(col("courseCompletedTimestamp"),"dd/MM/yyyy").alias("Completed_On"),
+      col("Certificate_Generated"),
       col("userRating").alias("Rating"),
       col("personalDetails.gender").alias("Gender"),
       col("personalDetails.category").alias("Category"),
@@ -118,24 +153,7 @@ object UserEnrollmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       col("userOrgID").alias("mdoid")
     )
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    // remove _SUCCESS file
-    removeFile(reportPath + "_SUCCESS")
-
-    // rename csv
-    renameCSV(ids, reportPath)
-
-    //upload files - s3://{container}/standalone-reports/user-enrollment-report/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfig = new StorageConfig(conf.store, conf.container, reportPath)
-    val storageService = getStorageService(conf)
-
-    storageService.upload(storageConfig.container, reportPath,
-      s"${conf.userEnrolmentReportPath}/${today}/", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}", "RozgarConsumptionReport")
 
     closeRedisConnect()
   }

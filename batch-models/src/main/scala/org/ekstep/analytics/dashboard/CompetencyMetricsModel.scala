@@ -3,7 +3,7 @@ package org.ekstep.analytics.dashboard
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, col, countDistinct, expr, last}
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.framework._
 import DashboardUtil._
 import DataUtil._
@@ -41,7 +41,7 @@ S3.17   1,2,3   Stacked-Bar-Graph   Percentage of competency gaps for which CBPs
 C1.01   5       Scorecard           Total number of CBPs on iGOT platform
 C1.1    4       Scorecard           Use ratings averaged for ALL CBPs by the provider
 C1.03   3       Scorecard           Number of officers who enrolled (defined as 10% completion) for the CBP in the last year
-C1.04   2,3     Bar-Graph           CBP enrollment rate (for a particular competency)
+C1.04   2,3     Bar-Graph           CBP enrolment rate (for a particular competency)
 C1.05   3       Scorecard           Number of officers who completed the CBP in the last year
 C1.06   3       Leaderboard         CBP completion rate
 C1.07   4       Leaderboard         average user ratings by enrolled officers for each CBP
@@ -222,7 +222,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val userCourseEnrolledCountDF = userCourseEnrolledDF.groupBy("userID").agg(
       countDistinct("courseID").alias("count"))
     show(userCourseEnrolledCountDF, "OL06")
-    redisDispatchDataFrame[Long](conf.redisUserCourseEnrollmentCount, userCourseEnrolledCountDF, "userID", "count")
+    redisDispatchDataFrame[Long](conf.redisUserCourseEnrolmentCount, userCourseEnrolledCountDF, "userID", "count")
 
     // OL08 - user: competency gaps enrolled percentage (IMPORTANT: excluding completed ones)
     val userCompetencyGapEnrolledDF = competencyGapWithCompletionDF.where(expr("competencyGap > 0 AND completionStatus in ('started', 'in-progress')"))
@@ -232,13 +232,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .na.fill(0, Seq("enrolledCount"))
       .withColumn("rate", expr("enrolledCount / count"))
     show(userCompetencyGapEnrolledRateDF, "OL08")
-    redisDispatchDataFrame[Double](conf.redisUserCompetencyGapEnrollmentRate, userCompetencyGapEnrolledRateDF, "userID", "rate")
+    redisDispatchDataFrame[Double](conf.redisUserCompetencyGapEnrolmentRate, userCompetencyGapEnrolledRateDF, "userID", "rate")
 
     // OL09 - mdo: average competency gaps enrolled percentage
     val orgCompetencyGapAvgEnrolledRateDF = userCompetencyGapEnrolledRateDF.groupBy("orgID")
       .agg(avg("rate").alias("rate"))
     show(orgCompetencyGapAvgEnrolledRateDF, "OL09")
-    redisDispatchDataFrame[Double](conf.redisOrgCompetencyGapEnrollmentRate, orgCompetencyGapAvgEnrolledRateDF, "orgID", "rate")
+    redisDispatchDataFrame[Double](conf.redisOrgCompetencyGapEnrolmentRate, orgCompetencyGapAvgEnrolledRateDF, "orgID", "rate")
 
     // OL10 - user: completed cbp count
     val userCourseCompletedDF = liveRetiredCourseCompletionWithDetailsDF.where(expr("completionStatus = 'completed'"))

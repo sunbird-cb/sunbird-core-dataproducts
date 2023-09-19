@@ -7,18 +7,17 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
-import DashboardUtil._
 import DashboardUtil.StorageUtil._
+import DashboardUtil._
+import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 
 import java.io.Serializable
-import java.time.LocalDate
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
 
 
-object DataUtil extends Serializable {
+object DataUtilNew extends Serializable {
 
   /*
   organizes schema def at one place
@@ -130,6 +129,7 @@ object DataUtil extends Serializable {
         StructField("lastSubmittedOn", StringType, nullable = true),
         StructField("lastStatusChangedOn", StringType, nullable = true),
         StructField("createdFor", ArrayType(StringType), nullable = true)
+
       )
       if (children) {
         fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
@@ -181,9 +181,6 @@ object DataUtil extends Serializable {
     val userActualTimeSpentLearningSchema: StructType = StructType(Seq(
       StructField("userID", StringType, nullable = true),
       StructField("userActualTimeSpentLearning", FloatType, nullable = true)
-    ))
-    val npsUserIds: StructType = StructType(Seq(
-      StructField("userid", StringType, nullable = true)
     ))
   }
 
@@ -316,10 +313,9 @@ object DataUtil extends Serializable {
       .select(
         col("id").alias("orgID"),
         col("orgname").alias("orgName"),
-        col("status").alias("orgStatus"),
-        col("createddate").alias("orgCreatedDate"),
-        col("organisationtype").alias("orgType"),
-        col("organisationsubtype").alias("orgSubType")
+        col("createddate").alias("orgCreatedDate")
+//        col("organisationtype").alias("orgType"),
+//        col("organisationsubtype").alias("orgSubType")
       ).na.fill("", Seq("orgName"))
 
     orgDF = timestampStringToLong(orgDF, Seq("orgCreatedDate"))
@@ -517,8 +513,18 @@ object DataUtil extends Serializable {
       col("leafNodesCount").alias("courseResourceCount")
     )
     df = df.dropDuplicates("courseID", "category")
-    // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
-
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
+    // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
+    df = df
+      .withColumn("courseDuration",
+      format_string("%02d:%02d:%02d",
+        expr("courseDuration / 3600").cast("int"),
+        expr("courseDuration % 3600 / 60").cast("int"),
+        expr("courseDuration % 60").cast("int")
+      )
+    )
     show(df, "allCourseProgramESDataFrame")
     df
   }
@@ -531,7 +537,7 @@ object DataUtil extends Serializable {
   def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val primaryCategories = if (isCBA) {
-      Seq("Course", "Standalone Assessment")
+      Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
     } else {
       Seq("Standalone Assessment")
     }
@@ -593,9 +599,6 @@ object DataUtil extends Serializable {
         col("assessReviewStatus"),
         col("assessDuration"),
         col("assessChildCount"),
-        col("assessOrgID"),
-        col("assessOrgName"),
-        col("assessStatus"),
 
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),
@@ -638,6 +641,7 @@ object DataUtil extends Serializable {
     df
   }
 
+
   def contentHierarchyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
       .select(col("identifier"), col("hierarchy"))
@@ -667,23 +671,25 @@ object DataUtil extends Serializable {
 
   /**
    * course details with competencies json from cassandra dev_hierarchy_store:content_hierarchy
-   * @param allCourseProgramESDF
+   * @param allCourseProgramESDF Dataframe(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus)
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, competenciesJson)
    */
   def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = addHierarchyColumn(allCourseProgramESDF, hierarchyDF, "courseID", "data", competencies = true)
 
-    df = df.withColumn("competenciesJson", col("data.competencies_v3"))
-           .withColumn("courseOrgID", explode(col("data.createdFor")))
+    df = df
+      .withColumn("competenciesJson", col("data.competencies_v3"))
+      .withColumn("courseOrgID", explode(col("data.createdFor")))
 
-    //      .withColumn("courseName", col("data.name"))
-    //      .withColumn("courseStatus", col("data.status"))
-    //      .withColumn("courseDuration", col("data.duration").cast(FloatType))
-    //      .withColumn("category", col("data.primaryCategory"))
-    //      .withColumn("courseReviewStatus", col("data.reviewStatus"))
-    //      .withColumn("courseResourceCount", col("data.leafNodesCount"))
+//      .withColumn("courseName", col("data.name"))
+//      .withColumn("courseStatus", col("data.status"))
+//      .withColumn("courseDuration", col("data.duration").cast(FloatType))
+//      .withColumn("category", col("data.primaryCategory"))
+//      .withColumn("courseReviewStatus", col("data.reviewStatus"))
+//      .withColumn("courseResourceCount", col("data.leafNodesCount"))
 
     df = addCourseOrgDetails(df, orgDF)
+
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
@@ -725,7 +731,7 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
@@ -733,34 +739,19 @@ object DataUtil extends Serializable {
     } else {
       Seq("Course", "Program")
     }
+    val hierarchySchema = Schema.makeHierarchySchema(true, true)
 
-    val hierarchyDF = contentHierarchyDataFrame()
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
-    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
-    val courseRatingDF = courseRatingSummaryDataFrame()
-    val allCourseProgramDetailsWithRatingDF = allCourseProgramDetailsWithRatingDataFrame(allCourseProgramDetailsDF, courseRatingDF)
+    val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
+      .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
+      .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
-    if (runValidation) {
-      // validate that no rows are getting dropped b/w allCourseProgramESDF and allCourseProgramDetailsWithRatingDF
-      validate({allCourseProgramESDF.count()}, {allCourseProgramDetailsWithRatingDF.count()}, "ES course count should equal final DF with rating count")
-      // validate that # of rows with ratingSum > 0 in the final DF is equal to # of rows in courseRatingDF from cassandra
-      val pcLowerStr = primaryCategories.map(c => s"'${c.toLowerCase()}'").mkString(", ")
-      validate(
-        {courseRatingDF.where(expr(s"categoryLower IN (${pcLowerStr}) AND ratingSum > 0")).count()},
-        {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN (${pcLowerStr}) AND ratingSum > 0")).count()},
-        "number of ratings in cassandra table for courses and programs with ratingSum > 0 should equal those in final druid datasource")
-      // validate rating data, sanity check
-      Seq(1, 2, 3, 4, 5).foreach(i => {
-        validate(
-          {courseRatingDF.where(expr(s"categoryLower IN (${pcLowerStr}) AND ratingAverage <= ${i}")).count()},
-          {allCourseProgramDetailsWithRatingDF.where(expr(s"LOWER(category) IN (${pcLowerStr}) AND ratingAverage <= ${i}")).count()},
-          s"Rating data row count for courses and programs should equal final DF for ratingAverage <= ${i}"
-        )
-      })
-    }
+    val courseWithHierarchyInfo = allCourseProgramESDF
+      .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
+      .select("courseID", "category", "courseName", "courseStatus", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
 
-    (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)
+    courseWithHierarchyInfo
+
   }
 
   /**
@@ -903,27 +894,24 @@ object DataUtil extends Serializable {
     show(df)
     df
   }
-//
-//  /**
-//   * Batch details for all kind of CBPs
-//   *
-//   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
-//   *         courseBatchStatus, courseBatchUpdatedDate)
-//   */
-//  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-//      col("courseid").alias("courseID"),
-//      col("batchid").alias("courseBatchID"),
-//      col("enrollmenttype").alias("courseBatchEnrolmentType"),
-//      col("name").alias("courseBatchName"),
-//      col("start_date").alias("courseBatchStartDate"),
-//      col("enddate").alias("courseBatchEndDate"),
-//      col("status").alias("courseBatchStatus"),
-//      col("updated_date").alias("courseBatchUpdatedDate")
-//    )
-//    show(df, "Course Batch Data")
-//    df
-//  }
+
+  /**
+   * Batch details for all kind of CBPs
+   *
+   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   *         courseBatchStatus, courseBatchUpdatedDate)
+   */
+  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+      col("courseid").alias("courseID"),
+      col("batchid").alias("batchID"),
+      col("name").alias("courseBatchName"),
+      col("start_date").alias("courseBatchStartDate"),
+      col("end_date").alias("courseBatchEndDate")
+    )
+    show(df, "Course Batch Data")
+    df
+  }
 
 
   /**
@@ -935,8 +923,8 @@ object DataUtil extends Serializable {
   def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
-      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
-      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
+      .withColumn("courseCompletedTimestamp", col("completedon"))
+      .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
       .select(
@@ -1026,12 +1014,34 @@ object DataUtil extends Serializable {
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
-      .select("userID", "courseID", "batchID", "courseCompletedTimestamp", "courseEnrolledTimestamp",
-        "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
-        "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
-        "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
-    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
-    df = withCompletionStatusColumn(df)
+    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = userCourseCompletionStatus(df)
+
+    show(df, "allCourseProgramCompletionWithDetailsDataFrame")
+
+    df
+  }
+
+  def calculateCourseProgress(userCourseProgramCompletionDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+
+    var df = userCourseProgramCompletionDF.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+
+    df = userCourseCompletionStatus(df)
+
+    show(df, "allCourseProgramCompletionWithDetailsDataFrame")
+
+    df
+  }
+
+  def allCourseProgramCompletionWithBatchDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID", "batchID"), "left")
+    show(df, "userAllCourseProgramCompletionDataFrame s=1")
+
+    df = df.join(userOrgDF, Seq("userID"), "left")
+    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 WHEN courseResourceCount=0 THEN 0.0 WHEN dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = userCourseCompletionStatus(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")
 
@@ -1443,8 +1453,6 @@ object DataUtil extends Serializable {
       } else col("profileDetails.additionalProperties"))
 
     val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "userOrgName")
-      .withColumnRenamed("orgStatus", "userOrgStatus")
     userDFWithOrg
   }
 
@@ -1491,39 +1499,6 @@ object DataUtil extends Serializable {
     df
   }
 
-
-  /** gets the user_id and survey_submitted_time from cassandra */
-
-  /** gets the user_ids who have submitted the survey in last 3 months */
-
-
-  def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """SELECT userID as userid FROM \"nps-users-data\" where submitted = true AND __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
-    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
-    show(df, "usersSubmittedFormInLast3Months")
-    df
-
-  }
-
-  def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY AND category = 'Course' AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT  COUNT(uid) AS session_count, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY GROUP BY 2) WHERE session_count >= 15)"""
-    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
-    df = df.dropDuplicates("userid")
-    show(df, "usersCompleted1CourseORhavingMoreThan15Sessions")
-    df
-  }
-
-
-  def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = mongodbTableAsDataFrame(conf.mongoDatabase, conf.mongoDBCollection)
-    df = df.na.drop(Seq("userid"))
-    show(df, "userWhohavePostedAtleast1Discussions")
-    df
-  }
-
-                                  
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray
@@ -1537,13 +1512,12 @@ object DataUtil extends Serializable {
     generateReports(df, partitionKey, reportTempPath, fileName)
 
     val storageService = getStorageService(conf)
-    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{fileName}.csv
+    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)
 
     storageService.closeContext()
-
   }
 
 }
