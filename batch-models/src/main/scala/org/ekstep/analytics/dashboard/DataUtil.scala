@@ -12,6 +12,7 @@ import DashboardUtil._
 import DashboardUtil.StorageUtil._
 
 import java.io.Serializable
+import java.time.LocalDate
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
@@ -180,6 +181,9 @@ object DataUtil extends Serializable {
     val userActualTimeSpentLearningSchema: StructType = StructType(Seq(
       StructField("userID", StringType, nullable = true),
       StructField("userActualTimeSpentLearning", FloatType, nullable = true)
+    ))
+    val npsUserIds: StructType = StructType(Seq(
+      StructField("userid", StringType, nullable = true)
     ))
   }
 
@@ -1487,6 +1491,39 @@ object DataUtil extends Serializable {
     df
   }
 
+
+  /** gets the user_id and survey_submitted_time from cassandra */
+
+  /** gets the user_ids who have submitted the survey in last 3 months */
+
+
+  def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT userID as userid FROM \"nps-users-data\" where submitted = true AND __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    show(df, "usersSubmittedFormInLast3Months")
+    df
+
+  }
+
+  def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY AND category = 'Course' AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT  COUNT(uid) AS session_count, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY GROUP BY 2) WHERE session_count >= 15)"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    df = df.dropDuplicates("userid")
+    show(df, "usersCompleted1CourseORhavingMoreThan15Sessions")
+    df
+  }
+
+
+  def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = mongodbTableAsDataFrame(conf.mongoDatabase, conf.mongoDBCollection)
+    df = df.na.drop(Seq("userid"))
+    show(df, "userWhohavePostedAtleast1Discussions")
+    df
+  }
+
+                                  
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray

@@ -156,6 +156,11 @@
 			<version>2.5.1</version>
 		</dependency>
 		<dependency>
+			<groupId>org.mongodb.spark</groupId>
+			<artifactId>mongo-spark-connector_${scala.maj.version}</artifactId>
+			<version>2.4.2</version> <!-- Adjust the version if needed -->
+		</dependency>
+		<dependency>
 			<groupId>org.scalanlp</groupId>
 			<artifactId>breeze_${scala.maj.version}</artifactId>
 			<version>0.11.2</version>
@@ -374,6 +379,6 @@
 					</filters>
 				</configuration>
 			</plugin>
-		</plugins>
+        </plugins>
 	</build>
 </project>

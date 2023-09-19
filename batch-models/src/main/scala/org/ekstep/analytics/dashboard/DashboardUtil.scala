@@ -15,6 +15,7 @@ import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
+import com.mongodb.spark.MongoSpark
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.joda.time.DateTimeZone
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
@@ -50,6 +51,7 @@ case class DashboardConfig (
     // other hosts connection config
     sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
     sparkElasticsearchConnectionHost: String, fracBackendHost: String,
+    sparkMongoConnectionHost: String,
     // kafka topics
     roleUserCountTopic: String, orgRoleUserCountTopic: String,
     allCourseTopic: String, userCourseProgramProgressTopic: String,
@@ -64,6 +66,7 @@ case class DashboardConfig (
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
     cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
     cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
+    cassandraUserFeedTable: String,
     cassandraCourseBatchTable: String,
 
     // redis keys
@@ -75,6 +78,11 @@ case class DashboardConfig (
     redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+
+
+    // mongoDB configurations
+    mongoDBCollection: String,
+    mongoDatabase: String,
 
     // for reports
     mdoIDs: String,
@@ -97,6 +105,7 @@ object DashboardUtil extends Serializable {
      * */
     def getSessionAndContext(name: String, config: Map[String, AnyRef]): (SparkSession, SparkContext, FrameworkContext) = {
       val cassandraHost = config.getOrElse("sparkCassandraConnectionHost", "localhost").asInstanceOf[String]
+      val mongodbHost = config.getOrElse("sparkMongoConnectionHost", "localhost").asInstanceOf[String]
       val esHost = config.getOrElse("sparkElasticsearchConnectionHost", "localhost").asInstanceOf[String]
       val spark: SparkSession =
         SparkSession
@@ -113,6 +122,9 @@ object DashboardUtil extends Serializable {
           .config("es.index.auto.create", "false")
           .config("es.nodes.wan.only", "true")
           .config("es.nodes.discovery", "false")
+//          .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Nodebb.Objects")
+          .config("spark.mongodb.input.uri", mongodbHost)
+          .config("spark.mongodb.input.sampleSize", 50000)
           .getOrCreate()
       val sc: SparkContext = spark.sparkContext
       val fc: FrameworkContext = new FrameworkContext()
@@ -438,6 +450,20 @@ object DashboardUtil extends Serializable {
     df
   }
 
+  def mongodbTableAsDataFrame(mongodatabase: String, collection: String)(implicit spark: SparkSession): DataFrame = {
+    val schema = new StructType()
+      .add("topiccount", IntegerType, true)
+      .add("postcount", IntegerType, true)
+      .add("sunbird-oidcId", StringType, true)
+      .add("username", StringType, true)
+    val df = spark.read.schema(schema).format("com.mongodb.spark.sql.DefaultSource").option("database", mongodatabase).option("collection", collection).load()
+    val filterDf = df.select("sunbird-oidcId").where(col("username").isNotNull or col("topiccount") > 0 and (col("postcount") > 0))
+    val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
+    renamedDF.show(false)
+    renamedDF
+  }
+
+
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
     val path = key.split('.')
@@ -470,6 +496,7 @@ object DashboardUtil extends Serializable {
       sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
       sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
       sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
+      sparkMongoConnectionHost =  getConfigModelParam(config, "sparkMongoConnectionHost"),
       fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
       // kafka topics
       roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
@@ -498,6 +525,7 @@ object DashboardUtil extends Serializable {
       cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
       cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
       cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
+      cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
       cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
@@ -517,6 +545,10 @@ object DashboardUtil extends Serializable {
       redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
       redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
       redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
+
+      //mongoBD configurations
+      mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
+      mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
