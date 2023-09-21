@@ -104,7 +104,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userID"),
         col("userOrgID"),
         col("courseID"),
-        col("courseOrgID"),
+        col("courseActualOrgId"),
         col("fullName").alias("Full_Name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("Email"),
@@ -143,7 +143,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     df = df.coalesce(1)
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
     csvWrite(df, s"/tmp/${reportPath}-full/")
-    df = df.drop("userID", "userOrgID", "courseID", "courseOrgID")
+    df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
     closeRedisConnect()
