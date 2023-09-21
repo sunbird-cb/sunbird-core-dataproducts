@@ -1501,23 +1501,34 @@ object DataUtilNew extends Serializable {
     df
   }
 
+  def generateFullReport(df: DataFrame, reportPath: String): Unit = {
+    val fullReportPath = s"/tmp/${reportPath}-full/"
+    println(s"REPORT: Writing full report to ${fullReportPath}...")
+    csvWrite(df, fullReportPath)
+    println(s"REPORT: Finished Writing full report to ${fullReportPath}")
+  }
+
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
+    println(s"REPORT: Writing mdo wise report to ${reportTempPath}...")
     val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect()
 
     // generate partitioned report
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile(reportTempPath + "_SUCCESS") // remove success file
     renameCSV(ids, reportTempPath, fileName) // rename part-*.csv files to provided name
+    println(s"REPORT: Finished Writing mdo wise report to ${reportTempPath}...")
   }
 
   def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    println(s"REPORT: Syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}...")
     val storageService = getStorageService(conf)
     // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)
     storageService.closeContext()
+    println(s"REPORT: Finished syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}...")
   }
 
   def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
