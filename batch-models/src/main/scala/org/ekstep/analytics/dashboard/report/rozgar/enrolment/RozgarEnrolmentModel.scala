@@ -47,10 +47,7 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
-    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -153,7 +150,11 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
       col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}")
+    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
+    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
+    df = df.coalesce(1)
+    csvWrite(df, s"/tmp/${conf.userEnrolmentReportPath}/${today}/full/")
+    generateAndSyncReports(df, "mdoid", s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}")
 
     closeRedisConnect()
   }

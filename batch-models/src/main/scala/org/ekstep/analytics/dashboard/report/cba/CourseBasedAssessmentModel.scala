@@ -48,7 +48,6 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/tmp/${conf.cbaReportPath}/${today}/"
 
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
@@ -128,7 +127,10 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.cbaReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath)
 
     closeRedisConnect()
 

@@ -52,7 +52,6 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
@@ -164,7 +163,10 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 //      col("courseOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.courseReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath)
 
     closeRedisConnect()
   }

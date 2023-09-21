@@ -92,7 +92,7 @@ object LeaderboardMetricsModel extends IBatchModelTemplate[String, DummyInput, D
 
     validate({userOrgDF.count()}, {leaderboardDF.count()}, "userOrgDF.count() should be equal to leaderboardDF.count()")
 
-    csvWrite(leaderboardDF, "/tmp/user-leaderboard-data/")
+    csvWrite(leaderboardDF.coalesce(1), "/tmp/user-leaderboard-data/")
 
     closeRedisConnect()
 

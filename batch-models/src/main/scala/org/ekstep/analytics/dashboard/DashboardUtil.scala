@@ -181,13 +181,12 @@ object DashboardUtil extends Serializable {
   }
 
   /* Util functions */
-  def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
-      .save(path)
+  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
   }
 
-  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
       .partitionBy(partitionKey).save(path)
   }
 

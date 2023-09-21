@@ -52,8 +52,6 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
-    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
     // get user roles data
     val userRolesDF = roleDataFrame()     // return - userID, role
@@ -94,7 +92,11 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}")
+    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
+    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
+    df = df.coalesce(1)
+    csvWrite(df, s"/tmp/${conf.userReportPath}/${today}/full/")
+    generateAndSyncReports(df, "mdoid", s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}")
 
     closeRedisConnect()
   }

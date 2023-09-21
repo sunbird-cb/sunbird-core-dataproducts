@@ -73,14 +73,14 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val clickByIDDF = clickWithDetailsDF.select("courseID", "courseName", "category", "clicks")
       .orderBy(desc("clicks"))
     show(clickByIDDF, "clickByIDDF")
-    csvWrite(clickByIDDF, s"${loc}clicks-by-content-name.csv")
+    csvWrite(clickByIDDF.coalesce(1), s"${loc}clicks-by-content-name.csv")
 
     // click by provider
     val clickByProviderDF = clickWithDetailsDF.groupBy("courseOrgID", "courseOrgName")
       .agg(expr("SUM(clicks)").alias("clicks"))
       .orderBy(desc("clicks"))
     show(clickByProviderDF, "clickByProviderDF")
-    csvWrite(clickByProviderDF, s"${loc}clicks-by-provider.csv")
+    csvWrite(clickByProviderDF.coalesce(1), s"${loc}clicks-by-provider.csv")
 
     // click by course duration
     val clickByDuration = clickWithDetailsDF.withColumn("durationFloorHrs", expr("CAST(FLOOR(courseDuration / 3600) AS INTEGER)"))
@@ -88,7 +88,7 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .agg(expr("SUM(clicks)").alias("clicks"))
       .orderBy("durationFloorHrs")
     show(clickByDuration, "clickByDuration")
-    csvWrite(clickByDuration, s"${loc}clicks-by-duration.csv")
+    csvWrite(clickByDuration.coalesce(1), s"${loc}clicks-by-duration.csv")
 
     // click by course rating
     val clickByRating = clickWithDetailsDF.withColumn("ratingFloor", expr("CAST(FLOOR(ratingAverage) AS INTEGER)"))
@@ -96,7 +96,7 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .agg(expr("SUM(clicks)").alias("clicks"))
       .orderBy("ratingFloor")
     show(clickByRating, "clickByRating")
-    csvWrite(clickByRating, s"${loc}clicks-by-rating.csv")
+    csvWrite(clickByRating.coalesce(1), s"${loc}clicks-by-rating.csv")
 
     val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
     val clickWithCompetencyDF = clickDF.join(allCourseProgramCompetencyDF, Seq("courseID", "category"), "left")
@@ -106,7 +106,7 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .agg(expr("SUM(clicks)").alias("clicks"))
       .orderBy(desc("clicks"))
     show(clickByCompetencyDF, "clickByCompetencyDF")
-    csvWrite(clickByCompetencyDF, s"${loc}clicks-by-comp.csv")
+    csvWrite(clickByCompetencyDF.coalesce(1), s"${loc}clicks-by-comp.csv")
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
@@ -127,15 +127,15 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val clickByEnroll = bucketGroupBy(clickWithProgressCountsDF, "countEnrolled", "clicks")
     show(clickByEnroll, "clickByEnroll")
-    csvWrite(clickByEnroll,s"${loc}clicks-by-enroll.csv")
+    csvWrite(clickByEnroll.coalesce(1),s"${loc}clicks-by-enroll.csv")
 
     val clickByInProgress = bucketGroupBy(clickWithProgressCountsDF, "countInProgress", "clicks")
     show(clickByInProgress, "clickByInProgress")
-    csvWrite(clickByInProgress, s"${loc}clicks-by-in-progress.csv")
+    csvWrite(clickByInProgress.coalesce(1), s"${loc}clicks-by-in-progress.csv")
 
     val clickByCompleted = bucketGroupBy(clickWithProgressCountsDF, "countCompleted", "clicks")
     show(clickByCompleted, "clickByCompleted")
-    csvWrite(clickByCompleted,s"${loc}clicks-by-completed.csv")
+    csvWrite(clickByCompleted.coalesce(1),s"${loc}clicks-by-completed.csv")
 
     closeRedisConnect()
   }
