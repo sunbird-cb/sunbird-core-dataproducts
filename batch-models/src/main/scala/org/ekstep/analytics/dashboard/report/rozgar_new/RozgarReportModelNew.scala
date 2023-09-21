@@ -46,7 +46,6 @@ object RozgarReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
     val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 

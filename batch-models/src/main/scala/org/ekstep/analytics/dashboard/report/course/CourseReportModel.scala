@@ -50,7 +50,6 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()

@@ -1030,7 +1030,9 @@ object DataUtil extends Serializable {
         "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
         "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
         "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
-    df = df.withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+    df = df
+      .withColumn("completionPercentage", expr("CASE WHEN courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+      .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0 END"))
     df = withCompletionStatusColumn(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")

@@ -111,6 +111,8 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
       .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
       .select(
+        col("courseID"),
+        col("courseActualOrgId"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
@@ -137,6 +139,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
     csvWrite(df, s"/tmp/${reportPath}/full/")
+    df = df.drop("courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()

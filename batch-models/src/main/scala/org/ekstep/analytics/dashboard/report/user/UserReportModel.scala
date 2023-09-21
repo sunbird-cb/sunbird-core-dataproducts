@@ -77,28 +77,31 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     df = df.dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .select(
-      col("fullName").alias("Full_Name"),
-      col("professionalDetails.designation").alias("Designation"),
-      col("personalDetails.primaryEmail").alias("Email"),
-      col("personalDetails.mobile").alias("Phone_Number"),
-      col("professionalDetails.group").alias("Group"),
-      col("Tag"),
-      col("ministry_name").alias("Ministry"),
-      col("dept_name").alias("Department"),
-      col("userOrgName").alias("Organization"),
-      from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
-      col("role").alias("Roles"),
-      col("personalDetails.gender").alias("Gender"),
-      col("personalDetails.category").alias("Category"),
-      col("additionalProperties.externalSystem").alias("External_System"),
-      col("additionalProperties.externalSystemId").alias("External_System_Id"),
-      col("userOrgID").alias("mdoid"),
-      col("Report_Last_Generated_On")
-    )
+        col("userID"),
+        col("userOrgID"),
+        col("fullName").alias("Full_Name"),
+        col("professionalDetails.designation").alias("Designation"),
+        col("personalDetails.primaryEmail").alias("Email"),
+        col("personalDetails.mobile").alias("Phone_Number"),
+        col("professionalDetails.group").alias("Group"),
+        col("Tag"),
+        col("ministry_name").alias("Ministry"),
+        col("dept_name").alias("Department"),
+        col("userOrgName").alias("Organization"),
+        from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
+        col("role").alias("Roles"),
+        col("personalDetails.gender").alias("Gender"),
+        col("personalDetails.category").alias("Category"),
+        col("additionalProperties.externalSystem").alias("External_System"),
+        col("additionalProperties.externalSystemId").alias("External_System_Id"),
+        col("userOrgID").alias("mdoid"),
+        col("Report_Last_Generated_On")
+      )
 
     df = df.coalesce(1)
     val reportPath = s"${conf.userReportPath}/${today}"
     csvWrite(df, s"/tmp/${reportPath}/full/")
+    df = df.drop("userID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
     closeRedisConnect()
