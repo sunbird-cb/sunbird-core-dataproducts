@@ -47,10 +47,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
-    // val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -115,7 +112,10 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       )
     show(df)
 
-    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/", "StandaloneAssessmentReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 
     closeRedisConnect()
 

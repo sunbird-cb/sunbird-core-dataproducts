@@ -49,7 +49,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -145,7 +144,11 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("userOrgID").alias("mdoid"),
       col("Report_Last_Generated_On")
     )
-    uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
+
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
     closeRedisConnect()
   }

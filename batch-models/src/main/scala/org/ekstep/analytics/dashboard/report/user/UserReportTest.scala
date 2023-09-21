@@ -75,7 +75,7 @@ object UserReportTest extends Serializable{
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
-      "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
+      "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
 
       "sideOutput" -> sideOutput
     )

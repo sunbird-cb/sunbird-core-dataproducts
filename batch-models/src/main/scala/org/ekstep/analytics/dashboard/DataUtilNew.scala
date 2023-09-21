@@ -1501,23 +1501,27 @@ object DataUtilNew extends Serializable {
 
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
-    val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect().toArray
+    val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect()
 
+    // generate partitioned report
     csvWritePartition(df, reportTempPath, partitionKey)
-    removeFile(reportTempPath + "_SUCCESS")
-    renameCSV(ids, reportTempPath, fileName)
+    removeFile(reportTempPath + "_SUCCESS") // remove success file
+    renameCSV(ids, reportTempPath, fileName) // rename part-*.csv files to provided name
   }
 
-  def uploadReports(df: DataFrame, partitionKey: String, reportTempPath: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    generateReports(df, partitionKey, reportTempPath, fileName)
-
+  def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val storageService = getStorageService(conf)
     // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)
-
     storageService.closeContext()
+  }
+
+  def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    val reportTempPath = s"/tmp/${reportPath}"
+    generateReports(df, partitionKey, reportTempPath, fileName)
+    syncReports(reportTempPath, reportPath)
   }
 
 }

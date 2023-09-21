@@ -51,9 +51,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
     val orgDF = orgDataFrame()
 
@@ -99,10 +97,13 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
-    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    // val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF
+      .coalesce(1) // gives OOM without this
+      .join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
-    val finalDf = curatedCourseDataDFWithBatchInfo
+    var df = curatedCourseDataDFWithBatchInfo
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
@@ -131,16 +132,14 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
-    show(finalDf)
+    show(df)
 
-    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/", "CBPReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.courseReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()
   }
-
 
 }

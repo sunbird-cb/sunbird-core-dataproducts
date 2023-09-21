@@ -46,9 +46,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
     //GET ORG DATA
     val orgDF = orgDataFrame()
@@ -88,7 +86,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    var finalDF = allCourseProgramCompletionWithDetailsDFWithRating
+    var df = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
@@ -101,7 +99,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
       .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
 
-    finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
+    df = df.distinct().dropDuplicates("userID", "courseID")
       .select(
         col("userID"),
         col("userOrgID"),
@@ -138,17 +136,14 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("Report_Last_Generated_On")
       )
 
-    show(finalDF, "finalDF")
+    show(df, "df")
 
-    // finalDF.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    df = df.drop("userID", "userOrgID")
+    generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
-    csvWrite(finalDF, s"${reportPath}/full/")
-
-    // generateReports(finalDF, "mdoid", reportPath, "ConsumptionReport")
-    finalDF = finalDF.drop("userID", "userOrgID")
-    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
-
-    //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
     closeRedisConnect()
   }
 }

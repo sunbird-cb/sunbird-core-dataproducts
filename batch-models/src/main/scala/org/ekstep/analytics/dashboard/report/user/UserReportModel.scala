@@ -50,9 +50,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
     val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
@@ -98,7 +96,10 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("Report_Last_Generated_On")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/", "UserReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userReportPath}/${today}"
+    csvWrite(df, s"/tmp/${reportPath}/full/")
+    generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
     closeRedisConnect()
   }

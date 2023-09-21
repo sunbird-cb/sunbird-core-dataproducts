@@ -1491,6 +1491,7 @@ object DataUtil extends Serializable {
     df
   }
 
+<<<<<<< HEAD
 
   /** gets the user_id and survey_submitted_time from cassandra */
 
@@ -1523,14 +1524,14 @@ object DataUtil extends Serializable {
     df
   }
 
-  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val ids = df.select(partitionKey).distinct().map(row => row.getString(0)).filter(_.nonEmpty).collect()
 
     // generate partitioned report
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile(reportTempPath + "_SUCCESS") // remove success file
-    renameCSV(ids, reportTempPath, ) // rename part-*.csv files to provided name
+    renameCSV(ids, reportTempPath, fileName) // rename part-*.csv files to provided name
   }
 
   def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
@@ -1542,9 +1543,9 @@ object DataUtil extends Serializable {
     storageService.closeContext()
   }
 
-  def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"/tmp/${reportPath}/"
-    generateReports(df, partitionKey, reportTempPath)
+  def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    val reportTempPath = s"/tmp/${reportPath}"
+    generateReports(df, partitionKey, reportTempPath, fileName)
     syncReports(reportTempPath, reportPath)
   }
 

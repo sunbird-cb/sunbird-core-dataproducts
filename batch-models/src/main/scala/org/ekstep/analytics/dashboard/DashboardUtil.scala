@@ -85,6 +85,7 @@ case class DashboardConfig (
 
     // for reports
     mdoIDs: String,
+    standaloneAssessmentReportPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
     courseReportPath: String,
@@ -193,8 +194,7 @@ object DashboardUtil extends Serializable {
 
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
-      .save(path)
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
   }
 
   def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
@@ -551,6 +551,7 @@ object DashboardUtil extends Serializable {
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
+      standaloneAssessmentReportPath = getConfigModelParam(config, "standaloneAssessmentReportPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
