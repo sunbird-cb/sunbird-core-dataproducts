@@ -2,17 +2,17 @@ package org.ekstep.analytics.dashboard.report.course
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{coalesce, col, countDistinct, expr, from_unixtime, lit, round}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
+
 
 object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.course.CourseReportModel"
-  implicit var debug: Boolean = false
+  override def name() = "CourseReportModel"
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
    * 1. Transforming input - Filter/Map etc.
@@ -52,16 +52,18 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     val today = getDate()
-    val reportPath = s"${conf.courseReportTempPath}/${today}/"
+    val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
-    val userDataDF = userProfileDetailsDF().withColumn("Full Name", functions.concat(coalesce(col("firstName"), lit("")), lit(' '),
-      coalesce(col("lastName"), lit(""))))
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val org = orgDataFrame();
+
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
-      contentDataFrames(org, false, false)
+      contentDataFrames(orgDF, false, false, true)
+    //val courseBatchData = courseBatchDataFrame()
+
+    val courseStatusUpdateData = courseStatusUpdateDataFrame(hierarchyDF)
 
     //    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
@@ -77,11 +79,13 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     var courseCompletionWithDetailsDFforMDO = allCourseData.join(courseDetailsWithCompletionStatus, Seq("courseID", "userID"), "inner")
       .join(mdoData, Seq("userOrgID"), "inner")
+      //.join(courseBatchData, Seq("courseID"), "left")
+      .join(courseStatusUpdateData, Seq("courseID"), "left")
 
-    // number of enrollments
+    // number of enrolments
     val courseEnrolled = courseCompletionWithDetailsDFforMDO.where(expr("completionStatus in ('enrolled', 'started', 'in-progress', 'completed')"))
     val courseEnrolledCount = courseEnrolled.groupBy("courseID").agg(
-      countDistinct("userID").alias("enrollmentCount"))
+      countDistinct("userID").alias("enrolmentCount"))
 
     // number of completions
     val courseCompleted = courseCompletionWithDetailsDFforMDO.where(expr("completionStatus = 'completed'"))
@@ -102,39 +106,65 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       .join(courseInProgressCount, Seq("courseID"), "inner").join(courseCompletedCount, Seq("courseID"), "inner")
       .join(courseStartedCount, Seq("courseID"), "inner")
 
-    df = df.withColumn("notStartedCount", df("enrollmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
-    df = df.withColumn("durationInHour", round(col("courseDuration")/3600, 2))
+    df = df.withColumn("notStartedCount", df("enrolmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
     df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
 
-    df = df.dropDuplicates("courseID", "userID").select(
+    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
+      expr("courseDuration % 3600 / 60").cast("int"),
+      expr("courseDuration % 60").cast("int")
+    ))
+
+    var certificateIssued = df.filter(col("issuedCertificates") =!= "[]").select(col("courseID"), col("issuedCertificates"))
+    certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issuedCertificates")).alias("Total_Certificates_Issued"))
+
+    df = df.join(certificateIssued, Seq("courseID"), "left")
+
+//    val caseExpressionBatchID = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchID END"
+//    val caseExpressionBatchName = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchName END"
+//    val caseExpressionStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
+//    val caseExpressionEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+//
+//    df = df.withColumn("Batch_Start_Date", expr(caseExpressionStartDate))
+//    df = df.withColumn("Batch_End_Date", expr(caseExpressionEndDate))
+//    df = df.withColumn("Batch_ID", expr(caseExpressionBatchID))
+//    df = df.withColumn("Batch_Name", expr(caseExpressionBatchName))
+
+    df = df.withColumn("Batch_Start_Date", lit(""))
+    df = df.withColumn("Batch_End_Date", lit(""))
+    df = df.withColumn("Batch_ID", lit(""))
+    df = df.withColumn("Batch_Name", lit(""))
+
+    val completedOn = df.groupBy("courseID").agg(
+      max("courseCompletedTimestamp").alias("LastCompletedOn"),
+      min("courseCompletedTimestamp").alias("FirstCompletedOn")
+    )
+
+    df = df.join(completedOn, Seq("courseID"), "left")
+
+    df = df.dropDuplicates("courseID").select(
       col("courseOrgName").alias("CBP_Provider"),
       col("courseName").alias("CBP_Name"),
       col("category").alias("CBP_Type"),
-      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Published_Date"),
-      col("durationInHour").alias("CBP_Duration"),
-      col("enrollmentCount").alias("Enrolled"),
+      col("Batch_ID"),
+      col("Batch_Name"),
+      col("Batch_Start_Date"),
+      col("Batch_End_Date"),
+      col("CBP_Duration"),
+      col("enrolmentCount").alias("Enrolled"),
       col("notStartedCount").alias("Not_Started"),
       col("inProgressCount").alias("In_Progress"),
       col("completedCount").alias("Completed"),
-      col("Average_Rating"),
+      col("Average_Rating").alias("CBP_Rating"),
+      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
+      from_unixtime(col("FirstCompletedOn").cast("long"),"dd/MM/yyyy").alias("First_Completed_On"),
+      from_unixtime(col("LastCompletedOn").cast("long"),"dd/MM/yyyy").alias("Last_Completed_On"),
+      from_unixtime(col("ArchivedOn").cast("long"),"dd/MM/yyyy").alias("CBP_Archived_On"),
+      col("Total_Certificates_Issued"),
       col("userOrgID").alias("mdoid")
 //      col("courseOrgID").alias("mdoid")
     )
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPath)
-
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    removeFile(reportPath + "_SUCCESS")
-    renameCSV(ids, reportPath)
-
-    val storageConfig = new StorageConfig(conf.store, conf.container,reportPath)
-
-    val storageService = getStorageService(conf)
-    storageService.upload(storageConfig.container, reportPath,
-      s"${conf.courseReportPath}/${today}/", Some(true), Some(0), Some(3), None);
+    uploadReports(df, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/", "CBPReport")
 
     closeRedisConnect()
   }

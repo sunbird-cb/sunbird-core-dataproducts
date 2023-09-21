@@ -1,23 +1,23 @@
-package org.ekstep.analytics.dashboard.report.user
+package org.ekstep.analytics.dashboard.report.course_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-object UserReportTest extends Serializable{
+object CourseReportTestNew extends Serializable {
 
   def main(args: Array[String]): Unit = {
 
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("UserReportTest", config)
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CourseReportTestNew", config)
     val res = DashboardUtil.Test.time(test(config));
     Console.println("Time taken to execute script", res._1);
     spark.stop();
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    UserReportModel.processUserReport(System.currentTimeMillis(), config)
+    CourseReportModelNew.processCourseReport(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
@@ -60,18 +60,19 @@ object UserReportTest extends Serializable{
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
-      "cassandraRatingsTable" -> "ratings",
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
+      "cassandraCourseBatchTable" -> "course_batch",
+      "cassandraRatingsTable" -> "ratings",
 
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
       "store" -> "s3",
       "container" -> "igot",
 
-      "mdoIDs" -> "0135071359030722569,01358993635114188855",
+      "mdoIDs" -> "",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
@@ -82,4 +83,3 @@ object UserReportTest extends Serializable{
     modelParams
   }
 }
-

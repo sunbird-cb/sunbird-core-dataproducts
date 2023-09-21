@@ -2,13 +2,12 @@ package org.ekstep.analytics.dashboard.report.assess
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, lit}
-import org.apache.spark.sql.{SaveMode, SparkSession, functions}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.StorageUtil._
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate, StorageConfig}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
@@ -49,8 +48,9 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${getDate}/"
-    val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${getDate}/"
+    val today = getDate()
+    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
+    // val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -60,9 +60,9 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     val assessmentDF = assessmentESDataFrame()
-    val assessmentWithOrgDF = assessWithOrgDataFrame(assessmentDF, orgDF)
-    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentWithOrgDF, hierarchyDF)
+    val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
+
     // kafka dispatch to dashboard.assessment
     kafkaDispatch(withTimestamp(assessWithDetailsDF, timestamp), conf.assessmentTopic)
 
@@ -80,57 +80,42 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val mdoID = conf.mdoIDs
     val mdoIDDF = mdoIDsDF(mdoID)
 
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
+    df = df.join(mdoData, Seq("assessOrgID"), "inner")
 
-    df = df.join(mdoData, Seq("userOrgID"), "inner")
-    df = df.withColumn("fullName", functions.concat(col("firstName"), lit(' '), col("lastName")))
+    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
 
-    df = df.dropDuplicates("userID").select(
-      col("fullName"),
-      col("assessPrimaryCategory").alias("type"),
-      col("assessName").alias("assessmentName"),
-      col("assessStatus").alias("assessmentStatus"),
-      col("assessPassPercentage").alias("percentageScore"),
-      col("maskedEmail").alias("email"),
-      col("maskedPhone").alias("phone"),
-      col("userOrgName").alias("provider"),
-      col("userOrgID").alias("mdoid")
-    )
+    df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
 
-    import spark.implicits._
-    val ids = df.select("mdoid").map(row => row.getString(0)).collect().toArray
+    val caseExpression = "CASE WHEN assessPass == 1 AND assessUserStatus == 'SUBMITTED' THEN 'Pass' WHEN assessPass == 0 AND assessUserStatus == 'SUBMITTED' THEN 'Fail' " +
+      " ELSE 'N/A' END"
+    df = df.withColumn("Assessment_Status", expr(caseExpression))
 
-    df.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPathMDO)
+    val caseExpressionCompletionStatus = "CASE WHEN assessUserStatus == 'SUBMITTED' THEN 'Completed' ELSE 'In progress' END"
+    df = df.withColumn("Overall_Status", expr(caseExpressionCompletionStatus))
 
-    // remove the _SUCCESS file
-    removeFile(reportPathMDO + "_SUCCESS")
+    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    //rename the csv file
-    renameCSV(ids, reportPathMDO)
+    val attemptCountDF = df.groupBy("userID", "assessID").agg(expr("COUNT(*)").alias("noOfAttempts"))
 
-    // upload mdo files - s3://{container}/standalone-reports/user-assessment-report-mdo/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigMdo = new StorageConfig(conf.store, conf.container, reportPathMDO)
-    val storageService = getStorageService(conf)
+    df = df
+      .dropDuplicates("userID", "assessID")
+      .join(attemptCountDF, Seq("userID", "assessID"), "left")
+      .select(
+        col("fullName").alias("Full_Name"),
+        col("assessName").alias("Assessment_Name"),
+        col("Overall_Status"),
+        col("Assessment_Status"),
+        col("assessPassPercentage").alias("Percentage_Of_Score"),
+        col("noOfAttempts").alias("Number_of_Attempts"),
+        col("maskedEmail").alias("Email"),
+        col("maskedPhone").alias("Phone"),
+        col("assessOrgID").alias("mdoid"),
+        col("Report_Last_Generated_On")
+      )
+    show(df)
 
-    storageService.upload(storageConfigMdo.container, reportPathMDO,
-      s"standalone-reports/user-assessment-report-mdo/${getDate}/", Some(true), Some(0), Some(3), None)
-
-
-    var dfCBP = df.drop("provider", "type")
-
-    val cbpids = dfCBP.select("mdoid").map(row => row.getString(0)).collect().toArray
-
-    dfCBP.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("header", "true").partitionBy("mdoid")
-      .save(reportPathCBP)
-
-    removeFile(reportPathCBP + "_SUCCESS")
-    renameCSV(cbpids, reportPathCBP)
-
-    // upload cbp files - s3://{container}/standalone-reports/user-assessment-report-cbp/{date}/mdoid={mdoid}/{mdoid}.csv
-    val storageConfigCbp = new StorageConfig(conf.store, conf.container, reportPathCBP)
-    storageService.upload(storageConfigCbp.container, reportPathCBP,
-      s"standalone-reports/user-assessment-report-cbp/${getDate}/", Some(true), Some(0), Some(3), None)
+    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/", "StandaloneAssessmentReport")
 
     closeRedisConnect()
 

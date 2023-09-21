@@ -59,7 +59,6 @@ case class Event(actor: Actor, eid: String, edata: EData, ver: String, ets: Long
 // */
 //object WorkOrderTelemetryModel extends IBatchModelTemplate[String, WODummyInput, WODummyOutput, WODummyOutput] with Serializable {
 //
-//  implicit var debug: Boolean = false
 //
 //  implicit val className: String = "org.ekstep.analytics.dashboard.WorkOrderTelemetryModel"
 //  override def name() = "WorkOrderTelemetryModel"

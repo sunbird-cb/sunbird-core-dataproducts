@@ -1,18 +1,18 @@
-package org.ekstep.analytics.dashboard.report.user
+package org.ekstep.analytics.dashboard.report.rozgar
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 
-object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.user.UserReportModel"
-  override def name() = "UserReportModel"
+object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.rozgar.RozgarUserModel"
+  override def name() = "RozgarUserModel"
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
    * 1. Transforming input - Filter/Map etc.
@@ -53,13 +53,13 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     val today = getDate()
     val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
+    val taggedUsersPath = s"${reportPath}${conf.taggedUsersPath}"
 
     // get user roles data
-    val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
+    val userRolesDF = roleDataFrame()     // return - userID, role
 
     val orgDF = orgDataFrame()
     val userDataDF = userProfileDetailsDF(orgDF)
-
     val orgHierarchyData = orgHierarchyDataframe()
 
     // get the mdoids for which the report are requesting
@@ -68,23 +68,20 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    df = df
-      .join(userDataDF, Seq("userOrgID"), "inner")
-      .join(userRolesDF, Seq("userID"), "left")
+    df = df.join(userDataDF, Seq("userOrgID"), "inner").join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+    df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
 
-    df = df.dropDuplicates("userID")
-      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-      .select(
+    df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
       col("personalDetails.mobile").alias("Phone_Number"),
       col("professionalDetails.group").alias("Group"),
-      col("Tag"),
+//      col("User_Tag"),
+      col("additionalProperties.tag").alias("Tags").cast("string"),
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
@@ -94,12 +91,12 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       col("personalDetails.category").alias("Category"),
       col("additionalProperties.externalSystem").alias("External_System"),
       col("additionalProperties.externalSystemId").alias("External_System_Id"),
-      col("userOrgID").alias("mdoid"),
-      col("Report_Last_Generated_On")
+      col("userOrgID").alias("mdoid")
     )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/", "UserReport")
+    uploadReports(df, "mdoid", taggedUsersPath, s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", "RozgarReport")
 
     closeRedisConnect()
   }
 }
+
