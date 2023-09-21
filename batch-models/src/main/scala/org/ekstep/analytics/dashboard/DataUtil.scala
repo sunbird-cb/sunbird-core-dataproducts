@@ -1546,7 +1546,7 @@ object DataUtil extends Serializable {
   def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     println(s"REPORT: Syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}...")
     val storageService = getStorageService(conf)
-    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/{mdoid}.csv
+    // upload files - s3://{container}/{reportPath}/{date}/mdoid={mdoid}/
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath,
       s"${reportPath}", Some(true), Some(0), Some(3), None)
