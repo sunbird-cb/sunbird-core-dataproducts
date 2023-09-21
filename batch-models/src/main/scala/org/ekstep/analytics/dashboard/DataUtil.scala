@@ -1493,8 +1493,6 @@ object DataUtil extends Serializable {
     df
   }
 
-<<<<<<< HEAD
-
   /** gets the user_id and survey_submitted_time from cassandra */
 
   /** gets the user_ids who have submitted the survey in last 3 months */
