@@ -7,13 +7,10 @@ import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
-<<<<<<< HEAD
 import org.ekstep.analytics.dashboard.survey.nps.NpsJob
-=======
 import org.ekstep.analytics.dashboard.report.course_new.CourseReportJobNew
 import org.ekstep.analytics.dashboard.report.enrolment_new.UserEnrolmentJobNew
 import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
->>>>>>> 57124bfbbc2f47ff8f050a1ff3b514a6db841188
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob
