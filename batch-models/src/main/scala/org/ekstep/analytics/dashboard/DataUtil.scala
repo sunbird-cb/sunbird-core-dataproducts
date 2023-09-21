@@ -1548,7 +1548,7 @@ object DataUtil extends Serializable {
     val storageService = getStorageService(conf)
     // upload files - s3://{container}/{reportPath}/{date}
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
-    storageService.upload(storageConfig.container, reportTempPath, reportPath, Some(true), Some(0), Some(3), None)
+    storageService.upload(storageConfig.container, reportTempPath, s"${reportPath}/", Some(true), Some(0), Some(3), None)
     storageService.closeContext()
     println(s"REPORT: Finished syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}")
   }
