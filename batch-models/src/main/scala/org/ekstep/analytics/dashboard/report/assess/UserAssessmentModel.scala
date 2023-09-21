@@ -117,7 +117,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     df = df.coalesce(1)
     val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     df = df.drop("userID", "assessID", "assessOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 

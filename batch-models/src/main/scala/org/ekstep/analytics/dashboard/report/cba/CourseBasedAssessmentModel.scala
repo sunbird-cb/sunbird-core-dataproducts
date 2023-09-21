@@ -128,7 +128,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     generateAndSyncReports(df, "mdoid", reportPath, "CBAssessmentReport")
 
     closeRedisConnect()

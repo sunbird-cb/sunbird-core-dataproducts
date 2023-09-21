@@ -146,7 +146,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     df = df.coalesce(1)
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
     closeRedisConnect()

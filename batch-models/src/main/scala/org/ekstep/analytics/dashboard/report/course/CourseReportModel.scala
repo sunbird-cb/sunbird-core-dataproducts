@@ -164,7 +164,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()

@@ -100,7 +100,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     df = df.coalesce(1)
     val reportPath = s"${conf.userReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     df = df.drop("userID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 

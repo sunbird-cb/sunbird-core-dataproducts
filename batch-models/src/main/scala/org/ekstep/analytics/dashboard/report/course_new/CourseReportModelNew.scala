@@ -138,7 +138,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
     df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
-    csvWrite(df, s"/tmp/${reportPath}/full/")
+    csvWrite(df, s"/tmp/${reportPath}-full/")
     df = df.drop("courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
