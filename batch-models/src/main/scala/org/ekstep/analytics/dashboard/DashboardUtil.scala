@@ -172,17 +172,17 @@ object DashboardUtil extends Serializable {
     }
 
     def renameCSV(ids: Array[String], path: String, name: String = "report"): Unit = {
-      for (id <- ids) {
-        val tmpcsv = new File(path + s"mdoid=${id}")
-        val customized = new File(path + s"mdoid=${id}/${name}.csv")
+      ids.foreach(id => {
+        val orgReportPath = new File(path + s"mdoid=${id}")
+        val csvFiles = orgReportPath.listFiles().filter(file => file.getName.startsWith("part-") && file.getName.endsWith(".csv"))
 
-        val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+        csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
+          val (csvFile, index) = csvFileWithIndex
+          val customizedPath = new File(path + s"mdoid=${id}/${name}${if (index == 0) "" else index}.csv")
+          csvFile.renameTo(customizedPath)
+        })
 
-        if (tempCsvFileOpt.isDefined) {
-          val finalFile = tempCsvFileOpt.get
-          finalFile.renameTo(customized)
-        }
-      }
+      })
     }
 
   }

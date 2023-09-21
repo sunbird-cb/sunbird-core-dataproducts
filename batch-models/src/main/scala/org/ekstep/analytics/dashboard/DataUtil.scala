@@ -1544,7 +1544,7 @@ object DataUtil extends Serializable {
   }
 
   def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"/tmp/${reportPath}"
+    val reportTempPath = s"/tmp/${reportPath}/"
     generateReports(df, partitionKey, reportTempPath, fileName)
     syncReports(reportTempPath, reportPath)
   }
