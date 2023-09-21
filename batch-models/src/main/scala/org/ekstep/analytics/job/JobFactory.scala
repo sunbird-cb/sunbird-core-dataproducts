@@ -5,6 +5,7 @@ import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrollment.UserEnrollmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
+import org.ekstep.analytics.dashboard.survey.nps.NpsJob
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob
@@ -56,6 +57,8 @@ object JobFactory {
         DruidQueryProcessor
       case "druid-dataset" =>
         OnDemandDruidExhaustJob
+      case "survey-nps" =>
+        NpsJob
       case _ =>
         reflectModule(jobType);
     }
