@@ -7,6 +7,7 @@ import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
+import org.ekstep.analytics.dashboard.survey.nps.NpsJob
 import org.ekstep.analytics.dashboard.report.course_new.CourseReportJobNew
 import org.ekstep.analytics.dashboard.report.enrolment_new.UserEnrolmentJobNew
 import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
@@ -67,6 +68,8 @@ object JobFactory {
         DruidQueryProcessor
       case "druid-dataset" =>
         OnDemandDruidExhaustJob
+      case "survey-nps" =>
+        NpsJob
       case _ =>
         reflectModule(jobType);
     }
