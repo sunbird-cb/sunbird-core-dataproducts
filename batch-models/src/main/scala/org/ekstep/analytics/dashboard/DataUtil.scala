@@ -527,13 +527,17 @@ object DataUtil extends Serializable {
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
    *         assessChildCount)
    */
-  def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def assessmentESDataFrame(isCBA: Boolean = false, isBPEnabled: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val primaryCategories = if (isCBA) {
       Seq("Course", "Standalone Assessment")
-    } else {
+    } else if (isBPEnabled) {
+      Seq("Course", "Standalone Assessment", "Program", "Blended Program")
+    }
+    else {
       Seq("Standalone Assessment")
     }
+
     var df = elasticSearchCourseProgramDataFrame(primaryCategories)
 
     // now that error handling is done, proceed with business as usual
@@ -722,12 +726,15 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false, isBPEnabled: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
       Seq("Course", "Program", "Blended Program", "CuratedCollections")
-    } else {
+    } else if (isBPEnabled) {
+      Seq("Course", "Program", "Blended Program", "Standalone Assessment")
+    }
+    else {
       Seq("Course", "Program")
     }
 
@@ -842,31 +849,33 @@ object DataUtil extends Serializable {
     df
   }
 
+ // Self join is made on the Org Hierarchy table to get the organization,ministry and department recursively
   def orgHierarchyDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgHierarchyTable).select(
       col("orgname").alias("userOrgName"), col("mapid").alias("mapID"), col("orgcode").alias("orgCode"),
       col("parentmapid").alias("parentMapID"), col("sborgid").alias("subOrgID"))
 
-    val alias1 = df.alias("alias1")
-    val alias2 = df.alias("alias2")
-    val orgDeptDF = alias1.join(alias2, col("alias1.parentMapID") === col("alias2.mapID"), "inner")
+    //self join on the org hierarchy table ->oH
+    val oH1 = df.alias("oH1")
+    val oH2 = df.alias("oH2")
+    val orgDeptDF = oH1.join(oH2, col("oH1.parentMapID") === col("oH2.mapID"), "inner")
     val orgDeptDataDF = orgDeptDF.select(
-      col("alias1.userOrgName").alias("orgname"),
-      col("alias1.mapID"),
-      col("alias2.mapID").alias("department"),
-      col("alias2.userOrgName").alias("dept_name"),
-      col("alias2.parentMapID").alias("dept_parent")
+      col("oH1.userOrgName").alias("orgname"),
+      col("oH1.mapID"),
+      col("oH2.mapID").alias("department"),
+      col("oH2.userOrgName").alias("dept_name"),
+      col("oH2.parentMapID").alias("dept_parent")
     )
-    val alias3 = orgDeptDataDF.alias("alias3")
-    val alias4 = df.alias("alias4")
-    val deptMinistryDF = alias3.join(alias4, col("alias3.dept_parent") === col("alias4.mapID"), "left")
+    val oH3 = orgDeptDataDF.alias("oH3")
+    val oH4 = df.alias("oH4")
+    val deptMinistryDF = oH3.join(oH4, col("oH3.dept_parent") === col("oH4.mapID"), "left")
     var orgDeptMinistryDataDF = deptMinistryDF.select(
-      col("alias3.mapID"),
-      col("alias3.orgname").alias("userOrgName"),
-      col("alias3.department"),
-      col("alias3.dept_name").alias("dept_name"),
-      col("alias4.mapID"),
-      col("alias4.userOrgName").alias("ministry_name")
+      col("oH3.mapID"),
+      col("oH3.orgname").alias("userOrgName"),
+      col("oH3.department"),
+      col("oH3.dept_name").alias("dept_name"),
+      col("oH4.mapID"),
+      col("oH4.userOrgName").alias("ministry_name")
     )
     show(orgDeptDataDF, "result DF ")
     show(orgDeptMinistryDataDF, "Org Hierarchy DF")
