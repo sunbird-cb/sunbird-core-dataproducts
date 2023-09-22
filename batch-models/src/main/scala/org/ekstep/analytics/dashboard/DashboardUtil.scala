@@ -78,7 +78,6 @@ case class DashboardConfig (
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
-
     // mongoDB configurations
     mongoDBCollection: String,
     mongoDatabase: String,
@@ -567,9 +566,8 @@ object DashboardUtil extends Serializable {
     expectedColumnsInput.foldLeft(df) {
       (df, column) => {
         if(!df.columns.contains(column)) {
-          df.withColumn(column,lit(null).cast(StringType))
-        }
-        else (df)
+          df.withColumn(column, lit(null).cast(StringType))
+        } else df
       }
     }
   }

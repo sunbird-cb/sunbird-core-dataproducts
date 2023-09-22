@@ -12,7 +12,6 @@ import DashboardUtil._
 import DashboardUtil.StorageUtil._
 
 import java.io.Serializable
-import java.time.LocalDate
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
@@ -651,8 +650,6 @@ object DataUtil extends Serializable {
    * @param asCol
    * @param children
    * @param competencies
-   * @param spark
-   * @param conf
    * @return
    */
   def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
@@ -1493,18 +1490,16 @@ object DataUtil extends Serializable {
     df
   }
 
-  /** gets the user_id and survey_submitted_time from cassandra */
-
-  /** gets the user_ids who have submitted the survey in last 3 months */
-
-
+  /**
+   * gets the user_id and survey_submitted_time from cassandra
+   * gets the user_ids who have submitted the survey in last 3 months
+   */
   def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = """SELECT userID as userid FROM \"nps-users-data\" where submitted = true AND __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     show(df, "usersSubmittedFormInLast3Months")
     df
-
   }
 
   def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1516,7 +1511,6 @@ object DataUtil extends Serializable {
     df
   }
 
-
   def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = mongodbTableAsDataFrame(conf.mongoDatabase, conf.mongoDBCollection)
     df = df.na.drop(Seq("userid"))
@@ -1524,6 +1518,7 @@ object DataUtil extends Serializable {
     df
   }
 
+  /* report generation stuff */
   def generateFullReport(df: DataFrame, reportPath: String): Unit = {
     val fullReportPath = s"/tmp/${reportPath}-full"
     println(s"REPORT: Writing full report to ${fullReportPath} ...")
@@ -1546,7 +1541,7 @@ object DataUtil extends Serializable {
   def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     println(s"REPORT: Syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath} ...")
     val storageService = getStorageService(conf)
-    // upload files - s3://{container}/{reportPath}/{date}
+    // upload files to - {store}://{container}/{reportPath}/
     val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
     storageService.upload(storageConfig.container, reportTempPath, s"${reportPath}/", Some(true), Some(0), Some(3), None)
     storageService.closeContext()
