@@ -61,13 +61,13 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val orgHierarchyData = orgHierarchyDataframe()
 
     // get the mdoids for which the report are requesting
-    val mdoID = conf.mdoIDs
-    val mdoIDDF = mdoIDsDF(mdoID)
+    // val mdoID = conf.mdoIDs
+    // val mdoIDDF = mdoIDsDF(mdoID)
 
-    var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+    // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    df = df
-      .join(userDataDF, Seq("userOrgID"), "inner")
+    var df = userDataDF
+      // .join(userDataDF, Seq("userOrgID"), "inner")
       .join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
@@ -102,6 +102,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val reportPath = s"${conf.userReportPath}/${today}"
     generateFullReport(df, reportPath)
     df = df.drop("userID", "userOrgID")
+    // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
     generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
     closeRedisConnect()

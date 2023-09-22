@@ -522,15 +522,45 @@ object DataUtil extends Serializable {
     df
   }
 
+  def allAssessmentESDataFrame(isAllAssess: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+
+    val primaryCategories = if (isAllAssess) {
+      Seq("Course", "Standalone Assessment", "Blended Program")
+    } else {
+      Seq("Standalone Assessment")
+    }
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
+
+    // now that error handling is done, proceed with business as usual
+    df = df.select(
+      col("identifier").alias("cbpID"),
+      col("primaryCategory").alias("cbpCategory"),
+      col("name").alias("cbpName"),
+      col("status").alias("cbpStatus"),
+      col("reviewStatus").alias("cbpReviewStatus"),
+      col("channel").alias("cbpOrgID"),
+      col("duration").cast(FloatType).alias("cbpDuration"),
+      col("leafNodesCount").alias("cbpChildCount")
+    )
+    df = df.dropDuplicates("cbpID", "cbpCategory")
+    df = df.na.fill(0.0, Seq("cbpDuration")).na.fill(0, Seq("cbpChildCount"))
+
+
+    show(df, "allAssessmentESDataFrame")
+    df
+  }
+
   /**
    * All Stand-alone Assessments from elastic search api
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
    *         assessChildCount)
    */
-  def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def assessmentESDataFrame(isAllAssess: Boolean = false, isAllAssess2: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
-    val primaryCategories = if (isCBA) {
-      Seq("Course", "Standalone Assessment")
+    val primaryCategories = if (isAllAssess) {
+      Seq("Course", "Standalone Assessment", "Blended Program")
+    } else if (isAllAssess2) {
+      Seq("Course")
     } else {
       Seq("Standalone Assessment")
     }
@@ -722,11 +752,15 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false, isAllCBP2: Boolean = false, onlyCourse: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
       Seq("Course", "Program", "Blended Program", "CuratedCollections")
+    } else if (isAllCBP2) {
+      Seq("Course", "Program", "Blended Program", "Standalone Assessment")
+    } else if (onlyCourse) {
+      Seq("Course")
     } else {
       Seq("Course", "Program")
     }
