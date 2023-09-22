@@ -231,7 +231,7 @@ object DataUtilNew extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn")
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
@@ -511,7 +511,8 @@ object DataUtilNew extends Serializable {
       col("channel").alias("courseOrgID"),
       col("lastPublishedOn").alias("courseLastPublishedOn"),
       col("duration").alias("courseDuration"),
-      col("leafNodesCount").alias("courseResourceCount")
+      col("leafNodesCount").alias("courseResourceCount"),
+      col("lastStatusChangedOn").alias("lastStatusChangedOn")
     )
     df = df.dropDuplicates("courseID", "category")
     df = df
@@ -745,7 +746,7 @@ object DataUtilNew extends Serializable {
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
     val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
       .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
-      .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
+      // .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
     val courseWithHierarchyInfo = allCourseProgramESDF
       .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")

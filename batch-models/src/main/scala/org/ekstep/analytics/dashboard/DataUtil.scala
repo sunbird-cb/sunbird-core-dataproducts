@@ -964,8 +964,11 @@ object DataUtil extends Serializable {
 
   def courseStatusUpdateDataFrame(hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = hierarchyDF.withColumn("hierarchy", from_json(col("hierarchy"), Schema.makeHierarchySchema()))
-    df = df.select(col("hierarchy.lastStatusChangedOn").alias("lastStatusChangedOn"),
-      col("identifier").alias("courseID"), col("hierarchy.status").alias("courseStatus"))
+    df = df
+      .select(
+        col("hierarchy.lastStatusChangedOn").alias("lastStatusChangedOn"),
+        col("identifier").alias("courseID"),
+        col("hierarchy.status").alias("courseStatus"))
 
     val caseExpressionStatus = "CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"
     df = df.withColumn("ArchivedOn", expr(caseExpressionStatus))
