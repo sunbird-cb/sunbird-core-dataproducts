@@ -99,7 +99,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .dropDuplicates("userID", "assessID")
       .join(attemptCountDF, Seq("userID", "assessID"), "left")
       .select(
-        col("userID").alias("User_id"),
+        col("userID").alias("User_ID"),
         col("assessID"),
         col("assessOrgID"),
         col("fullName").alias("Full_Name"),
