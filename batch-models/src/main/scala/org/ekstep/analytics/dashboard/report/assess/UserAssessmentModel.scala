@@ -99,7 +99,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .dropDuplicates("userID", "assessID")
       .join(attemptCountDF, Seq("userID", "assessID"), "left")
       .select(
-        col("userID"),
+        col("userID").alias("user_id"),
         col("assessID"),
         col("assessOrgID"),
         col("fullName").alias("Full_Name"),
@@ -118,7 +118,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.coalesce(1)
     val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
     generateFullReport(df, reportPath)
-    df = df.drop("userID", "assessID", "assessOrgID")
+    df = df.drop("user_id", "assessID", "assessOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 
     closeRedisConnect()
