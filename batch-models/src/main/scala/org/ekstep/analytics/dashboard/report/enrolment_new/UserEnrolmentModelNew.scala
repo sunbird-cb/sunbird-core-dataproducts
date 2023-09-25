@@ -137,8 +137,6 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
-      //.withColumn("Ministry", lit(""))  // asked to put blank here instead
-      //.withColumn("Department", lit(""))  // asked to put blank here instead
 
     show(df, "df")
 
