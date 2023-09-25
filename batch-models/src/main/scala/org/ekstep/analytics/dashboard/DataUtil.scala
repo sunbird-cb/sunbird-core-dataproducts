@@ -232,7 +232,7 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn")
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
@@ -513,11 +513,13 @@ object DataUtil extends Serializable {
       col("channel").alias("courseOrgID"),
       col("lastPublishedOn").alias("courseLastPublishedOn"),
       col("duration").alias("courseDuration"),
-      col("leafNodesCount").alias("courseResourceCount")
+      col("leafNodesCount").alias("courseResourceCount"),
+      col("lastStatusChangedOn").alias("lastStatusChangedOn")
     )
     df = df.dropDuplicates("courseID", "category")
-    // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
-
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
     show(df, "allCourseProgramESDataFrame")
     df
   }
@@ -700,8 +702,9 @@ object DataUtil extends Serializable {
   def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = addHierarchyColumn(allCourseProgramESDF, hierarchyDF, "courseID", "data", competencies = true)
 
-    df = df.withColumn("competenciesJson", col("data.competencies_v3"))
-           .withColumn("courseOrgID", explode(col("data.createdFor")))
+    df = df
+      .withColumn("competenciesJson", col("data.competencies_v3"))
+      .withColumn("courseOrgID", explode(col("data.createdFor")))
 
     //      .withColumn("courseName", col("data.name"))
     //      .withColumn("courseStatus", col("data.status"))
@@ -711,6 +714,7 @@ object DataUtil extends Serializable {
     //      .withColumn("courseResourceCount", col("data.leafNodesCount"))
 
     df = addCourseOrgDetails(df, orgDF)
+
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))

@@ -108,7 +108,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.dropDuplicates("userID", "assessChildID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .select(
-        col("userID"),
+        col("userID").alias("User_ID"),
         col("assessID"),
         col("assessOrgID"),
         col("assessChildID"),
@@ -144,7 +144,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     val reportPath = s"${conf.cbaReportPath}/${today}"
     generateFullReport(df, reportPath)
     df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
-    generateAndSyncReports(df, "mdoid", reportPath, "CBAssessmentReport")
+    generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
     closeRedisConnect()
 
