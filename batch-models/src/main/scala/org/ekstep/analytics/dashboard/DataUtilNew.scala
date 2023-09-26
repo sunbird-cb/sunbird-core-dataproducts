@@ -617,7 +617,7 @@ object DataUtilNew extends Serializable {
   def assessWithHierarchyDataFrame(assessmentDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     var df = addHierarchyColumn(assessmentDF, hierarchyDF, "assessID", "data", children = true)
-      .withColumn("assessOrgID", explode(col("data.createdFor")))
+      .withColumn("assessOrgID", explode_outer(col("data.createdFor")))
 
     df = addAssessOrgDetails(df, orgDF)
 
@@ -710,7 +710,7 @@ object DataUtilNew extends Serializable {
 
     df = df
       .withColumn("competenciesJson", col("data.competencies_v3"))
-      .withColumn("courseOrgID", explode(col("data.createdFor")))
+      .withColumn("courseOrgID", explode_outer(col("data.createdFor")))
 
     //      .withColumn("courseName", col("data.name"))
     //      .withColumn("courseStatus", col("data.status"))
@@ -774,7 +774,7 @@ object DataUtilNew extends Serializable {
 
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
     val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
-      .withColumn("courseActualOrgId", explode(col("hStruct.createdFor")))
+      .withColumn("courseActualOrgId", explode_outer(col("hStruct.createdFor")))
       // .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
     val courseWithHierarchyInfo = allCourseProgramESDF
@@ -1044,7 +1044,7 @@ object DataUtilNew extends Serializable {
    */
   def allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
-    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "left")
+    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "inner")
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
@@ -1399,7 +1399,7 @@ object DataUtilNew extends Serializable {
    */
   def assessmentChildrenDataFrame(assessWithHierarchyDF: DataFrame): DataFrame = {
     val df = assessWithHierarchyDF.select(
-      col("assessID"), explode(col("children")).alias("ch")
+      col("assessID"), explode_outer(col("children")).alias("ch")
     ).select(
       col("assessID"),
       col("ch.identifier").alias("assessChildID"),

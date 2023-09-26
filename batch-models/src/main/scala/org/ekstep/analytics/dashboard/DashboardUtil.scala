@@ -98,6 +98,12 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
+  val allowedContentCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+
+  def validateContentCategories(categories: Seq[String]): Unit = {
+
+  }
+
   object Test extends Serializable {
     /**
      * ONLY FOR TESTING!!, do not use to create spark context in model or job

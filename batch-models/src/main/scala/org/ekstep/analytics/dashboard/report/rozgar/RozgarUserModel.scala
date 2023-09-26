@@ -69,7 +69,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
     df = df.where(expr("userStatus=1"))
-    df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
+    df = df.withColumn("User_Tag", explode_outer(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
 
     df = df.dropDuplicates("userID").select(
       col("fullName").alias("Full_Name"),

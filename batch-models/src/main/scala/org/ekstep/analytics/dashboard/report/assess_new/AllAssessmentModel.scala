@@ -60,7 +60,7 @@ object AllAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     var assessmentDF = allAssessmentESDataFrame(true)
 
     assessmentDF = addHierarchyColumn(assessmentDF, hierarchyDF, "cbpID", "data", children = true)
-      .withColumn("cbpOrgID", explode(col("data.createdFor")))
+      .withColumn("cbpOrgID", explode_outer(col("data.createdFor")))
     show(assessmentDF, "assessmentDF 1")
 
     val cbpOrgDF = orgDF.select(
@@ -104,7 +104,7 @@ object AllAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val cbpChildrenDF = assessmentDF.select(
       col("cbpID"),
-      explode(col("children")).alias("ch")
+      explode_outer(col("children")).alias("ch")
     ).select(
       col("cbpID"),
       col("ch.identifier").alias("cbpChildID"),

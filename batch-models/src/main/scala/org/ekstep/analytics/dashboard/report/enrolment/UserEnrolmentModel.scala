@@ -89,10 +89,10 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
     df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
 
-    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("courseContentStatus")).alias("userContents"))
+    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode_outer(col("courseContentStatus")).alias("userContents"))
 
     val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
-      col("liveContentCount"), col("identifier").alias("courseID"), explode(col("liveContents")).alias("liveContents")
+      col("liveContentCount"), col("identifier").alias("courseID"), explode_outer(col("liveContents")).alias("liveContents")
     )
 
     val userConsumedLiveContents = liveContents.join(userConsumedcontents, col("userContents") === col("liveContents") && col("courseID") === col("courseId") , "inner")
