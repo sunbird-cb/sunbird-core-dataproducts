@@ -55,12 +55,11 @@ object AllAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, runValidation = false, isAllCBP2 = true)
+      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"), runValidation = false)
 
     var assessmentDF = allAssessmentESDataFrame(true)
 
     assessmentDF = addHierarchyColumn(assessmentDF, hierarchyDF, "cbpID", "data", children = true)
-      .withColumn("cbpOrgID", explode_outer(col("data.createdFor")))
     show(assessmentDF, "assessmentDF 1")
 
     val cbpOrgDF = orgDF.select(

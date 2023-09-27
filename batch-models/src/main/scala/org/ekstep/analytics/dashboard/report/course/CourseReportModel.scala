@@ -58,7 +58,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF) =
-      contentDataFrames(orgDF, false, false, true)
+      contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"))
     //val courseBatchData = courseBatchDataFrame()
 
     val courseStatusUpdateData = courseStatusUpdateDataFrame(hierarchyDF)
@@ -107,10 +107,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     df = df.withColumn("notStartedCount", df("enrolmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
     df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
 
-    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
-      expr("courseDuration % 3600 / 60").cast("int"),
-      expr("courseDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "courseDuration", "CBP_Duration")
 
     var certificateIssued = df.filter(col("issuedCertificates") =!= "[]").select(col("courseID"), col("issuedCertificates"))
     certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issuedCertificates")).alias("Total_Certificates_Issued"))

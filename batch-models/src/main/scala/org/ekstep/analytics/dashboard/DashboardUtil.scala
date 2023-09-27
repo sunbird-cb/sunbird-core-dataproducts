@@ -176,7 +176,7 @@ object DashboardUtil extends Serializable {
 
     }
 
-    def renameCSV(ids: Array[String], reportTempPath: String, fileName: String): Unit = {
+    def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String): Unit = {
       ids.foreach(id => {
         val orgReportPath = new File(s"${reportTempPath}/mdoid=${id}/")
         val csvFiles = orgReportPath.listFiles().filter(f => {f.getName.startsWith("part-") && f.getName.endsWith(".csv")})
@@ -386,6 +386,17 @@ object DashboardUtil extends Serializable {
 
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
 
+  def durationFormat(df: DataFrame, inCol: String, outCol: String = null): DataFrame = {
+    val outColName = if (outCol == null) inCol else outCol
+    df.withColumn(outColName,
+      format_string("%02d:%02d:%02d",
+        expr(s"${inCol} / 3600").cast("int"),
+        expr(s"${inCol} % 3600 / 60").cast("int"),
+        expr(s"${inCol} % 60").cast("int")
+      )
+    )
+  }
+
   def dataFrameFromJSONString(jsonString: String)(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
     val dataset = spark.createDataset(jsonString :: Nil)
@@ -444,16 +455,18 @@ object DashboardUtil extends Serializable {
       .persist(StorageLevel.MEMORY_ONLY)
   }
 
-  def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String])(implicit spark: SparkSession): DataFrame = {
-    var df = spark.read.format("org.elasticsearch.spark.sql")
+  def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String], arrayFields: Seq[String] = Seq())(implicit spark: SparkSession): DataFrame = {
+    var dfr = spark.read.format("org.elasticsearch.spark.sql")
       .option("es.read.metadata", "false")
       .option("es.nodes", host)
       .option("es.port", "9200")
       .option("es.index.auto.create", "false")
       .option("es.nodes.wan.only", "true")
       .option("es.nodes.discovery", "false")
-      .option("query", query)
-      .load(index)
+    if (arrayFields.nonEmpty) {
+      dfr = dfr.option("es.read.field.as.array.include", arrayFields.mkString(","))
+    }
+    var df = dfr.option("query", query).load(index)
     df = df.select(fields.map(f => col(f)):_*).persist(StorageLevel.MEMORY_ONLY) // select only the fields we need and persist
     df
   }

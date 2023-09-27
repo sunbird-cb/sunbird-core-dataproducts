@@ -54,7 +54,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(orgDF, false, false, true)
+      contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"))
 
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
       .select(col("courseID"), col("userID"), col("completionPercentage"))
@@ -78,10 +78,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     df = userCourseCompletionStatus(df)
 
-    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
-      expr("courseDuration % 3600 / 60").cast("int"),
-      expr("courseDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "courseDuration", "CBP_Duration")
 
     val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
     val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"

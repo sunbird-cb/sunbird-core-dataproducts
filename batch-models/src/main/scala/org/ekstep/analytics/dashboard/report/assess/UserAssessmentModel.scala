@@ -56,7 +56,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
-    val assessmentDF = assessmentESDataFrame()
+    val assessmentDF = assessmentESDataFrame(Seq("Standalone Assessment"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
