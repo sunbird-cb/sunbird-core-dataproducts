@@ -9,7 +9,7 @@ object NpsJob extends optional.Application with IJob{
   override def main(config: String)(implicit sc: Option[SparkContext], fc: Option[FrameworkContext]): Unit ={
     implicit val sparkContext: SparkContext = sc.getOrElse(null);
     JobLogger.log("Started executing Job")
-    JobDriver.run("batch", "config", NpsModel)
+    JobDriver.run("batch", config, NpsModel)
     JobLogger.log("Job Completed.")
   }
 }

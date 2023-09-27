@@ -92,13 +92,13 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
     val userConsumedcontents = df.select(
       col("courseID"),
       col("userID"),
-      explode(col("courseContentStatus"))
+      explode_outer(col("courseContentStatus"))
     ).toDF("courseID", "userID", "userContents", "userContentsValue")
 
     val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
       col("liveContentCount"),
       col("identifier").alias("courseID"),
-      explode(col("liveContents")).alias("userContents")
+      explode_outer(col("liveContents")).alias("userContents")
     )
 
     val userConsumedLiveContents = liveContents.join(userConsumedcontents,
@@ -115,7 +115,7 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
     val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
     df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
 
-    df = df.withColumn("User_Tag", explode(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
+    df = df.withColumn("User_Tag", explode_outer(col("additionalProperties.tag"))).filter(col("User_Tag") === "Rozgar Mela")
     df.show()
     df = df.distinct().dropDuplicates("userID", "courseID").select(
       col("fullName").alias("Full_Name"),

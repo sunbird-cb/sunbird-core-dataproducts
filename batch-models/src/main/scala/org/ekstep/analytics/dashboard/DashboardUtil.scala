@@ -98,6 +98,12 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
+  val allowedContentCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+
+  def validateContentCategories(categories: Seq[String]): Unit = {
+
+  }
+
   object Test extends Serializable {
     /**
      * ONLY FOR TESTING!!, do not use to create spark context in model or job
@@ -174,9 +180,12 @@ object DashboardUtil extends Serializable {
       ids.foreach(id => {
         val orgReportPath = new File(s"${reportTempPath}/mdoid=${id}/")
         val csvFiles = orgReportPath.listFiles().filter(f => {f.getName.startsWith("part-") && f.getName.endsWith(".csv")})
+        println(csvFiles.mkString(","))
 
         csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
           val (csvFile, index) = csvFileWithIndex
+          println(csvFile)
+          println(index)
           val customizedPath = new File(s"${reportTempPath}/mdoid=${id}/${fileName}${if (index == 0) "" else index}.csv")
           println(s"RENAME: renaming ${csvFile} to ${customizedPath}")
           csvFile.renameTo(customizedPath)

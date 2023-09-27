@@ -74,13 +74,17 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     var df = userAssessChildrenDetailsDF
 
     // get the mdoids for which the report are requesting
-    val mdoID = conf.mdoIDs
-    val mdoIDDF = mdoIDsDF(mdoID)
+    // val mdoID = conf.mdoIDs
+    // val mdoIDDF = mdoIDsDF(mdoID)
 
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
-    df = df.join(mdoData, Seq("assessOrgID"), "inner")
+    // val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
+    // df = df.join(mdoData, Seq("assessOrgID"), "inner")
 
-    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+    val latest = df.groupBy(col("assessChildID"), col("userID"))
+      .agg(
+        max("assessEndTimestamp").alias("assessEndTimestamp"),
+        expr("COUNT(*)").alias("noOfAttempts")
+      )
 
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
 
@@ -93,13 +97,10 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    val attemptCountDF = df.groupBy("userID", "assessID").agg(expr("COUNT(*)").alias("noOfAttempts"))
-
     df = df
       .dropDuplicates("userID", "assessID")
-      .join(attemptCountDF, Seq("userID", "assessID"), "left")
       .select(
-        col("userID"),
+        col("userID").alias("User_ID"),
         col("assessID"),
         col("assessOrgID"),
         col("fullName").alias("Full_Name"),

@@ -232,7 +232,7 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn")
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
@@ -513,12 +513,42 @@ object DataUtil extends Serializable {
       col("channel").alias("courseOrgID"),
       col("lastPublishedOn").alias("courseLastPublishedOn"),
       col("duration").alias("courseDuration"),
-      col("leafNodesCount").alias("courseResourceCount")
+      col("leafNodesCount").alias("courseResourceCount"),
+      col("lastStatusChangedOn").alias("lastStatusChangedOn")
     )
     df = df.dropDuplicates("courseID", "category")
-    // df = df.na.fill(0.0, Seq("courseDuration")).na.fill(0, Seq("courseResourceCount"))
-
+    df = df
+      .na.fill(0.0, Seq("courseDuration"))
+      .na.fill(0, Seq("courseResourceCount"))
     show(df, "allCourseProgramESDataFrame")
+    df
+  }
+
+  def allAssessmentESDataFrame(isAllAssess: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+
+    val primaryCategories = if (isAllAssess) {
+      Seq("Course", "Standalone Assessment", "Blended Program")
+    } else {
+      Seq("Standalone Assessment")
+    }
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
+
+    // now that error handling is done, proceed with business as usual
+    df = df.select(
+      col("identifier").alias("cbpID"),
+      col("primaryCategory").alias("cbpCategory"),
+      col("name").alias("cbpName"),
+      col("status").alias("cbpStatus"),
+      col("reviewStatus").alias("cbpReviewStatus"),
+      col("channel").alias("cbpOrgID"),
+      col("duration").cast(FloatType).alias("cbpDuration"),
+      col("leafNodesCount").alias("cbpChildCount")
+    )
+    df = df.dropDuplicates("cbpID", "cbpCategory")
+    df = df.na.fill(0.0, Seq("cbpDuration")).na.fill(0, Seq("cbpChildCount"))
+
+
+    show(df, "allAssessmentESDataFrame")
     df
   }
 
@@ -527,10 +557,12 @@ object DataUtil extends Serializable {
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
    *         assessChildCount)
    */
-  def assessmentESDataFrame(isCBA: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def assessmentESDataFrame(isAllAssess: Boolean = false, isAllAssess2: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
-    val primaryCategories = if (isCBA) {
-      Seq("Course", "Standalone Assessment")
+    val primaryCategories = if (isAllAssess) {
+      Seq("Course", "Standalone Assessment", "Blended Program")
+    } else if (isAllAssess2) {
+      Seq("Course")
     } else {
       Seq("Standalone Assessment")
     }
@@ -579,7 +611,7 @@ object DataUtil extends Serializable {
   def assessWithHierarchyDataFrame(assessmentDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     var df = addHierarchyColumn(assessmentDF, hierarchyDF, "assessID", "data", children = true)
-      .withColumn("assessOrgID", explode(col("data.createdFor")))
+      .withColumn("assessOrgID", explode_outer(col("data.createdFor")))
 
     df = addAssessOrgDetails(df, orgDF)
 
@@ -670,8 +702,9 @@ object DataUtil extends Serializable {
   def allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF: DataFrame, hierarchyDF: DataFrame, orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = addHierarchyColumn(allCourseProgramESDF, hierarchyDF, "courseID", "data", competencies = true)
 
-    df = df.withColumn("competenciesJson", col("data.competencies_v3"))
-           .withColumn("courseOrgID", explode(col("data.createdFor")))
+    df = df
+      .withColumn("competenciesJson", col("data.competencies_v3"))
+      .withColumn("courseOrgID", explode_outer(col("data.createdFor")))
 
     //      .withColumn("courseName", col("data.name"))
     //      .withColumn("courseStatus", col("data.status"))
@@ -681,6 +714,7 @@ object DataUtil extends Serializable {
     //      .withColumn("courseResourceCount", col("data.leafNodesCount"))
 
     df = addCourseOrgDetails(df, orgDF)
+
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
@@ -722,11 +756,15 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, runValidation: Boolean = true, getCuratedCollections: Boolean = false, isAllCBP: Boolean = false, isAllCBP2: Boolean = false, onlyCourse: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
       Seq("Course", "Program", "Blended Program", "CuratedCollections")
+    } else if (isAllCBP2) {
+      Seq("Course", "Program", "Blended Program", "Standalone Assessment")
+    } else if (onlyCourse) {
+      Seq("Course")
     } else {
       Seq("Course", "Program")
     }
@@ -1022,7 +1060,7 @@ object DataUtil extends Serializable {
    */
   def allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF: DataFrame, allCourseProgramDetailsDF: DataFrame, userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
-    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "left")
+    var df = userCourseProgramCompletionDF.join(allCourseProgramDetailsDF, Seq("courseID"), "inner")
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
@@ -1355,7 +1393,7 @@ object DataUtil extends Serializable {
    */
   def assessmentChildrenDataFrame(assessWithHierarchyDF: DataFrame): DataFrame = {
     val df = assessWithHierarchyDF.select(
-      col("assessID"), explode(col("children")).alias("ch")
+      col("assessID"), explode_outer(col("children")).alias("ch")
     ).select(
       col("assessID"),
       col("ch.identifier").alias("assessChildID"),
