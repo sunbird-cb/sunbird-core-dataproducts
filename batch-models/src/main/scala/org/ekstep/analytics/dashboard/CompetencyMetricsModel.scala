@@ -147,6 +147,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val druidRowCount = allCourseProgramCompletionWithDetailsDF.count()
     val enrollmentCount = liveRetiredCourseCompletionDF.count()
     val completionCount = liveRetiredCourseCompletionDF.where(expr("dbCompletionStatus=2")).count()
+    println(s"druidRowCount = ${druidRowCount}")
+    println(s"enrollmentCount = ${enrollmentCount}")
+    println(s"completionCount = ${completionCount}")
 
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
