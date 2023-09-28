@@ -774,6 +774,7 @@ object DataUtilNew extends Serializable {
     // val hierarchySchema = Schema.makeHierarchySchema(true, true)
 
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
+      .withColumn("courseActualOrgId", col("courseOrgID"))
     //val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
     //  .withColumn("courseActualOrgId", col("courseOrgID"))
       // .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
