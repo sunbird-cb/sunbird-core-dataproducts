@@ -518,12 +518,10 @@ object DataUtilNew extends Serializable {
         col("courseOrgID")
       )
 
-
     df = df.dropDuplicates("courseID", "category")
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
-    // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
     df = durationFormat(df, "courseDuration")
     show(df, "allCourseProgramESDataFrame")
     df
@@ -552,7 +550,6 @@ object DataUtilNew extends Serializable {
         col("leafNodesCount").alias("cbpChildCount"),
         col("cbpOrgID")
       )
-
 
     df = df.dropDuplicates("cbpID", "cbpCategory")
     df = df.na.fill(0.0, Seq("cbpDuration")).na.fill(0, Seq("cbpChildCount"))
@@ -638,6 +635,7 @@ object DataUtilNew extends Serializable {
         col("assessOrgID"),
         col("assessOrgName"),
         col("assessStatus"),
+        col("assessLastPublishedOn"),
 
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),
@@ -648,7 +646,6 @@ object DataUtilNew extends Serializable {
         col("data.visibility").alias("assessVisibility"),
         col("data.createdOn").alias("assessCreatedOn"),
         col("data.lastUpdatedOn").alias("assessLastUpdatedOn"),
-        col("data.lastPublishedOn").alias("assessLastPublishedOn"),
         col("data.lastSubmittedOn").alias("assessLastSubmittedOn")
       )
 
