@@ -150,17 +150,19 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     println(s"druidRowCount = ${druidRowCount}")
     println(s"enrollmentCount = ${enrollmentCount}")
     println(s"completionCount = ${completionCount}")
+    generateFullReport(allCourseProgramCompletionWithDetailsDF.coalesce(1), s"bug-analysis-test/2023-09-27")
 
-    validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
-    kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
-
-    val liveCourseCompletionDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus='Live' AND userStatus=1"))
-    val coursesEnrolledIn = liveCourseCompletionDF.select("courseID").distinct().count()
-    val coursesCompleted = liveCourseCompletionDF.where(expr("dbCompletionStatus=2")).select("courseID").distinct().count()
-    redisUpdate("dashboard_courses_enrolled_in_at_least_once", coursesEnrolledIn.toString)
-    redisUpdate("dashboard_courses_completed_at_least_once", coursesCompleted.toString)
-    println(s"dashboard_courses_enrolled_in_at_least_once = ${coursesEnrolledIn}")
-    println(s"dashboard_courses_completed_at_least_once = ${coursesCompleted}")
+    //
+//    validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
+//    kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
+//
+//    val liveCourseCompletionDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus='Live' AND userStatus=1"))
+//    val coursesEnrolledIn = liveCourseCompletionDF.select("courseID").distinct().count()
+//    val coursesCompleted = liveCourseCompletionDF.where(expr("dbCompletionStatus=2")).select("courseID").distinct().count()
+//    redisUpdate("dashboard_courses_enrolled_in_at_least_once", coursesEnrolledIn.toString)
+//    redisUpdate("dashboard_courses_completed_at_least_once", coursesCompleted.toString)
+//    println(s"dashboard_courses_enrolled_in_at_least_once = ${coursesEnrolledIn}")
+//    println(s"dashboard_courses_completed_at_least_once = ${coursesCompleted}")
 //
 //    val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 //

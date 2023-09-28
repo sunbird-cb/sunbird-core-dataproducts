@@ -512,7 +512,7 @@ object DataUtilNew extends Serializable {
         col("reviewStatus").alias("courseReviewStatus"),
         col("channel").alias("courseChannel"),
         col("lastPublishedOn").alias("courseLastPublishedOn"),
-        col("duration").alias("courseDuration"),
+        col("duration").cast(FloatType).alias("courseDuration"),
         col("leafNodesCount").alias("courseResourceCount"),
         col("lastStatusChangedOn").alias("lastStatusChangedOn"),
         col("courseOrgID")
