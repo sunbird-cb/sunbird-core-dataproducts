@@ -1027,20 +1027,20 @@ object DataUtil extends Serializable {
     df
   }
 
-  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
-      .withColumn("contentDuration", col("data.duration"))
-      .na.fill(0.0, Seq("contentDuration"))
-      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
-
-    show(df)
-
-    df = df.groupBy("userID", "courseID", "batchID")
-      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
-
-    show(df)
-    df
-  }
+//  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
+//      .withColumn("contentDuration", col("data.duration"))
+//      .na.fill(0.0, Seq("contentDuration"))
+//      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
+//
+//    show(df)
+//
+//    df = df.groupBy("userID", "courseID", "batchID")
+//      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
+//
+//    show(df)
+//    df
+//  }
 
   /**
    * get course completion data with details attached
@@ -1079,17 +1079,17 @@ object DataUtil extends Serializable {
     df
   }
 
-  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val userContentConsumptionDF = userContentConsumptionDataFrame()
-    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
-
-    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
-      .na.fill(0.0, Seq("courseDurationCompleted"))
-      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
-
-    show(df, "addCourseDurationCompletedColumns")
-    df
-  }
+//  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    val userContentConsumptionDF = userContentConsumptionDataFrame()
+//    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
+//
+//    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
+//      .na.fill(0.0, Seq("courseDurationCompleted"))
+//      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
+//
+//    show(df, "addCourseDurationCompletedColumns")
+//    df
+//  }
 
   /**
    *
