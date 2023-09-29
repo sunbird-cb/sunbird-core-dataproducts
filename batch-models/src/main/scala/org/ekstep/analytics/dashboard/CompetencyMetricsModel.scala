@@ -98,6 +98,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
    */
   def processCompetencyMetricsData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
+    import spark.implicits._
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
@@ -149,10 +150,16 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // redis updates
     val liveCourseCompletionDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus='Live' AND userStatus=1"))
-    val coursesEnrolledIn = liveCourseCompletionDF.select("courseID").distinct().count()
-    val coursesCompleted = liveCourseCompletionDF.where(expr("dbCompletionStatus=2")).select("courseID").distinct().count()
+    val coursesEnrolledInDF = liveCourseCompletionDF.select("courseID").distinct()
+    val coursesCompletedDF = liveCourseCompletionDF.where(expr("dbCompletionStatus=2")).select("courseID").distinct()
+    val coursesEnrolledIn = coursesEnrolledInDF.count()
+    val coursesCompleted = coursesCompletedDF.count()
+    val coursesEnrolledInIdList = coursesEnrolledInDF.map(_.getString(0)).filter(_.isEmpty).collectAsList().toArray.mkString(",")
+    val coursesCompletedIdList = coursesCompletedDF.map(_.getString(0)).filter(_.isEmpty).collectAsList().toArray.mkString(",")
     redisUpdate("dashboard_courses_enrolled_in_at_least_once", coursesEnrolledIn.toString)
     redisUpdate("dashboard_courses_completed_at_least_once", coursesCompleted.toString)
+    redisUpdate("dashboard_courses_enrolled_in_at_least_once_id_list", coursesEnrolledInIdList)
+    redisUpdate("dashboard_courses_completed_at_least_once_id_list", coursesCompletedIdList)
     println(s"dashboard_courses_enrolled_in_at_least_once = ${coursesEnrolledIn}")
     println(s"dashboard_courses_completed_at_least_once = ${coursesCompleted}")
 
