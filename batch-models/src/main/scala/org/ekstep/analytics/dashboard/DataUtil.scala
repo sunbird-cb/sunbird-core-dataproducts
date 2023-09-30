@@ -1498,30 +1498,39 @@ object DataUtil extends Serializable {
 
 
   def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """SELECT userID as userid FROM \"nps-users-data\" where submitted = true AND __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
+    val query = """SELECT userID as userid FROM \"nps-users-data\" where  __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
-    show(df, "usersSubmittedFormInLast3Months")
+    if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    df = df.na.drop(Seq("userid"))
     df
 
   }
 
   def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY AND category = 'Course' AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT  COUNT(uid) AS session_count, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY GROUP BY 2) WHERE session_count >= 15)"""
+    val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY AND category IN ('Course','Program') AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT  COUNT(uid) AS session_count, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '90' DAY GROUP BY 2) WHERE session_count >= 2)"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     df = df.dropDuplicates("userid")
-    show(df, "usersCompleted1CourseORhavingMoreThan15Sessions")
     df
   }
 
 
   def npsTriggerC3DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = mongodbTableAsDataFrame(conf.mongoDatabase, conf.mongoDBCollection)
+    if (df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     df = df.na.drop(Seq("userid"))
-    show(df, "userWhohavePostedAtleast1Discussions")
     df
   }
+  
+  def userFeedFromCassandraDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
+            .select(col("userid").alias("userid"))
+            .where(col("category") === "NPS")
+    if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    df = df.na.drop(Seq("userid"))
+    df
+  }
+
 
                                   
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
