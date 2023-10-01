@@ -150,20 +150,33 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // new redis updates - start
 
-    // enrollment count and completion count
+    // enrollment count and completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveRetiredCourseCompletedDF = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus=2"))
+
     val enrolmentCount = liveRetiredCourseEnrolmentDF.count()
-    val completedCount = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus=2")).count()
+    val completedCount = liveRetiredCourseCompletedDF.count()
 
     redisUpdate("dashboard_enrolment_count", enrolmentCount.toString)
     redisUpdate("dashboard_completed_count", completedCount.toString)
     println(s"dashboard_enrolment_count = ${enrolmentCount}")
     println(s"dashboard_completed_count = ${completedCount}")
 
-    // enrolled/completed at-least once
-    val liveCourseEnrollmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
-    val coursesEnrolledInDF = liveCourseEnrollmentDF.select("courseID").distinct()
-    val coursesCompletedDF = liveCourseEnrollmentDF.where(expr("dbCompletionStatus=2")).select("courseID").distinct()
+    // unique users that enrolled-in/completed at least one course, live and retired courses
+    val uniqueUsersEnrolledCount = liveRetiredCourseEnrolmentDF.select("userID").distinct().count()
+    val uniqueUsersCompletedCount = liveRetiredCourseCompletedDF.select("userID").distinct().count()
+
+    redisUpdate("dashboard_unique_users_enrolled_count", uniqueUsersEnrolledCount.toString)
+    redisUpdate("dashboard_unique_users_completed_count", uniqueUsersCompletedCount.toString)
+    println(s"dashboard_unique_users_enrolled_count = ${uniqueUsersEnrolledCount}")
+    println(s"dashboard_unique_users_completed_count = ${uniqueUsersCompletedCount}")
+
+    // courses enrolled/completed at-least once, only live courses
+    val liveCourseEnrolmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
+    val liveCourseCompletedDF = liveRetiredCourseCompletedDF.where(expr("courseStatus='Live'"))
+
+    val coursesEnrolledInDF = liveCourseEnrolmentDF.select("courseID").distinct()
+    val coursesCompletedDF = liveCourseCompletedDF.select("courseID").distinct()
 
     val coursesEnrolledInIdList = coursesEnrolledInDF.map(_.getString(0)).filter(_.nonEmpty).collectAsList().toArray
     val coursesCompletedIdList = coursesCompletedDF.map(_.getString(0)).filter(_.nonEmpty).collectAsList().toArray
