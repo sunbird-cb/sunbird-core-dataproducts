@@ -150,6 +150,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // new redis updates - start
 
+    // new users registered yesterday
+    val usersRegisteredYesterdayCount = userDF
+      .withColumn("yesterdayStartTimestamp", date_add(date_trunc("day", current_timestamp()), -1).cast("long"))
+      .withColumn("todayStartTimestamp", date_trunc("day", current_timestamp()).cast("long"))
+      .where(expr("userCreatedTimestamp >= yesterdayStartTimestamp AND userCreatedTimestamp < todayStartTimestamp and userStatus=1"))
+      .count()
+    redisUpdate("dashboard_new_users_registered_yesterday", usersRegisteredYesterdayCount.toString)
+    println(s"dashboard_new_users_registered_yesterday = ${usersRegisteredYesterdayCount}")
+
     // enrollment count and completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveRetiredCourseCompletedDF = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus=2"))
