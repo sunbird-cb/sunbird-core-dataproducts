@@ -1498,7 +1498,7 @@ object DataUtil extends Serializable {
 
 
   def npsTriggerC1DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = """SELECT userID as userid FROM \"nps-users-data\" where  __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH"""
+    val query = """SELECT userID as userid FROM \"nps-users-data\" where  __time >= CURRENT_TIMESTAMP - INTERVAL '15' MINUTE"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
     if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     df = df.na.drop(Seq("userid"))
