@@ -52,9 +52,9 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, runValidation = false, onlyCourse = true)
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program"), runValidation = false)
 
-    val assessmentDF = assessmentESDataFrame(isAllAssess2 = true)
+    val assessmentDF = assessmentESDataFrame(Seq("Course", "Standalone Assessment", "Blended Program"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
@@ -78,32 +78,24 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     val latest = df
       .groupBy(col("assessChildID"), col("userID"))
-      .agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+      .agg(
+        max("assessEndTimestamp").alias("assessEndTimestamp"),
+        countDistinct("assessStartTime").alias("retakes")
+      )
     show(latest, "latest")
 
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
     show(df, "df 1")
 
-    df = df.withColumn("actualDuration", format_string("%02d:%02d:%02d", expr("userAssessmentDuration / 3600").cast("int"),
-      expr("userAssessmentDuration % 3600 / 60").cast("int"),
-      expr("userAssessmentDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
     show(df, "df 2")
 
-    df = df.withColumn("totalAssessmentDuration", format_string("%02d:%02d:%02d", expr("assessExpectedDuration / 3600").cast("int"),
-      expr("assessExpectedDuration % 3600 / 60").cast("int"),
-      expr("assessExpectedDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
     show(df, "df 3")
 
     val caseExpression = "CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"
     df = df.withColumn("Pass / Fail", expr(caseExpression))
     show(df, "df 4")
-
-    val retakes = df.groupBy("assessChildID", "userID").agg(
-      countDistinct("assessStartTime").alias("retakes"))
-    df = df.join(retakes, Seq("assessChildID", "userID"), "left")
-    show(df, "df 5")
 
     df = df.dropDuplicates("userID", "assessChildID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
@@ -124,6 +116,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("userOrgName").alias("Organisation"),
         col("assessChildName").alias("Assessment Name"),
         col("assessPrimaryCategory").alias("Assessment Type"),
+        col("assessLastPublishedOn").alias("Assessment Last Published"),
         col("assessOrgName").alias("Assessment Provider"),
         col("assessName").alias("Course Name"),
         col("totalAssessmentDuration").alias("Assessment Duration"),
@@ -143,7 +136,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
     generateFullReport(df, reportPath)
-    df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
+    df = df.drop("User_ID", "assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
     closeRedisConnect()

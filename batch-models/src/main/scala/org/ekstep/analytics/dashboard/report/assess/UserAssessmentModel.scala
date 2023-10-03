@@ -56,7 +56,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
-    val assessmentDF = assessmentESDataFrame()
+    val assessmentDF = assessmentESDataFrame(Seq("Standalone Assessment"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
@@ -118,6 +118,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     df = df.coalesce(1)
     val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
+    // generateFullReport(df, s"${conf.standaloneAssessmentReportPath}-test/${today}")
     generateFullReport(df, reportPath)
     df = df.drop("assessID", "assessOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")

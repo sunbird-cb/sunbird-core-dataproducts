@@ -9,6 +9,7 @@ import DashboardUtil._
 import DataUtil._
 
 import java.io.Serializable
+import java.text.SimpleDateFormat
 
 /*
 
@@ -97,10 +98,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
    */
   def processCompetencyMetricsData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
+    import spark.implicits._
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+
+    val processingTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(timestamp)
+    redisUpdate("dashboard_update_time", processingTime)
+
+    println("Spark Config:")
+    println(spark.conf.getAll)
 
     // obtain and save user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -136,11 +144,54 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
-    var allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
-    allCourseProgramCompletionWithDetailsDF = addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF, hierarchyDF)
-
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
+
+    // new redis updates - start
+
+    // enrollment count and completion count, live and retired courses
+    val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveRetiredCourseCompletedDF = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus=2"))
+
+    val enrolmentCount = liveRetiredCourseEnrolmentDF.count()
+    val completedCount = liveRetiredCourseCompletedDF.count()
+
+    redisUpdate("dashboard_enrolment_count", enrolmentCount.toString)
+    redisUpdate("dashboard_completed_count", completedCount.toString)
+    println(s"dashboard_enrolment_count = ${enrolmentCount}")
+    println(s"dashboard_completed_count = ${completedCount}")
+
+    // unique users that enrolled-in/completed at least one course, live and retired courses
+    val uniqueUsersEnrolledCount = liveRetiredCourseEnrolmentDF.select("userID").distinct().count()
+    val uniqueUsersCompletedCount = liveRetiredCourseCompletedDF.select("userID").distinct().count()
+
+    redisUpdate("dashboard_unique_users_enrolled_count", uniqueUsersEnrolledCount.toString)
+    redisUpdate("dashboard_unique_users_completed_count", uniqueUsersCompletedCount.toString)
+    println(s"dashboard_unique_users_enrolled_count = ${uniqueUsersEnrolledCount}")
+    println(s"dashboard_unique_users_completed_count = ${uniqueUsersCompletedCount}")
+
+    // courses enrolled/completed at-least once, only live courses
+    val liveCourseEnrolmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
+    val liveCourseCompletedDF = liveRetiredCourseCompletedDF.where(expr("courseStatus='Live'"))
+
+    val coursesEnrolledInDF = liveCourseEnrolmentDF.select("courseID").distinct()
+    val coursesCompletedDF = liveCourseCompletedDF.select("courseID").distinct()
+
+    val coursesEnrolledInIdList = coursesEnrolledInDF.map(_.getString(0)).filter(_.nonEmpty).collectAsList().toArray
+    val coursesCompletedIdList = coursesCompletedDF.map(_.getString(0)).filter(_.nonEmpty).collectAsList().toArray
+
+    val coursesEnrolledInCount = coursesEnrolledInIdList.length
+    val coursesCompletedCount = coursesCompletedIdList.length
+
+    redisUpdate("dashboard_courses_enrolled_in_at_least_once", coursesEnrolledInCount.toString)
+    redisUpdate("dashboard_courses_completed_at_least_once", coursesCompletedCount.toString)
+    redisUpdate("dashboard_courses_enrolled_in_at_least_once_id_list", coursesEnrolledInIdList.mkString(","))
+    redisUpdate("dashboard_courses_completed_at_least_once_id_list", coursesCompletedIdList.mkString(","))
+    println(s"dashboard_courses_enrolled_in_at_least_once = ${coursesEnrolledInCount}")
+    println(s"dashboard_courses_completed_at_least_once = ${coursesCompletedCount}")
+
+    // new redis updates - end
 
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 

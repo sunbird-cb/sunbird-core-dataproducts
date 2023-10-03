@@ -142,6 +142,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     df = df.coalesce(1)
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
+    // generateFullReport(df, s"${conf.userEnrolmentReportPath}-test/${today}")
     generateFullReport(df, reportPath)
     df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")

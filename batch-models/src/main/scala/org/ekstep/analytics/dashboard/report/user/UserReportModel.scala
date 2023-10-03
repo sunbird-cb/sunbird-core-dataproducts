@@ -100,6 +100,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     df = df.coalesce(1)
     val reportPath = s"${conf.userReportPath}/${today}"
+    // generateFullReport(df, s"${conf.userReportPath}-test/${today}")
     generateFullReport(df, reportPath)
     df = df.drop("userID", "userOrgID")
     // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
