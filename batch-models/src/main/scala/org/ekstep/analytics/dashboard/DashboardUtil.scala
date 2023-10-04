@@ -55,7 +55,7 @@ case class DashboardConfig (
     roleUserCountTopic: String, orgRoleUserCountTopic: String,
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
-    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
+    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
     userAssessmentTopic: String, assessmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
@@ -529,6 +529,7 @@ object DashboardUtil extends Serializable {
       declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
       competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
       userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      orgTopic = getConfigSideTopic(config, "org"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       assessmentTopic = getConfigSideTopic(config, "assessment"),
       // cassandra key spaces
