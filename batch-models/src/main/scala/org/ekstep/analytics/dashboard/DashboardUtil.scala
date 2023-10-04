@@ -60,6 +60,7 @@ case class DashboardConfig (
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+    cassandraUserFeedKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
@@ -81,6 +82,7 @@ case class DashboardConfig (
     // mongoDB configurations
     mongoDBCollection: String,
     mongoDatabase: String,
+    platformRatingSurveyId: String,
 
     // for reports
     mdoIDs: String,
@@ -533,6 +535,7 @@ object DashboardUtil extends Serializable {
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
       // cassandra table details
       cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
       cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
@@ -567,6 +570,7 @@ object DashboardUtil extends Serializable {
       //mongoBD configurations
       mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
       mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
+      platformRatingSurveyId = getConfigModelParam(config, "platformRatingSurveyId"),
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
