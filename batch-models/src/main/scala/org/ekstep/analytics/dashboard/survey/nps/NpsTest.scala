@@ -73,6 +73,8 @@ object NpsTest extends Serializable{
       "secret" -> "aws_storage_secret",
       "store" -> "s3",
       "container" -> "igot",
+      "platformRatingSurveyId" -> "1696404440829",
+      
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
