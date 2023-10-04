@@ -148,12 +148,13 @@ object DataUtil extends Serializable {
       StructField("totalQuestions", IntegerType, nullable = false),
       StructField("maxQuestions", IntegerType, nullable = false),
       StructField("expectedDuration", IntegerType, nullable = false),
+      StructField("primaryCategory", StringType, nullable = false),
       StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
     ))
     val submitAssessmentRequestSchema: StructType = StructType(Seq(
       StructField("courseId", StringType, nullable = false),
       StructField("batchId", StringType, nullable = false),
-      StructField("primaryCategory", StringType, nullable = false),
+     // StructField("primaryCategory", StringType, nullable = false),
       StructField("isAssessment", BooleanType, nullable = false),
       StructField("timeLimit", IntegerType, nullable = false)
     ))
@@ -1369,7 +1370,8 @@ object DataUtil extends Serializable {
       col("readResponse.status").alias("assessReadStatus"),
 
       col("submitRequest.batchId").alias("assessBatchID"),
-      col("submitRequest.primaryCategory").alias("assessPrimaryCategory"),
+     // col("submitRequest.primaryCategory").alias("assessPrimaryCategory"),
+      col("readResponse.primaryCategory").alias("assessPrimaryCategory"),
       col("submitRequest.courseId").alias("courseID"),
       col("submitRequest.isAssessment").cast(IntegerType).alias("assessIsAssessment"),
       col("submitRequest.timeLimit").alias("assessTimeLimit"),
