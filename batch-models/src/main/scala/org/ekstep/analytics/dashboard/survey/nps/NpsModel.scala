@@ -73,14 +73,14 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val finalFeedCount = storeToCassandraDF.count()
     println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
 
-
+    print("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":"+conf.platformRatingSurveyId+"}}")
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
 
     val additionalDF = storeToCassandraDF.withColumn("category", lit("NPS"))
       .withColumn("id", expr("uuid()").cast(StringType))
       .withColumn("createdby", lit("platform_rating"))
       .withColumn("createdon", current_date())
-      .withColumn("action", lit("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":1694585805603}}"))
+      .withColumn("action", lit("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":"+conf.platformRatingSurveyId+"}}"))
       .withColumn("expireon", lit(null.asInstanceOf[String]))
       .withColumn("priority", lit(1))
       .withColumn("status", lit("unread"))
