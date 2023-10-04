@@ -180,14 +180,11 @@ object DashboardUtil extends Serializable {
       ids.foreach(id => {
         val orgReportPath = new File(s"${reportTempPath}/mdoid=${id}/")
         val csvFiles = orgReportPath.listFiles().filter(f => {f.getName.startsWith("part-") && f.getName.endsWith(".csv")})
-        println(csvFiles.mkString(","))
 
         csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
           val (csvFile, index) = csvFileWithIndex
-          println(csvFile)
-          println(index)
           val customizedPath = new File(s"${reportTempPath}/mdoid=${id}/${fileName}${if (index == 0) "" else index}.csv")
-          println(s"RENAME: renaming ${csvFile} to ${customizedPath}")
+          // println(s"RENAME: renaming ${csvFile} to ${customizedPath}")
           csvFile.renameTo(customizedPath)
         })
 
@@ -480,9 +477,9 @@ object DashboardUtil extends Serializable {
     val df = spark.read.schema(schema).format("com.mongodb.spark.sql.DefaultSource").option("database", mongodatabase).option("collection", collection).load()
     val filterDf = df.select("sunbird-oidcId").where(col("username").isNotNull or col("topiccount") > 0 and (col("postcount") > 0))
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
-    renamedDF.show(false)
     renamedDF
   }
+
 
 
   /* Config functions */

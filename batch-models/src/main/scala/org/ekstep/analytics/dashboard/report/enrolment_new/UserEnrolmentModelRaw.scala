@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.enrolment_new
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtilNew._
@@ -11,11 +11,11 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object UserEnrolmentModelRaw extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModelNew"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModelRaw"
 
-  override def name() = "UserEnrolmentModelNew"
+  override def name() = "UserEnrolmentModelRaw"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
@@ -71,8 +71,20 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     val userRatingDF = userCourseRatingDataframe()
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    var allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
     show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
+//
+//    allCourseProgramCompletionWithDetailsDF = userCourseCompletionStatus(allCourseProgramCompletionWithDetailsDF)
+//    allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDF
+//      .withColumn("rawCompletionPercent", expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+//      .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+//      .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
+//      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+//      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
+//      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
+//      .select(col("courseID", col("courseName", col("courseStatus", col("courseOrgID", col("userID"), col("courseProgress"),
+//        "courseResourceCount", "userCourseCompletionStatus", "issuedCertificateCount")
+
 
     val courseBatchDF = courseBatchDataFrame()
     val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")

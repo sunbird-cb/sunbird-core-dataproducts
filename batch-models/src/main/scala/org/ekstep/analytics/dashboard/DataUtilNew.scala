@@ -518,12 +518,10 @@ object DataUtilNew extends Serializable {
         col("courseOrgID")
       )
 
-
     df = df.dropDuplicates("courseID", "category")
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
-    // df = timestampStringToLong(df, Seq("courseLastPublishedOn"), "yyyy-MM-dd'T'HH:mm:ss")
     df = durationFormat(df, "courseDuration")
     show(df, "allCourseProgramESDataFrame")
     df
@@ -552,7 +550,6 @@ object DataUtilNew extends Serializable {
         col("leafNodesCount").alias("cbpChildCount"),
         col("cbpOrgID")
       )
-
 
     df = df.dropDuplicates("cbpID", "cbpCategory")
     df = df.na.fill(0.0, Seq("cbpDuration")).na.fill(0, Seq("cbpChildCount"))
@@ -638,6 +635,7 @@ object DataUtilNew extends Serializable {
         col("assessOrgID"),
         col("assessOrgName"),
         col("assessStatus"),
+        col("assessLastPublishedOn"),
 
         col("data.children").alias("children"),
         col("data.publish_type").alias("assessPublishType"),
@@ -648,7 +646,6 @@ object DataUtilNew extends Serializable {
         col("data.visibility").alias("assessVisibility"),
         col("data.createdOn").alias("assessCreatedOn"),
         col("data.lastUpdatedOn").alias("assessLastUpdatedOn"),
-        col("data.lastPublishedOn").alias("assessLastPublishedOn"),
         col("data.lastSubmittedOn").alias("assessLastSubmittedOn")
       )
 
@@ -774,15 +771,16 @@ object DataUtilNew extends Serializable {
     } else {
       Seq("Course", "Program")
     }
-    val hierarchySchema = Schema.makeHierarchySchema(true, true)
+    // val hierarchySchema = Schema.makeHierarchySchema(true, true)
 
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
-    val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
       .withColumn("courseActualOrgId", col("courseOrgID"))
+    //val hierarchyDF = contentHierarchyDataFrame().withColumn("hStruct", from_json(col("hierarchy"), hierarchySchema))
+    //  .withColumn("courseActualOrgId", col("courseOrgID"))
       // .withColumn("lastStatusChangedOn", col("hStruct.lastStatusChangedOn"))
 
     val courseWithHierarchyInfo = allCourseProgramESDF
-      .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
+      // .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
       .select("courseID", "category", "courseName", "courseStatus", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
 
     courseWithHierarchyInfo
@@ -1019,20 +1017,20 @@ object DataUtilNew extends Serializable {
     df
   }
 
-  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
-      .withColumn("contentDuration", col("data.duration"))
-      .na.fill(0.0, Seq("contentDuration"))
-      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
-
-    show(df)
-
-    df = df.groupBy("userID", "courseID", "batchID")
-      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
-
-    show(df)
-    df
-  }
+//  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
+//      .withColumn("contentDuration", col("data.duration"))
+//      .na.fill(0.0, Seq("contentDuration"))
+//      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
+//
+//    show(df)
+//
+//    df = df.groupBy("userID", "courseID", "batchID")
+//      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
+//
+//    show(df)
+//    df
+//  }
 
   /**
    * get course completion data with details attached
@@ -1097,17 +1095,17 @@ object DataUtilNew extends Serializable {
     df
   }
 
-  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val userContentConsumptionDF = userContentConsumptionDataFrame()
-    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
-
-    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
-      .na.fill(0.0, Seq("courseDurationCompleted"))
-      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
-
-    show(df, "addCourseDurationCompletedColumns")
-    df
-  }
+//  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    val userContentConsumptionDF = userContentConsumptionDataFrame()
+//    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
+//
+//    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
+//      .na.fill(0.0, Seq("courseDurationCompleted"))
+//      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
+//
+//    show(df, "addCourseDurationCompletedColumns")
+//    df
+//  }
 
   /**
    *
