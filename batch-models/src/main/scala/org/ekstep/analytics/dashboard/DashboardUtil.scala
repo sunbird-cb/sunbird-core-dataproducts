@@ -477,9 +477,9 @@ object DashboardUtil extends Serializable {
     val df = spark.read.schema(schema).format("com.mongodb.spark.sql.DefaultSource").option("database", mongodatabase).option("collection", collection).load()
     val filterDf = df.select("sunbird-oidcId").where(col("username").isNotNull or col("topiccount") > 0 and (col("postcount") > 0))
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
-    renamedDF.show(false)
     renamedDF
   }
+
 
 
   /* Config functions */

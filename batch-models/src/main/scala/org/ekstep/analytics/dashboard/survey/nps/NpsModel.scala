@@ -51,38 +51,54 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-
-    val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the surveyform in last 3 months
-    val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 15 sessions in last 3 months
+ val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the surveyform in last 3 months
+    val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
     val df = druidData2.union(mongodbData)
-    show(df)
+    val druidData1Count = druidData1.count()
+    println(s"DataFrame Count for set of users who have submitted the form: $druidData1Count")
+    val druidData2Count = druidData2.count()
+    println(s"DataFrame Count for set of users who have completed a course or have had atleast 15 sessions: $druidData2Count")
+    val mongodbDataCount = mongodbData.count()
+    println(s"DataFrame Count for set of users who have posted atleast 1 discussion: $mongodbDataCount")
+    val totalCount = df.count()
+    println(s"DataFrame Count for users who are eligible: $totalCount")
     val filteredDF = df.except(druidData1)
-    show(filteredDF)
+    val filteredCount = filteredDF.count()
+    println(s"DataFrame Count for set of users who are eligible and not filled form: $filteredCount")
+   // check if the feed for these users is alreday there
+    val cassandraDF = userFeedFromCassandraDataFrame()
+    val existingFeedCount = cassandraDF.count()
+    println(s"DataFrame Count for users who have feed data: $existingFeedCount")
+    val storeToCassandraDF = filteredDF.except(cassandraDF)
+    val finalFeedCount = storeToCassandraDF.count()
+    println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
+
 
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
 
-    val additionalDF = filteredDF.withColumn("category", lit("NPS"))
-      //val additionalDF = df.withColumn("category", lit("NPS"))
+    val additionalDF = storeToCassandraDF.withColumn("category", lit("NPS"))
       .withColumn("id", expr("uuid()").cast(StringType))
       .withColumn("createdby", lit("platform_rating"))
       .withColumn("createdon", current_date())
-      .withColumn("data", lit("{\"formId\":1694585805603}"))
+      .withColumn("action", lit("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":1694585805603}}"))
       .withColumn("expireon", lit(null.asInstanceOf[String]))
       .withColumn("priority", lit(1))
       .withColumn("status", lit("unread"))
       .withColumn("updatedby", lit(null.asInstanceOf[String]))
       .withColumn("updatedon", lit(null.asInstanceOf[String]))
+      .withColumn("version", lit("v1"))
 
 
     show(additionalDF)
 
 // write the dataframe to cassandra user_feed table
 
-    additionalDF.write
+   additionalDF.write
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("keyspace" -> conf.cassandraUserKeyspace , "table" -> conf.cassandraUserFeedTable))
+      .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
       .mode("append")
-      .save()
+     .save()
   }
+
 }
