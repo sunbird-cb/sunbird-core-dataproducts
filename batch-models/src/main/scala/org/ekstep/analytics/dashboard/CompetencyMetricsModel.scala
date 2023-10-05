@@ -114,6 +114,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     userDF.drop("userProfileDetails")
     userOrgDF.drop("userProfileDetails")
+    // kafkaDispatch(withTimestamp(orgDF, timestamp), conf.orgTopic)
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
     // obtain and save role count data
@@ -149,6 +150,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
     // new redis updates - start
+
+    // new users registered yesterday
+    val usersRegisteredYesterdayDF = userDF
+      .withColumn("yesterdayStartTimestamp", date_trunc("day", date_sub(current_timestamp(), 1)).cast("long"))
+      .withColumn("todayStartTimestamp", date_trunc("day", current_timestamp()).cast("long"))
+    show(usersRegisteredYesterdayDF, "usersRegisteredYesterdayDF")
+    val usersRegisteredYesterdayCount = usersRegisteredYesterdayDF
+      .where(expr("userCreatedTimestamp >= yesterdayStartTimestamp AND userCreatedTimestamp < todayStartTimestamp and userStatus=1"))
+      .count()
+    redisUpdate("dashboard_new_users_registered_yesterday", usersRegisteredYesterdayCount.toString)
+    println(s"dashboard_new_users_registered_yesterday = ${usersRegisteredYesterdayCount}")
 
     // enrollment count and completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
