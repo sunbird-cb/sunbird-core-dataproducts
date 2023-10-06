@@ -96,24 +96,16 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.withColumn("Pass", expr(caseExpression))
     show(df, "df 4")
 
-    df = df.
-      withColumn("assessPercentage", when(col("assessPassPercentage").isNotNull, col("assessPassPercentage"))
+    df = df
+      .withColumn("assessPercentage", when(col("assessPassPercentage").isNotNull, col("assessPassPercentage"))
         .otherwise(lit("Need to pass in all sections")))
-
-    df = df.
-      withColumn("assessment_type", when(col("assessCategory") === "Standalone Assessment", col("assessCategory"))
+      .withColumn("assessment_type", when(col("assessCategory") === "Standalone Assessment", col("assessCategory"))
         .when(col("assessPrimaryCategory").isNotNull, col("assessPrimaryCategory"))
         .otherwise(lit("")))
-
-    df = df.
-      withColumn("assessment_course_name", when(col("assessment_type") === "Course Assessment", col("assessName"))
+      .withColumn("assessment_course_name", when(col("assessment_type") === "Course Assessment", col("assessName"))
         .otherwise(lit("")))
-
-    df = df.
-      withColumn("Total_Score_Calculated", when(col("assessMaxQuestions").isNotNull, col("assessMaxQuestions") * 1))
-
-    df = df.
-      withColumn("course_id", when(col("assessCategory") === "Standalone Assessment", lit(""))
+      .withColumn("Total_Score_Calculated", when(col("assessMaxQuestions").isNotNull, col("assessMaxQuestions") * 1))
+      .withColumn("course_id", when(col("assessCategory") === "Standalone Assessment", lit(""))
         .otherwise(col("assessID")))
 
     df = df.dropDuplicates("userID", "assessChildID")
