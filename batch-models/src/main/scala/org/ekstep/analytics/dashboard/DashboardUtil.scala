@@ -55,11 +55,12 @@ case class DashboardConfig (
     roleUserCountTopic: String, orgRoleUserCountTopic: String,
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
-    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
+    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
     userAssessmentTopic: String, assessmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+    cassandraUserFeedKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
@@ -81,6 +82,7 @@ case class DashboardConfig (
     // mongoDB configurations
     mongoDBCollection: String,
     mongoDatabase: String,
+    platformRatingSurveyId: String,
 
     // for reports
     mdoIDs: String,
@@ -527,12 +529,14 @@ object DashboardUtil extends Serializable {
       declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
       competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
       userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      orgTopic = getConfigSideTopic(config, "org"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       assessmentTopic = getConfigSideTopic(config, "assessment"),
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
       // cassandra table details
       cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
       cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
@@ -567,6 +571,7 @@ object DashboardUtil extends Serializable {
       //mongoBD configurations
       mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
       mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
+      platformRatingSurveyId = getConfigModelParam(config, "platformRatingSurveyId"),
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
