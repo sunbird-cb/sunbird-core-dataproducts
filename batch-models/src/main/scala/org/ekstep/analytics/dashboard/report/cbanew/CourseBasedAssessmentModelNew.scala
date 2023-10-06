@@ -76,7 +76,9 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
     show(df, "df 0")
 
-    val latest = df
+    val assessSubmitted = df.filter(col("assessUserStatus") === "SUBMITTED")
+
+    val latest = assessSubmitted
       .groupBy(col("assessChildID"), col("userID"))
       .agg(
         max("assessEndTimestamp").alias("assessEndTimestamp"),
@@ -87,15 +89,16 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
     show(df, "df 1")
 
-    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
-    show(df, "df 2")
-
     df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
     show(df, "df 3")
 
     val caseExpression = "CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"
-    df = df.withColumn("Pass / Fail", expr(caseExpression))
+    df = df.withColumn("Pass", expr(caseExpression))
     show(df, "df 4")
+
+    df = df.
+      withColumn("assessPercentage", when(col("assessPassPercentage").isNotNull, col("assessPassPercentage"))
+        .otherwise(lit("Need to pass in all sections")))
 
     df = df.
       withColumn("assessment_type", when(col("assessCategory") === "Standalone Assessment", col("assessCategory"))
@@ -106,40 +109,43 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
       withColumn("assessment_course_name", when(col("assessment_type") === "Course Assessment", col("assessName"))
         .otherwise(lit("")))
 
+    df = df.
+      withColumn("Total_Score_Calculated", when(col("assessMaxQuestions").isNotNull, col("assessMaxQuestions") * 1))
+
+    df = df.
+      withColumn("course_id", when(col("assessCategory") === "Standalone Assessment", lit(""))
+        .otherwise(col("assessID")))
 
     df = df.dropDuplicates("userID", "assessChildID")
-      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
       .select(
-        col("userID").alias("User_ID"),
-        col("assessID"),
+        col("userID").alias("User ID"),
         col("assessOrgID"),
         col("assessChildID"),
         col("userOrgID"),
-        col("fullName").alias("Full Name"),
+        col("fullName").alias("Full name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("E mail"),
-        col("personalDetails.mobile").alias("Phone Number"),
+        col("personalDetails.mobile").alias("Phone number"),
         col("professionalDetails.group").alias("Group"),
-        col("Tag"),
+        col("Tags"),
         col("ministry_name").alias("Ministry"),
         col("dept_name").alias("Department"),
         col("userOrgName").alias("Organisation"),
-        col("assessChildName").alias("Assessment Name"),
-        col("assessment_type").alias("Assessment Type"),
-
-        from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment Last Published"),
-        col("assessOrgName").alias("Assessment Provider"),
-        col("assessment_course_name").alias("Course Name"),
-
-        col("totalAssessmentDuration").alias("Assessment Duration"),
-        col("actualDuration").alias("Time spent by the user"),
-        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Completion Date"),
-        col("assessResult").alias("Score Achieved"),
-        col("assessOverallResult").alias("Overall Score"),
-        col("assessPassPercentage").alias("Cut off Percentage"),
-        col("Pass / Fail").alias("Pass"),
-        col("assessTotalQuestions").alias("Total Questions"),
+        col("assessChildName").alias("Assessment name"),
+        col("assessment_type").alias("Assessment type"),
+        col("assessOrgName").alias("Assessment/CBP provider"),
+        from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment publish date"),
+        col("assessment_course_name").alias("Course name"),
+        col("course_id").alias("Course ID"),
+        col("totalAssessmentDuration").alias("Assessment duration"),
+        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last Attempted Date"),
+        col("assessOverallResult").alias("Latest percentage achieved"),
+        col("assessPercentage").alias("Cut off percentage"),
+        col("Pass"),
+        col("assessMaxQuestions").alias("Total Questions"),
         col("assessIncorrect").alias("No.of incorrect responses"),
+        col("assessBlank").alias("Unattempted questions"),
         col("retakes").alias("No.of retakes"),
         col("userOrgID").alias("mdoid")
       )
@@ -148,10 +154,10 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
     generateFullReport(df, reportPath)
-    df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
+    df = df.drop("assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
+    //   df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save("/tmp/test/assessment.csv")
     closeRedisConnect()
-
   }
 }

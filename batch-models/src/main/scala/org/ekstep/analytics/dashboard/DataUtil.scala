@@ -141,15 +141,15 @@ object DataUtil extends Serializable {
 
     /* assessment related schema */
     val assessmentReadResponseSchema: StructType = StructType(Seq(
-      StructField("name", StringType, nullable = false),
-      StructField("objectType", StringType, nullable = false),
-      StructField("version", IntegerType, nullable = false),
-      StructField("status", StringType, nullable = false),
-      StructField("totalQuestions", IntegerType, nullable = false),
-      StructField("maxQuestions", IntegerType, nullable = false),
-      StructField("expectedDuration", IntegerType, nullable = false),
-      StructField("primaryCategory", StringType, nullable = false),
-      StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
+      StructField("name", StringType, nullable = true),
+      StructField("objectType", StringType, nullable = true),
+      StructField("version", IntegerType, nullable = true),
+      StructField("status", StringType, nullable = true),
+      StructField("totalQuestions", IntegerType, nullable = true),
+      StructField("maxQuestions", IntegerType, nullable = true),
+      StructField("expectedDuration", IntegerType, nullable = true),
+      StructField("primaryCategory", StringType, nullable = true),
+      StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = true)
     ))
     val submitAssessmentRequestSchema: StructType = StructType(Seq(
       StructField("courseId", StringType, nullable = false),
@@ -1359,16 +1359,13 @@ object DataUtil extends Serializable {
       col("userID"),
       col("assessStartTimestamp"),
       col("assessEndTimestamp"),
-
       col("readResponse.totalQuestions").alias("assessTotalQuestions"),
       col("readResponse.maxQuestions").alias("assessMaxQuestions"),
       col("readResponse.expectedDuration").alias("assessExpectedDuration"),
       col("readResponse.version").alias("assessVersion"),
       col("readResponse.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
       col("readResponse.status").alias("assessReadStatus"),
-
       col("submitRequest.batchId").alias("assessBatchID"),
-     // col("submitRequest.primaryCategory").alias("assessPrimaryCategory"),
       col("readResponse.primaryCategory").alias("assessPrimaryCategory"),
       col("submitRequest.courseId").alias("courseID"),
       col("submitRequest.isAssessment").cast(IntegerType).alias("assessIsAssessment"),
