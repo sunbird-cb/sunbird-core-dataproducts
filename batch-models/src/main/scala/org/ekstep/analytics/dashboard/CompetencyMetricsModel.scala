@@ -151,6 +151,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // new redis updates - start
 
+    // mdo-wise registered user count
+    val activeUsersByMDODF = userDF.where(expr("userStatus=1")).groupBy("userOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_user_count_by_user_org", activeUsersByMDODF, "userOrgID", "count")
+
     // new users registered yesterday
     val usersRegisteredYesterdayDF = userDF
       .withColumn("yesterdayStartTimestamp", date_trunc("day", date_sub(current_timestamp(), 1)).cast("long"))
@@ -161,6 +165,29 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .count()
     redisUpdate("dashboard_new_users_registered_yesterday", usersRegisteredYesterdayCount.toString)
     println(s"dashboard_new_users_registered_yesterday = ${usersRegisteredYesterdayCount}")
+
+    // cbp-wise live/draft/review/retired/pending-publish course counts
+    val allCourseDF = allCourseProgramDetailsWithRatingDF.where(expr("category='Course'"))
+    val liveCourseDF = allCourseDF.where(expr("courseStatus='Live'"))
+    val draftCourseDF = allCourseDF.where(expr("courseStatus='Draft'"))
+    val reviewCourseDF = allCourseDF.where(expr("courseStatus='Review'"))
+    val retiredCourseDF = allCourseDF.where(expr("courseStatus='Retired'"))
+    val pendingPublishCourseDF = reviewCourseDF.where(expr("courseReviewStatus='Reviewed'"))
+
+    val liveCourseCountByCBPDF = liveCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_live_course_count_by_course_org", liveCourseCountByCBPDF, "courseOrgID", "count")
+
+    val draftCourseCountByCBPDF = draftCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_draft_course_count_by_course_org", draftCourseCountByCBPDF, "courseOrgID", "count")
+
+    val reviewCourseCountByCBPDF = reviewCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_review_course_count_by_course_org", reviewCourseCountByCBPDF, "courseOrgID", "count")
+
+    val retiredCourseCountByCBPDF = retiredCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_retired_course_count_by_course_org", retiredCourseCountByCBPDF, "courseOrgID", "count")
+
+    val pendingPublishCourseCountByCBPDF = pendingPublishCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_pending_publish_course_count_by_course_org", pendingPublishCourseCountByCBPDF, "courseOrgID", "count")
 
     // enrollment count and completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
@@ -173,6 +200,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     redisUpdate("dashboard_completed_count", completedCount.toString)
     println(s"dashboard_enrolment_count = ${enrolmentCount}")
     println(s"dashboard_completed_count = ${completedCount}")
+
+    // mdo-wise enrollment/completion counts
+    val liveRetiredCourseEnrolmentByMDODF = liveRetiredCourseEnrolmentDF.groupBy("userOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_enrolment_count_by_user_org", liveRetiredCourseEnrolmentByMDODF, "userOrgID", "count")
+    val liveRetiredCourseCompletedByMDODF = liveRetiredCourseCompletedDF.groupBy("userOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_completed_count_by_user_org", liveRetiredCourseCompletedByMDODF, "userOrgID", "count")
+    // cbp-wise enrollment/completion counts
+    val liveRetiredCourseEnrolmentByCBPDF = liveRetiredCourseEnrolmentDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_enrolment_count_by_course_org", liveRetiredCourseEnrolmentByCBPDF, "courseOrgID", "count")
+    val liveRetiredCourseCompletedByCBPDF = liveRetiredCourseCompletedDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    redisDispatchDataFrame("dashboard_completed_count_by_course_org", liveRetiredCourseCompletedByCBPDF, "courseOrgID", "count")
 
     // unique users that enrolled-in/completed at least one course, live and retired courses
     val uniqueUsersEnrolledCount = liveRetiredCourseEnrolmentDF.select("userID").distinct().count()
@@ -202,6 +240,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     redisUpdate("dashboard_courses_completed_at_least_once_id_list", coursesCompletedIdList.mkString(","))
     println(s"dashboard_courses_enrolled_in_at_least_once = ${coursesEnrolledInCount}")
     println(s"dashboard_courses_completed_at_least_once = ${coursesCompletedCount}")
+
+    // mdo-wise courses completed at-least once
+    val liveCourseCompletedAtLeastOnceByMDODF = liveCourseCompletedDF.groupBy("userOrgID").agg(countDistinct("courseID").alias("count"))
+    redisDispatchDataFrame("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
 
     // new redis updates - end
 

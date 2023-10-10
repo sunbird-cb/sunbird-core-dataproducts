@@ -107,12 +107,13 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
+      .withColumn("lastStatusChangedOn", to_date(col("lastStatusChangedOn"), "dd/MM/yyyy"))
+      .withColumn("ArchivedOn", when(col("courseStatus").equalTo("Retired"), col("lastStatusChangedOn")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
-      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
       .select(
         col("courseID"),
         col("courseActualOrgId"),
+        col("courseStatus"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
@@ -133,14 +134,14 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
-      )
+      ).where(expr("courseStatus IN ('Live', 'Retired')"))
     show(df)
 
     df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
     // generateFullReport(df, s"${conf.courseReportPath}-test/${today}")
     generateFullReport(df, reportPath)
-    df = df.drop("courseID", "courseActualOrgId")
+    df = df.drop("courseID", "courseActualOrgId", "courseStatus")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()
