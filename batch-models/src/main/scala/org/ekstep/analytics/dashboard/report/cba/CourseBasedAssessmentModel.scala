@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.cbanew
+package org.ekstep.analytics.dashboard.report.cba
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModelNew"
   override def name() = "CourseBasedAssessmentModelNew"
