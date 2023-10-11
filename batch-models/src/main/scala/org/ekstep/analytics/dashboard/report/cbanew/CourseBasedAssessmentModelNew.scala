@@ -2,11 +2,11 @@ package org.ekstep.analytics.dashboard.report.cbanew
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SparkSession
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
@@ -89,6 +89,9 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
     show(df, "df 1")
 
+//    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
+//    show(df, "df 2")
+
     df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
     show(df, "df 3")
 
@@ -112,6 +115,7 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
       .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
       .select(
         col("userID").alias("User ID"),
+        col("assessID"),
         col("assessOrgID"),
         col("assessChildID"),
         col("userOrgID"),
@@ -131,14 +135,14 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
         col("assessment_course_name").alias("Course name"),
         col("course_id").alias("Course ID"),
         col("totalAssessmentDuration").alias("Assessment duration"),
-        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last Attempted Date"),
+        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last attempted date"),
         col("assessOverallResult").alias("Latest percentage achieved"),
         col("assessPercentage").alias("Cut off percentage"),
         col("Pass"),
-        col("assessMaxQuestions").alias("Total Questions"),
+        col("assessMaxQuestions").alias("Total questions"),
         col("assessIncorrect").alias("No.of incorrect responses"),
         col("assessBlank").alias("Unattempted questions"),
-        col("retakes").alias("No.of retakes"),
+        col("retakes").alias("No. of retakes"),
         col("userOrgID").alias("mdoid")
       )
     show(df, "final")
@@ -149,7 +153,6 @@ object CourseBasedAssessmentModelNew extends IBatchModelTemplate[String, DummyIn
     df = df.drop("assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
-    //   df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save("/tmp/test/assessment.csv")
     closeRedisConnect()
   }
 }
