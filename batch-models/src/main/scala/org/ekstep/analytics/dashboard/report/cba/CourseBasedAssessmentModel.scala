@@ -119,30 +119,30 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("assessOrgID"),
         col("assessChildID"),
         col("userOrgID"),
-        col("fullName").alias("Full name"),
+        col("fullName").alias("Full Name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("E mail"),
-        col("personalDetails.mobile").alias("Phone number"),
+        col("personalDetails.mobile").alias("Phone Number"),
         col("professionalDetails.group").alias("Group"),
         col("Tags"),
         col("ministry_name").alias("Ministry"),
         col("dept_name").alias("Department"),
         col("userOrgName").alias("Organisation"),
-        col("assessChildName").alias("Assessment name"),
-        col("assessment_type").alias("Assessment type"),
-        col("assessOrgName").alias("Assessment/CBP provider"),
-        from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment publish date"),
-        col("assessment_course_name").alias("Course name"),
+        col("assessChildName").alias("Assessment Name"),
+        col("assessment_type").alias("Assessment Type"),
+        col("assessOrgName").alias("Assessment/CBP Provider"),
+        from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment Publish Date"),
+        col("assessment_course_name").alias("Course Name"),
         col("course_id").alias("Course ID"),
-        col("totalAssessmentDuration").alias("Assessment duration"),
-        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last attempted date"),
-        col("assessOverallResult").alias("Latest percentage achieved"),
-        col("assessPercentage").alias("Cut off percentage"),
+        col("totalAssessmentDuration").alias("Assessment Duration"),
+        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last Attempted Date"),
+        col("assessOverallResult").alias("Latest Percentage Achieved"),
+        col("assessPercentage").alias("Cut off Percentage"),
         col("Pass"),
-        col("assessMaxQuestions").alias("Total questions"),
-        col("assessIncorrect").alias("No.of incorrect responses"),
-        col("assessBlank").alias("Unattempted questions"),
-        col("retakes").alias("No. of retakes"),
+        col("assessMaxQuestions").alias("Total Questions"),
+        col("assessIncorrect").alias("No.of Incorrect Responses"),
+        col("assessBlank").alias("Unattempted Questions"),
+        col("retakes").alias("No. of Retakes"),
         col("userOrgID").alias("mdoid")
       )
     show(df, "final")
@@ -150,7 +150,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
     generateFullReport(df, reportPath)
-    df = df.drop("assessOrgID", "assessChildID", "userOrgID")
+    df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
     closeRedisConnect()
