@@ -51,7 +51,7 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
- val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the surveyform in last 3 months
+    val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the surveyform in last 3 months
     val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
     val df = druidData2.union(mongodbData)
@@ -73,10 +73,10 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val storeToCassandraDF = filteredDF.except(cassandraDF)
     val finalFeedCount = storeToCassandraDF.count()
     println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
-
+ 
     print("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":"+conf.platformRatingSurveyId+"}}")
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
-
+ 
     val additionalDF = storeToCassandraDF.withColumn("category", lit("NPS"))
       .withColumn("id", expr("uuid()").cast(StringType))
       .withColumn("createdby", lit("platform_rating"))
@@ -88,17 +88,17 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .withColumn("updatedby", lit(null.asInstanceOf[String]))
       .withColumn("updatedon", lit(null.asInstanceOf[String]))
       .withColumn("version", lit("v1"))
-
+ 
 
     show(additionalDF)
-
+ 
 // write the dataframe to cassandra user_feed table
-
-   additionalDF.write
-      .format("org.apache.spark.sql.cassandra")
-      .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
-      .mode("append")
-     .save()
+ 
+   //additionalDF.write
+   //   .format("org.apache.spark.sql.cassandra")
+   //   .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
+   //   .mode("append")
+   //  .save()
   }
 
 }
