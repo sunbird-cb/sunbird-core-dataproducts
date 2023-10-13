@@ -113,7 +113,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .select(
         col("courseID"),
         col("courseActualOrgId"),
-        col("courseStatus"),
+        col("courseStatus").alias("CBP_Status"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
@@ -130,18 +130,18 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("courseLastPublishedOn").alias("Last_Published_On"),
         col("firstCompletedOn").alias("First_Completed_On"),
         col("lastCompletedOn").alias("Last_Completed_On"),
-        col("ArchivedOn").alias("CBP_Archived_On"),
+        col("ArchivedOn").alias("CBP_Retired_On"),
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
-      ).where(expr("courseStatus IN ('Live', 'Retired')"))
+      ).where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
     show(df)
 
     df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
     // generateFullReport(df, s"${conf.courseReportPath}-test/${today}")
     generateFullReport(df, reportPath)
-    df = df.drop("courseID", "courseActualOrgId", "courseStatus")
+    df = df.drop("courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()

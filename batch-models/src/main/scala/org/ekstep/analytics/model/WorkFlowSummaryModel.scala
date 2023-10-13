@@ -216,6 +216,7 @@ object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, M
                         }
                 }
             }
+
             if(currSummary != null && !currSummary.isClosed){
                 currSummary.close(currSummary.summaryEvents, config)
                 summEvents ++= currSummary.summaryEvents

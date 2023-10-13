@@ -126,7 +126,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userCourseCompletionStatus").alias("Status"),
         col("completionPercentage").alias("CBP_Progress_Percentage"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
-        col("ArchivedOn").alias("CBP_Archived_On"),
+        col("ArchivedOn").alias("CBP_Retired_On"),
         col("completedOn").alias("Completed_On"),
         col("Certificate_Generated"),
         col("userRating").alias("User_Rating"),
