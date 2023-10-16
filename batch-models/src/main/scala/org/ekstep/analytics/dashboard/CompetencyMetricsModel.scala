@@ -150,6 +150,11 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
     // new redis updates - start
+    // MDO onboarded, with atleast one MDO_ADMIN/MDO_LEADER
+    val orgWithMdoAdminLeaderCount = orgRoleCount.where(expr("role IN ('MDO_ADMIN', 'MDO_LEADER') AND count > 0")).select("orgID").distinct().count()
+    val orgWithMdoAdminCount = orgRoleCount.where(expr("role IN ('MDO_ADMIN') AND count > 0")).select("orgID").distinct().count()
+    redisUpdate("dashboard_org_with_mdo_admin_leader_count", orgWithMdoAdminLeaderCount.toString)
+    redisUpdate("dashboard_org_with_mdo_admin_count", orgWithMdoAdminCount.toString)
 
     // mdo-wise registered user count
     val activeUsersByMDODF = userDF.where(expr("userStatus=1")).groupBy("userOrgID").agg(count("*").alias("count"))
@@ -184,6 +189,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     redisDispatchDataFrame[Long]("dashboard_retired_course_count_by_course_org", retiredCourseCountByCBPDF, "courseOrgID", "count")
     val pendingPublishCourseCountByCBPDF = pendingPublishCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
     redisDispatchDataFrame[Long]("dashboard_pending_publish_course_count_by_course_org", pendingPublishCourseCountByCBPDF, "courseOrgID", "count")
+
+    // MDO with at least one live course
+    val orgWithLiveCourseCount = liveCourseDF.select("courseOrgID").distinct().count()
+    redisUpdate("dashboard_cbp_with_live_course_count", orgWithLiveCourseCount.toString)
+
+    // Average rating across all live courses, and by CBP
+    val avgRatingOverall = liveCourseDF.agg(avg("ratingAverage").alias("ratingAverage")).select("ratingAverage").first().getDouble(0)
+    redisUpdate("dashboard_course_average_rating_overall", avgRatingOverall.toString)
+
+    val avgRatingByCBPDF = liveCourseDF.groupBy("courseOrgID").agg(avg("ratingAverage").alias("ratingAverage"))
+    redisDispatchDataFrame[Double]("dashboard_course_average_rating_by_course_org", avgRatingByCBPDF, "courseOrgID", "ratingAverage")
 
     // top 5 courses - by user rating
     //
