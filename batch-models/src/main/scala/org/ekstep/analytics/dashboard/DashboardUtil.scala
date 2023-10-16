@@ -129,8 +129,7 @@ object DashboardUtil extends Serializable {
           .config("es.index.auto.create", "false")
           .config("es.nodes.wan.only", "true")
           .config("es.nodes.discovery", "false")
-//          .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Nodebb.Objects")
-          .config("spark.mongodb.input.uri", mongodbHost)
+          .config("spark.mongodb.input.uri", s"mongodb://${mongodbHost}/Nodebb.Objects")
           .config("spark.mongodb.input.sampleSize", 50000)
           .getOrCreate()
       val sc: SparkContext = spark.sparkContext
@@ -481,8 +480,6 @@ object DashboardUtil extends Serializable {
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
     renamedDF
   }
-
-
 
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
