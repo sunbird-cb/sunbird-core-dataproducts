@@ -193,12 +193,16 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // MDO with at least one live course
     val orgWithLiveCourseCount = liveCourseDF.select("courseOrgID").distinct().count()
     redisUpdate("dashboard_cbp_with_live_course_count", orgWithLiveCourseCount.toString)
+    println(s"dashboard_cbp_with_live_course_count = ${orgWithLiveCourseCount}")
 
-    // Average rating across all live courses, and by CBP
-    val avgRatingOverall = liveCourseDF.agg(avg("ratingAverage").alias("ratingAverage")).select("ratingAverage").first().getDouble(0)
+    // Average rating across all live courses with ratings, and by CBP
+    val ratedLiveCourseDF = liveCourseDF.where(col("ratingAverage").isNotNull)
+    val avgRatingOverall = ratedLiveCourseDF.agg(avg("ratingAverage").alias("ratingAverage")).select("ratingAverage").first().getDouble(0)
     redisUpdate("dashboard_course_average_rating_overall", avgRatingOverall.toString)
+    println(s"dashboard_course_average_rating_overall = ${avgRatingOverall}")
 
-    val avgRatingByCBPDF = liveCourseDF.groupBy("courseOrgID").agg(avg("ratingAverage").alias("ratingAverage"))
+    val avgRatingByCBPDF = ratedLiveCourseDF.groupBy("courseOrgID").agg(avg("ratingAverage").alias("ratingAverage"))
+    show(avgRatingByCBPDF, "avgRatingByCBPDF")
     redisDispatchDataFrame[Double]("dashboard_course_average_rating_by_course_org", avgRatingByCBPDF, "courseOrgID", "ratingAverage")
 
     // top 5 courses - by user rating
