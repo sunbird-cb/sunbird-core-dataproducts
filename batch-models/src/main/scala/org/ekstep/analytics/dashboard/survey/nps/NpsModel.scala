@@ -55,9 +55,9 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
 
-    //csvWrite(druidData1.coalesce(1), "/tmp/nps-test/druidData1/")
-    //csvWrite(druidData2.coalesce(1), "/tmp/nps-test/druidData2/")
-    //csvWrite(mongodbData.coalesce(1), "/tmp/nps-test/mongodbData/")
+    csvWrite(druidData1.coalesce(1), "/tmp/nps-test/druidData1/")
+    csvWrite(druidData2.coalesce(1), "/tmp/nps-test/druidData2/")
+    csvWrite(mongodbData.coalesce(1), "/tmp/nps-test/mongodbData/")
 
     val df = druidData2.union(mongodbData)
     val druidData1Count = druidData1.count()
@@ -73,7 +73,7 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     println(s"DataFrame Count for set of users who are eligible and not filled form: $filteredCount")
    // check if the feed for these users is alreday there
     val cassandraDF = userFeedFromCassandraDataFrame()
-    // csvWrite(cassandraDF.coalesce(1), "/tmp/nps-test/cassandraDF/")
+    csvWrite(cassandraDF.coalesce(1), "/tmp/nps-test/cassandraDF/")
 
     val existingFeedCount = cassandraDF.count()
     println(s"DataFrame Count for users who have feed data: $existingFeedCount")
@@ -97,7 +97,7 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .withColumn("version", lit("v1"))
  
     show(additionalDF)
-    // csvWrite(additionalDF.coalesce(1), "/tmp/nps-test/additionalDF/")
+    csvWrite(additionalDF.coalesce(1), "/tmp/nps-test/additionalDF/")
 
     // write the dataframe to cassandra user_feed table
    additionalDF.write
