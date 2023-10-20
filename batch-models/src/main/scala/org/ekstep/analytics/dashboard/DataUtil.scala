@@ -531,7 +531,7 @@ object DataUtil extends Serializable {
   def allAssessmentESDataFrame(isAllAssess: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val primaryCategories = if (isAllAssess) {
-      Seq("Course", "Standalone Assessment", "Blended Program")
+      Seq("Course", "Standalone Assessment", "Blended Program","Curated Program")
     } else {
       Seq("Standalone Assessment")
     }
@@ -760,7 +760,7 @@ object DataUtil extends Serializable {
   }
 
   def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course", "Program"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
-    val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+    val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Curated Program")
     val notAllowed = primaryCategories.toSet.diff(allowedCategories.toSet)
     if (notAllowed.nonEmpty) {
       throw new Exception(s"Category not allowed: ${notAllowed.mkString(", ")}")
