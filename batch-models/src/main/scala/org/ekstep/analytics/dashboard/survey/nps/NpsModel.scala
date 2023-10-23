@@ -70,13 +70,12 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val existingFeedCount = cassandraDF.count()
     println(s"DataFrame Count for users who have feed data: $existingFeedCount")
     val storeToCassandraDF = filteredDF.except(cassandraDF)
-    val finalFeedCount = storeToCassandraDF.count()
+    val filteredStoreToCassandraDF = storeToCassandraDF.filter(col("userid").isNotNull && col("userid") =!= "" && col("userid") =!= "''")
+    val finalFeedCount = filteredStoreToCassandraDF.count()
     println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
- 
-    print("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":"+conf.platformRatingSurveyId+"}}")
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
  
-    val additionalDF = storeToCassandraDF.withColumn("category", lit("NPS"))
+    val additionalDF = filteredStoreToCassandraDF.withColumn("category", lit("NPS"))
       .withColumn("id", expr("uuid()").cast(StringType))
       .withColumn("createdby", lit("platform_rating"))
       .withColumn("createdon", current_date())
@@ -93,11 +92,11 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
  
 // write the dataframe to cassandra user_feed table
  
-   //additionalDF.write
-   //   .format("org.apache.spark.sql.cassandra")
-   //   .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
-   //   .mode("append")
-   //  .save()
+   additionalDF.write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
+      .mode("append")
+     .save()
   }
 
 }
