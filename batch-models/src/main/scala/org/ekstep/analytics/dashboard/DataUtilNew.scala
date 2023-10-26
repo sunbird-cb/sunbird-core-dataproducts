@@ -530,7 +530,7 @@ object DataUtilNew extends Serializable {
   def allAssessmentESDataFrame(isAllAssess: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val primaryCategories = if (isAllAssess) {
-      Seq("Course", "Standalone Assessment", "Blended Program")
+      Seq("Course", "Standalone Assessment", "Blended Program","Curated Program")
     } else {
       Seq("Standalone Assessment")
     }
@@ -767,7 +767,7 @@ object DataUtilNew extends Serializable {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
-      Seq("Course", "Program", "Blended Program", "CuratedCollections")
+      Seq("Course", "Program", "Blended Program", "CuratedCollections","Curated Program")
     } else {
       Seq("Course", "Program")
     }
