@@ -33,7 +33,8 @@ object CompetencyMetricsTest extends Serializable {
         "expectedCompetency" -> "dev.dashboards.competency.expected",
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
-        "userOrg" -> "dev.dashboards.user.org"
+        "userOrg" -> "dev.dashboards.user.org",
+        "org" -> "dev.dashboards.org"
       )
     )
     val modelParams = Map(

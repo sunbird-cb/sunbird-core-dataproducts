@@ -73,7 +73,7 @@ object UserAssessmentTest extends Serializable {
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
-      "userAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
+      "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 

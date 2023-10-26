@@ -47,10 +47,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPathCBP = s"/tmp/standalone-reports/user-assessment-report-cbp/${today}/"
-    // val reportPathMDO = s"/tmp/standalone-reports/user-assessment-report-mdo/${today}/"
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -59,7 +56,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
-    val assessmentDF = assessmentESDataFrame()
+    val assessmentDF = assessmentESDataFrame(Seq("Standalone Assessment"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
@@ -77,13 +74,17 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     var df = userAssessChildrenDetailsDF
 
     // get the mdoids for which the report are requesting
-    val mdoID = conf.mdoIDs
-    val mdoIDDF = mdoIDsDF(mdoID)
+    // val mdoID = conf.mdoIDs
+    // val mdoIDDF = mdoIDsDF(mdoID)
 
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
-    df = df.join(mdoData, Seq("assessOrgID"), "inner")
+    // val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("assessOrgID"), col("orgName"))
+    // df = df.join(mdoData, Seq("assessOrgID"), "inner")
 
-    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
+    val latest = df.groupBy(col("assessChildID"), col("userID"))
+      .agg(
+        max("assessEndTimestamp").alias("assessEndTimestamp"),
+        expr("COUNT(*)").alias("noOfAttempts")
+      )
 
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
 
@@ -96,12 +97,12 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    val attemptCountDF = df.groupBy("userID", "assessID").agg(expr("COUNT(*)").alias("noOfAttempts"))
-
     df = df
       .dropDuplicates("userID", "assessID")
-      .join(attemptCountDF, Seq("userID", "assessID"), "left")
       .select(
+        col("userID").alias("User_ID"),
+        col("assessID"),
+        col("assessOrgID"),
         col("fullName").alias("Full_Name"),
         col("assessName").alias("Assessment_Name"),
         col("Overall_Status"),
@@ -115,7 +116,12 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
       )
     show(df)
 
-    uploadReports(df, "mdoid", reportPathCBP, s"standalone-reports/user-assessment-report-cbp/${today}/", "StandaloneAssessmentReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
+    // generateFullReport(df, s"${conf.standaloneAssessmentReportPath}-test/${today}")
+    generateFullReport(df, reportPath)
+    df = df.drop("assessID", "assessOrgID")
+    generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 
     closeRedisConnect()
 

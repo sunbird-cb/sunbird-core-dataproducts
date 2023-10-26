@@ -13,8 +13,8 @@ import java.io.Serializable
 
 object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModel"
-  override def name() = "CourseBasedAssessmentModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModelNew"
+  override def name() = "CourseBasedAssessmentModelNew"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
@@ -46,17 +46,15 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.cbaReportPath}/${today}/"
 
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"), runValidation = false)
 
-    val assessmentDF = assessmentESDataFrame()
+    val assessmentDF = assessmentESDataFrame(Seq("Course", "Standalone Assessment", "Blended Program"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
@@ -76,62 +74,85 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       .join(orgHierarchyData, Seq("userOrgName"), "left")
 
     df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
+    show(df, "df 0")
 
-    val latest = df.groupBy(col("assessChildID"), col("userID")).agg(max("assessEndTimestamp").alias("assessEndTimestamp"))
-    latest.show()
+    val assessSubmitted = df.filter(col("assessUserStatus") === "SUBMITTED")
+
+    val latest = assessSubmitted
+      .groupBy(col("assessChildID"), col("userID"))
+      .agg(
+        max("assessEndTimestamp").alias("assessEndTimestamp"),
+        countDistinct("assessStartTime").alias("retakes")
+      )
+    show(latest, "latest")
 
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
+    show(df, "df 1")
 
-    df = df.withColumn("actualDuration", format_string("%02d:%02d:%02d", expr("userAssessmentDuration / 3600").cast("int"),
-      expr("userAssessmentDuration % 3600 / 60").cast("int"),
-      expr("userAssessmentDuration % 60").cast("int")
-    ))
+//    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
+//    show(df, "df 2")
 
-    df = df.withColumn("totalAssessmentDuration", format_string("%02d:%02d:%02d", expr("assessExpectedDuration / 3600").cast("int"),
-      expr("assessExpectedDuration % 3600 / 60").cast("int"),
-      expr("assessExpectedDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
+    show(df, "df 3")
 
     val caseExpression = "CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"
-    df = df.withColumn("Pass / Fail", expr(caseExpression))
+    df = df.withColumn("Pass", expr(caseExpression))
+    show(df, "df 4")
 
-    val retaks = df.groupBy("assessChildID", "userID").agg(
-      countDistinct("assessStartTime").alias("retakes"))
-    df = df.join(retaks, Seq("assessChildID"), "left")
+    df = df
+      .withColumn("assessPercentage", when(col("assessPassPercentage").isNotNull, col("assessPassPercentage"))
+        .otherwise(lit("Need to pass in all sections")))
+      .withColumn("assessment_type", when(col("assessCategory") === "Standalone Assessment", col("assessCategory"))
+        .when(col("assessPrimaryCategory").isNotNull, col("assessPrimaryCategory"))
+        .otherwise(lit("")))
+      .withColumn("assessment_course_name", when(col("assessment_type") === "Course Assessment", col("assessName"))
+        .otherwise(lit("")))
+      .withColumn("Total_Score_Calculated", when(col("assessMaxQuestions").isNotNull, col("assessMaxQuestions") * 1))
+      .withColumn("course_id", when(col("assessCategory") === "Standalone Assessment", lit(""))
+        .otherwise(col("assessID")))
 
     df = df.dropDuplicates("userID", "assessChildID")
-      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
       .select(
-      col("fullName").alias("Full Name"),
-      col("professionalDetails.designation").alias("Designation"),
-      col("personalDetails.primaryEmail").alias("E mail"),
-      col("personalDetails.mobile").alias("Phone Number"),
-      col("professionalDetails.group").alias("Group"),
-      col("Tag"),
-      col("ministry_name").alias("Ministry"),
-      col("dept_name").alias("Department"),
-      col("userOrgName").alias("Organisation"),
-      col("assessChildName").alias("Assessment Name"),
-      col("assessPrimaryCategory").alias("Assessment Type"),
-      col("assessOrgName").alias("Assessment Provider"),
-      col("assessName").alias("Course Name"),
-      col("totalAssessmentDuration").alias("Assessment Duration"),
-      col("actualDuration").alias("Time spent by the user"),
-      from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Completion Date"),
-      col("assessResult").alias("Score Achieved"),
-      col("assessOverallResult").alias("Overall Score"),
-      col("assessPassPercentage").alias("Cut off Percentage"),
-      col("Pass / Fail"),
-      col("assessTotalQuestions").alias("Total Questions"),
-      col("assessIncorrect").alias("No.of incorrect responses"),
-      col("retakes").alias("No.of retakes"),
-      col("userOrgID").alias("mdoid")
-    )
+        col("userID").alias("User ID"),
+        col("assessID"),
+        col("assessOrgID"),
+        col("assessChildID"),
+        col("userOrgID"),
+        col("fullName").alias("Full Name"),
+        col("professionalDetails.designation").alias("Designation"),
+        col("personalDetails.primaryEmail").alias("E mail"),
+        col("personalDetails.mobile").alias("Phone Number"),
+        col("professionalDetails.group").alias("Group"),
+        col("Tags"),
+        col("ministry_name").alias("Ministry"),
+        col("dept_name").alias("Department"),
+        col("userOrgName").alias("Organisation"),
+        col("assessChildName").alias("Assessment Name"),
+        col("assessment_type").alias("Assessment Type"),
+        col("assessOrgName").alias("Assessment/CBP Provider"),
+        from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment Publish Date"),
+        col("assessment_course_name").alias("Course Name"),
+        col("course_id").alias("Course ID"),
+        col("totalAssessmentDuration").alias("Assessment Duration"),
+        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("Last Attempted Date"),
+        col("assessOverallResult").alias("Latest Percentage Achieved"),
+        col("assessPercentage").alias("Cut off Percentage"),
+        col("Pass"),
+        col("assessMaxQuestions").alias("Total Questions"),
+        col("assessIncorrect").alias("No.of Incorrect Responses"),
+        col("assessBlank").alias("Unattempted Questions"),
+        col("retakes").alias("No. of Retakes"),
+        col("userOrgID").alias("mdoid")
+      )
+    show(df, "final")
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.cbaReportPath}/${today}/", "CBAssessmentReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.cbaReportPath}/${today}"
+    generateFullReport(df, reportPath)
+    df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
+    generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
     closeRedisConnect()
-
   }
-
 }

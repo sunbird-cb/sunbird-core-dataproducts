@@ -46,9 +46,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
     //GET ORG DATA
     val orgDF = orgDataFrame()
@@ -88,7 +86,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    var finalDF = allCourseProgramCompletionWithDetailsDFWithRating
+    var df = allCourseProgramCompletionWithDetailsDFWithRating
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
@@ -101,10 +99,12 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
       .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
 
-    finalDF= finalDF.distinct().dropDuplicates("userID", "courseID")
+    df = df.distinct().dropDuplicates("userID", "courseID")
       .select(
         col("userID"),
         col("userOrgID"),
+        col("courseID"),
+        col("courseActualOrgId"),
         col("fullName").alias("Full_Name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("Email"),
@@ -126,7 +126,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("userCourseCompletionStatus").alias("Status"),
         col("completionPercentage").alias("CBP_Progress_Percentage"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
-        col("ArchivedOn").alias("CBP_Archived_On"),
+        col("ArchivedOn").alias("CBP_Retired_On"),
         col("completedOn").alias("Completed_On"),
         col("Certificate_Generated"),
         col("userRating").alias("User_Rating"),
@@ -135,20 +135,23 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
         col("additionalProperties.externalSystem").alias("External_System"),
         col("additionalProperties.externalSystemId").alias("External_System_Id"),
         col("userOrgID").alias("mdoid"),
+        col("issuedCertificateCount"),
+        col("courseStatus"),
+        col("courseResourceCount").alias("resourceCount"),
+        col("courseProgress").alias("resourcesConsumed"),
+        round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
         col("Report_Last_Generated_On")
       )
 
-    show(finalDF, "finalDF")
+    show(df, "df")
 
-    // finalDF.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
+    // generateFullReport(df, s"${conf.userEnrolmentReportPath}-test/${today}")
+    generateFullReport(df, reportPath)
+    df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
+    generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
-    csvWrite(finalDF, s"${reportPath}/full/")
-
-    // generateReports(finalDF, "mdoid", reportPath, "ConsumptionReport")
-    finalDF = finalDF.drop("userID", "userOrgID")
-    uploadReports(finalDF, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
-
-    //.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/userenrollmentrecords" )
     closeRedisConnect()
   }
 }

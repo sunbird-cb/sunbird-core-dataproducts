@@ -51,9 +51,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.courseReportPath}/${today}/"
 
     val orgDF = orgDataFrame()
 
@@ -99,17 +97,23 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
-    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    // val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF.join(relevantBatchInfoDF, Seq("courseID"), "left")
+    val curatedCourseDataDFWithBatchInfo = allCBPAndAggDF
+      .coalesce(1) // gives OOM without this
+      .join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
-    val finalDf = curatedCourseDataDFWithBatchInfo
+    var df = curatedCourseDataDFWithBatchInfo
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
+      .withColumn("lastStatusChangedOn", to_date(col("lastStatusChangedOn"), "dd/MM/yyyy"))
+      .withColumn("ArchivedOn", when(col("courseStatus").equalTo("Retired"), col("lastStatusChangedOn")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
-      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
       .select(
+        col("courseID"),
+        col("courseActualOrgId"),
+        col("courseStatus").alias("CBP_Status"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
         col("category").alias("CBP_Type"),
@@ -126,21 +130,21 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("courseLastPublishedOn").alias("Last_Published_On"),
         col("firstCompletedOn").alias("First_Completed_On"),
         col("lastCompletedOn").alias("Last_Completed_On"),
-        col("ArchivedOn").alias("CBP_Archived_On"),
+        col("ArchivedOn").alias("CBP_Retired_On"),
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
-      )
-    show(finalDf)
+      ).where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
+    show(df)
 
-    // csvWrite(finalDf, s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    //finalDf.coalesce(1).write.format("csv").option("header", "true").save(s"${reportPath}-${System.currentTimeMillis()}-full")
-
-    uploadReports(finalDf, "mdoid", reportPath, s"${conf.courseReportPath}/${today}/", "CBPReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.courseReportPath}/${today}"
+    // generateFullReport(df, s"${conf.courseReportPath}-test/${today}")
+    generateFullReport(df, reportPath)
+    df = df.drop("courseID", "courseActualOrgId")
+    generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
     closeRedisConnect()
   }
-
 
 }

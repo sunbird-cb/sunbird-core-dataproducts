@@ -10,12 +10,11 @@ import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
-import com.mongodb.spark.MongoSpark
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
 import org.joda.time.DateTimeZone
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
@@ -56,11 +55,12 @@ case class DashboardConfig (
     roleUserCountTopic: String, orgRoleUserCountTopic: String,
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
-    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String,
+    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
     userAssessmentTopic: String, assessmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+    cassandraUserFeedKeyspace: String,
     // cassandra table details
     cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
     cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
@@ -79,13 +79,14 @@ case class DashboardConfig (
     redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
     redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
-
     // mongoDB configurations
     mongoDBCollection: String,
     mongoDatabase: String,
+    platformRatingSurveyId: String,
 
     // for reports
     mdoIDs: String,
+    standaloneAssessmentReportPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
     courseReportPath: String,
@@ -98,6 +99,12 @@ object DashboardUtil extends Serializable {
 
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
+
+  val allowedContentCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+
+  def validateContentCategories(categories: Seq[String]): Unit = {
+
+  }
 
   object Test extends Serializable {
     /**
@@ -122,8 +129,7 @@ object DashboardUtil extends Serializable {
           .config("es.index.auto.create", "false")
           .config("es.nodes.wan.only", "true")
           .config("es.nodes.discovery", "false")
-//          .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/Nodebb.Objects")
-          .config("spark.mongodb.input.uri", mongodbHost)
+          .config("spark.mongodb.input.uri", s"mongodb://${mongodbHost}/Nodebb.Objects")
           .config("spark.mongodb.input.sampleSize", 50000)
           .getOrCreate()
       val sc: SparkContext = spark.sparkContext
@@ -171,18 +177,19 @@ object DashboardUtil extends Serializable {
 
     }
 
-    def renameCSV(ids: Array[String], path: String, name: String = "report"): Unit = {
-      for (id <- ids) {
-        val tmpcsv = new File(path + s"mdoid=${id}")
-        val customized = new File(path + s"mdoid=${id}/${name}.csv")
+    def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String): Unit = {
+      ids.foreach(id => {
+        val orgReportPath = new File(s"${reportTempPath}/mdoid=${id}/")
+        val csvFiles = orgReportPath.listFiles().filter(f => {f.getName.startsWith("part-") && f.getName.endsWith(".csv")})
 
-        val tempCsvFileOpt = tmpcsv.listFiles().find(file => file.getName.startsWith("part-"))
+        csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
+          val (csvFile, index) = csvFileWithIndex
+          val customizedPath = new File(s"${reportTempPath}/mdoid=${id}/${fileName}${if (index == 0) "" else index}.csv")
+          // println(s"RENAME: renaming ${csvFile} to ${customizedPath}")
+          csvFile.renameTo(customizedPath)
+        })
 
-        if (tempCsvFileOpt.isDefined) {
-          val finalFile = tempCsvFileOpt.get
-          finalFile.renameTo(customized)
-        }
-      }
+      })
     }
 
   }
@@ -193,13 +200,12 @@ object DashboardUtil extends Serializable {
   }
 
   /* Util functions */
-  def csvWrite(df: DataFrame, path: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
-      .save(path)
+  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
   }
 
-  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, fileCount: Int = 1, header: Boolean = true): Unit = {
-    df.coalesce(fileCount).write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
       .partitionBy(partitionKey).save(path)
   }
 
@@ -378,6 +384,17 @@ object DashboardUtil extends Serializable {
 
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
 
+  def durationFormat(df: DataFrame, inCol: String, outCol: String = null): DataFrame = {
+    val outColName = if (outCol == null) inCol else outCol
+    df.withColumn(outColName,
+      format_string("%02d:%02d:%02d",
+        expr(s"${inCol} / 3600").cast("int"),
+        expr(s"${inCol} % 3600 / 60").cast("int"),
+        expr(s"${inCol} % 60").cast("int")
+      )
+    )
+  }
+
   def dataFrameFromJSONString(jsonString: String)(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
     val dataset = spark.createDataset(jsonString :: Nil)
@@ -436,16 +453,18 @@ object DashboardUtil extends Serializable {
       .persist(StorageLevel.MEMORY_ONLY)
   }
 
-  def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String])(implicit spark: SparkSession): DataFrame = {
-    var df = spark.read.format("org.elasticsearch.spark.sql")
+  def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String], arrayFields: Seq[String] = Seq())(implicit spark: SparkSession): DataFrame = {
+    var dfr = spark.read.format("org.elasticsearch.spark.sql")
       .option("es.read.metadata", "false")
       .option("es.nodes", host)
       .option("es.port", "9200")
       .option("es.index.auto.create", "false")
       .option("es.nodes.wan.only", "true")
       .option("es.nodes.discovery", "false")
-      .option("query", query)
-      .load(index)
+    if (arrayFields.nonEmpty) {
+      dfr = dfr.option("es.read.field.as.array.include", arrayFields.mkString(","))
+    }
+    var df = dfr.option("query", query).load(index)
     df = df.select(fields.map(f => col(f)):_*).persist(StorageLevel.MEMORY_ONLY) // select only the fields we need and persist
     df
   }
@@ -461,8 +480,6 @@ object DashboardUtil extends Serializable {
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
     renamedDF
   }
-
-
 
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
@@ -509,12 +526,14 @@ object DashboardUtil extends Serializable {
       declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
       competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
       userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      orgTopic = getConfigSideTopic(config, "org"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       assessmentTopic = getConfigSideTopic(config, "assessment"),
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
       cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
       // cassandra table details
       cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
       cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
@@ -549,9 +568,11 @@ object DashboardUtil extends Serializable {
       //mongoBD configurations
       mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
       mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
+      platformRatingSurveyId = getConfigModelParam(config, "platformRatingSurveyId"),
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
+      standaloneAssessmentReportPath = getConfigModelParam(config, "standaloneAssessmentReportPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
@@ -566,9 +587,8 @@ object DashboardUtil extends Serializable {
     expectedColumnsInput.foldLeft(df) {
       (df, column) => {
         if(!df.columns.contains(column)) {
-          df.withColumn(column,lit(null).cast(StringType))
-        }
-        else (df)
+          df.withColumn(column, lit(null).cast(StringType))
+        } else df
       }
     }
   }

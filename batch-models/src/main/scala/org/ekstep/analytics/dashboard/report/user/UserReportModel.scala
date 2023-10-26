@@ -50,9 +50,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userReportPath}/${today}/"
 
     // get user roles data
     val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
@@ -63,13 +61,13 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val orgHierarchyData = orgHierarchyDataframe()
 
     // get the mdoids for which the report are requesting
-    val mdoID = conf.mdoIDs
-    val mdoIDDF = mdoIDsDF(mdoID)
+    // val mdoID = conf.mdoIDs
+    // val mdoIDDF = mdoIDsDF(mdoID)
 
-    var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
+    // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    df = df
-      .join(userDataDF, Seq("userOrgID"), "inner")
+    var df = userDataDF
+      // .join(userDataDF, Seq("userOrgID"), "inner")
       .join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"),"left")
 
@@ -79,26 +77,34 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     df = df.dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .select(
-      col("fullName").alias("Full_Name"),
-      col("professionalDetails.designation").alias("Designation"),
-      col("personalDetails.primaryEmail").alias("Email"),
-      col("personalDetails.mobile").alias("Phone_Number"),
-      col("professionalDetails.group").alias("Group"),
-      col("Tag"),
-      col("ministry_name").alias("Ministry"),
-      col("dept_name").alias("Department"),
-      col("userOrgName").alias("Organization"),
-      from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
-      col("role").alias("Roles"),
-      col("personalDetails.gender").alias("Gender"),
-      col("personalDetails.category").alias("Category"),
-      col("additionalProperties.externalSystem").alias("External_System"),
-      col("additionalProperties.externalSystemId").alias("External_System_Id"),
-      col("userOrgID").alias("mdoid"),
-      col("Report_Last_Generated_On")
-    )
+        col("userID"),
+        col("userOrgID"),
+        col("fullName").alias("Full_Name"),
+        col("professionalDetails.designation").alias("Designation"),
+        col("personalDetails.primaryEmail").alias("Email"),
+        col("personalDetails.mobile").alias("Phone_Number"),
+        col("professionalDetails.group").alias("Group"),
+        col("Tag"),
+        col("ministry_name").alias("Ministry"),
+        col("dept_name").alias("Department"),
+        col("userOrgName").alias("Organization"),
+        from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
+        col("role").alias("Roles"),
+        col("personalDetails.gender").alias("Gender"),
+        col("personalDetails.category").alias("Category"),
+        col("additionalProperties.externalSystem").alias("External_System"),
+        col("additionalProperties.externalSystemId").alias("External_System_Id"),
+        col("userOrgID").alias("mdoid"),
+        col("Report_Last_Generated_On")
+      )
 
-    uploadReports(df, "mdoid", reportPath, s"${conf.userReportPath}/${today}/", "UserReport")
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userReportPath}/${today}"
+    // generateFullReport(df, s"${conf.userReportPath}-test/${today}")
+    generateFullReport(df, reportPath)
+    df = df.drop("userID", "userOrgID")
+    // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
+    generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
     closeRedisConnect()
   }

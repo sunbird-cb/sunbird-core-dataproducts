@@ -47,16 +47,14 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     implicit val conf: DashboardConfig = parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val userDataDF = userProfileDetailsDF(orgDF)
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(orgDF, false, false, true)
+      contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"))
 
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
       .select(col("courseID"), col("userID"), col("completionPercentage"))
@@ -80,10 +78,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     df = userCourseCompletionStatus(df)
 
-    df = df.withColumn("CBP_Duration", format_string("%02d:%02d:%02d", expr("courseDuration / 3600").cast("int"),
-      expr("courseDuration % 3600 / 60").cast("int"),
-      expr("courseDuration % 60").cast("int")
-    ))
+    df = durationFormat(df, "courseDuration", "CBP_Duration")
 
     val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
     val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
@@ -91,10 +86,10 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
     df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
 
-    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode(col("courseContentStatus")).alias("userContents"))
+    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode_outer(col("courseContentStatus")).alias("userContents"))
 
     val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
-      col("liveContentCount"), col("identifier").alias("courseID"), explode(col("liveContents")).alias("liveContents")
+      col("liveContentCount"), col("identifier").alias("courseID"), explode_outer(col("liveContents")).alias("liveContents")
     )
 
     val userConsumedLiveContents = liveContents.join(userConsumedcontents, col("userContents") === col("liveContents") && col("courseID") === col("courseId") , "inner")
@@ -145,7 +140,11 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("userOrgID").alias("mdoid"),
       col("Report_Last_Generated_On")
     )
-    uploadReports(df, "mdoid", reportPath, s"${conf.userEnrolmentReportPath}/${today}/", "ConsumptionReport")
+
+    df = df.coalesce(1)
+    val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
+    generateFullReport(df, reportPath)
+    generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
     closeRedisConnect()
   }
