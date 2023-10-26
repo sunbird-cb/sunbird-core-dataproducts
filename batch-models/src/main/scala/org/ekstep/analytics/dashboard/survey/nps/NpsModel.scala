@@ -55,9 +55,9 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
 
-    csvWrite(druidData1.coalesce(1), "/tmp/nps-test/druidData1/")
-    csvWrite(druidData2.coalesce(1), "/tmp/nps-test/druidData2/")
-    csvWrite(mongodbData.coalesce(1), "/tmp/nps-test/mongodbData/")
+    // csvWrite(druidData1.coalesce(1), "/tmp/nps-test/druidData1/")
+    // csvWrite(druidData2.coalesce(1), "/tmp/nps-test/druidData2/")
+    // csvWrite(mongodbData.coalesce(1), "/tmp/nps-test/mongodbData/")
 
     val df = druidData2.union(mongodbData)
     val druidData1Count = druidData1.count()
@@ -73,18 +73,17 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     println(s"DataFrame Count for set of users who are eligible and not filled form: $filteredCount")
    // check if the feed for these users is alreday there
     val cassandraDF = userFeedFromCassandraDataFrame()
-    csvWrite(cassandraDF.coalesce(1), "/tmp/nps-test/cassandraDF/")
+    // csvWrite(cassandraDF.coalesce(1), "/tmp/nps-test/cassandraDF/")
 
     val existingFeedCount = cassandraDF.count()
     println(s"DataFrame Count for users who have feed data: $existingFeedCount")
     val storeToCassandraDF = filteredDF.except(cassandraDF)
-    val finalFeedCount = storeToCassandraDF.count()
+    val filteredStoreToCassandraDF = storeToCassandraDF.filter(col("userid").isNotNull && col("userid") =!= "" && col("userid") =!= "''")
+    val finalFeedCount = filteredStoreToCassandraDF.count()
     println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
- 
-    print("{\"dataValue\":\"yes\",\"actionData\":{\"formId\":"+conf.platformRatingSurveyId+"}}")
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
  
-    val additionalDF = storeToCassandraDF.withColumn("category", lit("NPS"))
+    val additionalDF = filteredStoreToCassandraDF.withColumn("category", lit("NPS"))
       .withColumn("id", expr("uuid()").cast(StringType))
       .withColumn("createdby", lit("platform_rating"))
       .withColumn("createdon", current_date())
@@ -97,9 +96,10 @@ object NpsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .withColumn("version", lit("v1"))
  
     show(additionalDF)
-    csvWrite(additionalDF.coalesce(1), "/tmp/nps-test/additionalDF/")
+    
+   // write the dataframe to cassandra user_feed table
+   // csvWrite(additionalDF.coalesce(1), "/tmp/nps-test/additionalDF/")
 
-    // write the dataframe to cassandra user_feed table
    additionalDF.write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("keyspace" -> conf.cassandraUserFeedKeyspace , "table" -> conf.cassandraUserFeedTable))
