@@ -494,6 +494,41 @@ object DataUtilNew extends Serializable {
     (orgRegisteredUserCountMap, orgTotalUserCountMap, orgNameMap)
   }
 
+
+  /**
+   * content from elastic search api
+   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
+   */
+  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course")(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
+
+    // now that error handling is done, proceed with business as usual
+    df = df
+      .withColumn(s"${prefix}OrgID", explode_outer(col("createdFor")))
+      .select(
+        col("identifier").alias(s"${prefix}ID"),
+        col("primaryCategory").alias(s"${prefix}category"),
+        col("name").alias(s"${prefix}Name"),
+        col("status").alias(s"${prefix}Status"),
+        col("reviewStatus").alias(s"${prefix}ReviewStatus"),
+        col("channel").alias(s"${prefix}Channel"),
+        col("lastPublishedOn").alias(s"${prefix}LastPublishedOn"),
+        col("duration").cast(FloatType).alias(s"${prefix}Duration"),
+        col("leafNodesCount").alias(s"${prefix}ResourceCount"),
+        col("lastStatusChangedOn").alias(s"${prefix}LastStatusChangedOn"),
+        col(s"${prefix}OrgID")
+      )
+
+    df = df.dropDuplicates(s"${prefix}ID", s"${prefix}category")
+    df = df
+      .na.fill(0.0, Seq(s"${prefix}Duration"))
+      .na.fill(0, Seq(s"${prefix}ResourceCount"))
+    df = durationFormat(df, s"${prefix}Duration")
+    show(df, "contentESDataFrame")
+    df
+  }
+
+
   /**
    * All courses/programs from elastic search api
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
@@ -767,7 +802,7 @@ object DataUtilNew extends Serializable {
     val primaryCategories = if (getCuratedCollections) {
       Seq("Course", "Program", "CuratedCollections")
     } else if (isAllCBP) {
-      Seq("Course", "Program", "Blended Program", "CuratedCollections","Curated Program")
+      Seq("Course", "Program", "Blended Program", "CuratedCollections", "Curated Program")
     } else {
       Seq("Course", "Program")
     }
