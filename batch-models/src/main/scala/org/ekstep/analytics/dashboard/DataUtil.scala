@@ -169,6 +169,12 @@ object DataUtil extends Serializable {
       StructField("passPercentage", FloatType, nullable = false)
     ))
 
+    /* batch attrs schema */
+    val batchAttrsSchema: StructType = StructType(Seq(
+      StructField("batchLocationDetails", StringType, nullable = true),
+      StructField("sessionType", StringType, nullable = true)
+    ))
+
     /* telemetry related schema */
     val loggedInMobileUserSchema: StructType = StructType(Seq(
       StructField("userID", StringType, nullable = true),

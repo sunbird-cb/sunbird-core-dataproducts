@@ -168,6 +168,12 @@ object DataUtilNew extends Serializable {
       StructField("passPercentage", FloatType, nullable = false)
     ))
 
+    /* batch attrs schema */
+    val batchAttrsSchema: StructType = StructType(Seq(
+      StructField("batchLocationDetails", StringType, nullable = true),
+      StructField("sessionType", StringType, nullable = true)
+    ))
+
     /* telemetry related schema */
     val loggedInMobileUserSchema: StructType = StructType(Seq(
       StructField("userID", StringType, nullable = true),
@@ -975,8 +981,9 @@ object DataUtilNew extends Serializable {
       col("batchid").alias("batchID"),
       col("name").alias("courseBatchName"),
       col("start_date").alias("courseBatchStartDate"),
-      col("end_date").alias("courseBatchEndDate")
-    )
+      col("end_date").alias("courseBatchEndDate"),
+      col("batch_attributes").alias("courseBatchAttrs")
+    ).na.fill("{}", Seq("courseBatchAttrs"))
     show(df, "Course Batch Data")
     df
   }

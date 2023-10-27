@@ -95,11 +95,17 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("batchID").alias("bpBatchID"),
       col("courseBatchName").alias("bpBatchName"),
       col("courseBatchStartDate").alias("bpBatchStartDate"),
-      col("courseBatchEndDate").alias("bpBatchEndDate")
+      col("courseBatchEndDate").alias("bpBatchEndDate"),
+      col("courseBatchAttrs").alias("bpBatchAttrs")
     )
+      .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
+      .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
+      .withColumn("bpSessionType", col("bpBatchAttrs.sessionType"))
+      .drop("bpBatchAttrs")
+
     val relevantBatchInfoDF = bpWithOrgDF.select("bpID", "bpCategory")
       .join(bpBatchDF, Seq("bpID"), "left")
-      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate")
+      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpSessionType")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
     val bpCompletionWithBatchInfoDF = bpCompletionWithUserDetailsDF.join(relevantBatchInfoDF, Seq("bpID", "bpBatchID"), "left")
@@ -163,25 +169,24 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("courseName").alias("Blended Program_Name"),
         col("bpBatchID").alias("Batch_Id"),
         col("bpBatchName").alias("Batch_Name"),
-        // col("bpBatchLocation").alias("Batch_Location"), //
-        lit("").alias("Batch_Location"), //
+        col("bpBatchLocation").alias("Batch_Location"),
         col("bpBatchStartDate").alias("Batch_Start_Date"),
         col("bpBatchEndDate").alias("Batch_End_Date"),
         col("enrolledOn").alias("Enrolled_On"),
 
         col("bpChildName").alias("Component_Name"),
         col("bpChildCategory").alias("Component_Type"),
-        // col("bpChildMode").alias("Component_Mode"), //
-        lit("").alias("Component_Mode"), //
+        // col("bpChildMode").alias("Component_Mode"), // TODO
+        lit("").alias("Component_Mode"), // TODO
         col("bpChildUserStatus").alias("Status"),
-        // col("bpChildOfflineSessionDate").alias("Offline_Session_Date"), //
-        lit("").alias("Offline_Session_Date"), //
+        // col("bpChildOfflineSessionDate").alias("Offline_Session_Date"), // TODO
+        lit("").alias("Offline_Session_Date"), // TODO
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
 
-        lit("").alias("Offline_Attendance_Status"), //
-        lit("").alias("Instructor_Name"), //
-        lit("").alias("Program_Coordinator_Name"), //
+        lit("").alias("Offline_Attendance_Status"), // TODO
+        lit("").alias("Instructor_Name"), // TODO
+        lit("").alias("Program_Coordinator_Name"), // TODO
         col("Certificate_Generated"),
         col("userOrgID").alias("mdoid"),
         col("bpIssuedCertificateCount"),
