@@ -200,6 +200,7 @@ class Summary(val firstEvent: WFSInputEvent) {
     }
 
     def close(summEvents: Buffer[MeasuredEvent], config: Map[String, AnyRef]) {
+
         val tempChildEvents = Buffer[MeasuredEvent]()
         this.CHILDREN.foreach{summ =>
             if(!summ.isClosed) {

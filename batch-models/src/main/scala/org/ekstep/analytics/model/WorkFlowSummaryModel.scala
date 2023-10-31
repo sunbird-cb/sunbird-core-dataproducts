@@ -28,8 +28,8 @@ case class WorkflowInput(sessionKey: WorkflowIndex, events: Buffer[String]) exte
 case class WorkflowOutput(index: WorkflowIndex, summaries: Buffer[MeasuredEvent]) extends AlgoOutput
 case class WorkflowIndex(actroId: String, did: String, channel: String, pdataId: String)
 case class WorkFlowIndexEvent(actor: Actor, eid: String, context: V3Context)
-
 case class Actor(id: _root_.scala.Predef.String)
+
 object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
 
     implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel"
