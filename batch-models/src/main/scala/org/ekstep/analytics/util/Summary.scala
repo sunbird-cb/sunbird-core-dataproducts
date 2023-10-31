@@ -144,6 +144,12 @@ class Summary(val firstEvent: WFSInputEvent) {
             this.itemResponses += org.ekstep.analytics.util.Item(item.id, Option(event.edata.duration), res, resValues, Option(item.mc), Option(item.mmc), event.edata.score, event.ets, Option(item.maxscore.asInstanceOf[AnyRef]), event.edata.pass, Option(item.title), Option(item.desc));
         }
 
+//        if (idList.contains(x.actor.id)) {
+//            println("default " + x.actor.id)
+//            bool = true
+//            println(s"line 217  ${currSummary.summaryEvents},  ${currSummary.uid},  ${currSummary.isClosed},  ${currSummary.timeDiff}")
+//        }
+
         if(this.PARENT != null) this.PARENT.add(event, idleTime)
     }
 
@@ -200,7 +206,6 @@ class Summary(val firstEvent: WFSInputEvent) {
     }
 
     def close(summEvents: Buffer[MeasuredEvent], config: Map[String, AnyRef]) {
-
         val tempChildEvents = Buffer[MeasuredEvent]()
         this.CHILDREN.foreach{summ =>
             if(!summ.isClosed) {
@@ -208,7 +213,7 @@ class Summary(val firstEvent: WFSInputEvent) {
                 tempChildEvents ++= summ.summaryEvents
             }
         }
-        if(this.timeSpent > 0) {
+        if(this.timeSpent >= 0) {
             this.summaryEvents ++= tempChildEvents
             this.summaryEvents += this.getSummaryEvent(config)
         };

@@ -26,10 +26,10 @@ class WFSInputEData(val `type`: String, val mode: String, val duration: Long, va
 
 case class WorkflowInput(sessionKey: WorkflowIndex, events: Buffer[String]) extends AlgoInput
 case class WorkflowOutput(index: WorkflowIndex, summaries: Buffer[MeasuredEvent]) extends AlgoOutput
-case class WorkflowIndex(did: String, channel: String, pdataId: String)
-case class WorkFlowIndexEvent(eid: String, context: V3Context)
+case class WorkflowIndex(actroId: String, did: String, channel: String, pdataId: String)
+case class WorkFlowIndexEvent(actor: Actor, eid: String, context: V3Context)
 
-
+case class Actor(id: _root_.scala.Predef.String)
 object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
 
     implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel"
@@ -50,7 +50,8 @@ object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, M
                         (null.asInstanceOf[WorkFlowIndexEvent], "")
                 }
         }.filter(f => null != f._1)
-        val partitionedData = indexedData.filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid)).map { x => (WorkflowIndex(x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id), Buffer(x._2))}
+        val partitionedData = indexedData.filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid)).map { x => (WorkflowIndex(
+            x._1.actor.id , x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id), Buffer(x._2))}
             .partitionBy(new HashPartitioner(parallelization))
             .reduceByKey((a, b) => a ++ b);
 
