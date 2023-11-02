@@ -21,6 +21,7 @@ import org.ekstep.analytics.job.summarizer.DruidQueryProcessor
 import org.ekstep.analytics.job.summarizer.ExperimentDefinitionJob
 import org.ekstep.analytics.job.summarizer.MonitorSummarizer
 import org.ekstep.analytics.job.summarizer.WorkFlowSummarizer
+import org.ekstep.analytics.job.summarizer.WorkFlowSummarizer2
 import org.ekstep.analytics.job.updater.ContentRatingUpdater
 import org.ekstep.analytics.exhaust.OnDemandDruidExhaustJob
 
@@ -36,6 +37,8 @@ object JobFactory {
         MonitorSummarizer
       case "wfs" =>
         WorkFlowSummarizer
+      case "wfs2" =>
+        WorkFlowSummarizer2
       case "competency-metrics" =>
         CompetencyMetricsJob
       case "assessment-metrics" =>
