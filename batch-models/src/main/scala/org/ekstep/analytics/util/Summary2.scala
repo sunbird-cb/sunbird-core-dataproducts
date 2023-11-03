@@ -206,7 +206,7 @@ class Summary2(val firstEvent: WFSInputEvent) {
                 tempChildEvents ++= summ.summaryEvents
             }
         }
-        if(this.timeSpent > 0) {
+        if(this.timeSpent >= 0) {
             this.summaryEvents ++= tempChildEvents
             this.summaryEvents += this.getSummaryEvent(config)
         };

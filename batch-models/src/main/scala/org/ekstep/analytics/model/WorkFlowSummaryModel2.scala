@@ -18,46 +18,42 @@ import org.ekstep.analytics.framework.util.JobLogger
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework._
 
-@scala.beans.BeanInfo
-class WFSInputEvent(val eid: String, val ets: Long, val `@timestamp`: String, val ver: String, val mid: String, val actor: Actor, val context: V3Context, val `object`: Option[V3Object], val edata: WFSInputEData, val tags: List[AnyRef] = null) extends AlgoInput with Input {}
-@scala.beans.BeanInfo
-class WFSInputEData(val `type`: String, val mode: String, val duration: Long, val pageid: String, val item: Question,
-                    val resvalues: Array[Map[String, AnyRef]], val pass: String, val score: Int) extends Serializable {}
 
-case class WorkflowInput(sessionKey: WorkflowIndex, events: Buffer[String]) extends AlgoInput
-case class WorkflowOutput(index: WorkflowIndex, summaries: Buffer[MeasuredEvent]) extends AlgoOutput
-case class WorkflowIndex(did: String, channel: String, pdataId: String)
-case class WorkFlowIndexEvent(eid: String, context: V3Context)
+case class WorkflowInput2(sessionKey: WorkflowIndex2, events: Buffer[String]) extends AlgoInput
+case class WorkflowIndex2(actroId: String, did: String, channel: String, pdataId: String)
+case class WorkFlowIndexEvent2(actor: Actor, eid: String, context: V3Context)
+case class Actor(id: _root_.scala.Predef.String)
 
 
-object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
+object WorkFlowSummaryModel2 extends IBatchModelTemplate[String, WorkflowInput2, MeasuredEvent, MeasuredEvent] with Serializable {
 
-    implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel"
-    override def name: String = "WorkFlowSummaryModel"
+    implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel2"
+    override def name: String = "WorkFlowSummaryModel2"
     val serverEvents = Array("LOG", "AUDIT", "SEARCH");
 
-    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WorkflowInput] = {
+    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WorkflowInput2] = {
 
         val defaultPDataId = V3PData(AppConf.getConfig("default.consumption.app.id"), Option("1.0"))
         val parallelization = config.getOrElse("parallelization", 20).asInstanceOf[Int];
         val indexedData = data.map{f =>
                 try {
-                    (JSONUtils.deserialize[WorkFlowIndexEvent](f), f)
+                    (JSONUtils.deserialize[WorkFlowIndexEvent2](f), f)
                 }
                 catch {
                     case ex: Exception =>
                         JobLogger.log(ex.getMessage, None, INFO)
-                        (null.asInstanceOf[WorkFlowIndexEvent], "")
+                        (null.asInstanceOf[WorkFlowIndexEvent2], "")
                 }
         }.filter(f => null != f._1)
-        val partitionedData = indexedData.filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid)).map { x => (WorkflowIndex(x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id), Buffer(x._2))}
-            .partitionBy(new HashPartitioner(parallelization))
-            .reduceByKey((a, b) => a ++ b);
+      val partitionedData = indexedData.filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid)).map { x => (WorkflowIndex2(
+        x._1.actor.id , x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id), Buffer(x._2))}
+        .partitionBy(new HashPartitioner(parallelization))
+        .reduceByKey((a, b) => a ++ b);
 
-        partitionedData.map { x => WorkflowInput(x._1, x._2) }
+        partitionedData.map { x => WorkflowInput2(x._1, x._2) }
     }
     
-    override def algorithm(data: RDD[WorkflowInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[MeasuredEvent] = {
+    override def algorithm(data: RDD[WorkflowInput2], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[MeasuredEvent] = {
         
         
         val idleTime = config.getOrElse("idleTime", 600).asInstanceOf[Int];
