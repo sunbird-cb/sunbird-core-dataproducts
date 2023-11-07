@@ -45,8 +45,14 @@ object WorkFlowSummaryModel2 extends IBatchModelTemplate[String, WorkflowInput2,
                         (null.asInstanceOf[WorkFlowIndexEvent2], "")
                 }
         }.filter(f => null != f._1)
-      val partitionedData = indexedData.filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid)).map { x => (WorkflowIndex2(
-        x._1.actor.id , x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id), Buffer(x._2))}
+
+      val partitionedData = indexedData
+        .filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid))
+        .map { x => (
+            WorkflowIndex2(x._1.actor.id, x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id),
+            Buffer(x._2)
+          )
+        }
         .partitionBy(new HashPartitioner(parallelization))
         .reduceByKey((a, b) => a ++ b);
 

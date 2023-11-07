@@ -216,7 +216,7 @@ class Summary2(val firstEvent: WFSInputEvent) {
     def getSummaryEvent(config: Map[String, AnyRef]): MeasuredEvent = {
         val meEventVersion = "1.0"
         val dtRange = DtRange(this.startTime, this.endTime)
-        val mid = CommonUtil.getMessageId("ME_WORKFLOW_SUMMARY", this.uid + this.`type` + this.mode.getOrElse("NA"), "SESSION", dtRange, this.`object`.getOrElse(V3Object("NA", "", None, None)).id, Option(this.pdata.id), Option(this.channel));
+        val mid = CommonUtil.getMessageId("ME_WORKFLOW_SUMMARY", s"${this.uid}|${this.did}|${this.`type`}|${this.mode.getOrElse("NA")}", "SESSION", dtRange, this.`object`.getOrElse(V3Object("NA", "", None, None)).id, Option(this.pdata.id), Option(this.channel));
         val interactEventsPerMin: Double = if (this.interactEventsCount == 0 || this.timeSpent == 0) 0d
         else if (this.timeSpent < 60.0) this.interactEventsCount.toDouble
         else BigDecimal(this.interactEventsCount / (this.timeSpent / 60)).setScale(2, BigDecimal.RoundingMode.HALF_UP).toDouble;
