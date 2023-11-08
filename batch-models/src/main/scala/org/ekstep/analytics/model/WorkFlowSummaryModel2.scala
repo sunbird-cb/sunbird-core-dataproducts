@@ -8,32 +8,29 @@ import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable.Buffer
 import org.apache.spark.HashPartitioner
-import org.ekstep.analytics.framework.JobContext
 import org.apache.commons.lang3.StringUtils
 import org.ekstep.analytics.framework.Level.INFO
 import org.ekstep.analytics.framework.util.JSONUtils
 import org.ekstep.analytics.framework.util.CommonUtil
-import org.ekstep.analytics.util.Constants
 import org.ekstep.analytics.framework.util.JobLogger
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework._
 
 
-case class WorkflowInput2(sessionKey: WorkflowIndex2, events: Buffer[String]) extends AlgoInput
-case class WorkflowIndex2(actroId: String, did: String, channel: String, pdataId: String)
-case class WorkFlowIndexEvent2(actor: Actor, eid: String, context: V3Context)
-case class Actor(id: _root_.scala.Predef.String)
+case class WorkFlowIndexEvent2(eid: String, actor: Option[Actor2], context: V3Context)
+case class Actor2(id: Option[String], `type`: Option[String])
 
 
-object WorkFlowSummaryModel2 extends IBatchModelTemplate[String, WorkflowInput2, MeasuredEvent, MeasuredEvent] with Serializable {
+object WorkFlowSummaryModel2 extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
 
     implicit val className = "org.ekstep.analytics.model.WorkFlowSummaryModel2"
     override def name: String = "WorkFlowSummaryModel2"
     val serverEvents = Array("LOG", "AUDIT", "SEARCH");
 
-    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WorkflowInput2] = {
+    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WorkflowInput] = {
 
         val defaultPDataId = V3PData(AppConf.getConfig("default.consumption.app.id"), Option("1.0"))
+        val defaultActor = Actor2(Some(""), Some(""))
         val parallelization = config.getOrElse("parallelization", 20).asInstanceOf[Int];
         val indexedData = data.map{f =>
                 try {
@@ -49,17 +46,18 @@ object WorkFlowSummaryModel2 extends IBatchModelTemplate[String, WorkflowInput2,
       val partitionedData = indexedData
         .filter(f => null != f._1.eid && !serverEvents.contains(f._1.eid))
         .map { x => (
-            WorkflowIndex2(x._1.actor.id, x._1.context.did.getOrElse(""), x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id),
+            WorkflowIndex(s"${x._1.context.did.getOrElse("")}|${x._1.actor.getOrElse(defaultActor).`type`.getOrElse("")}|${x._1.actor.getOrElse(defaultActor).id.getOrElse("")}",
+              x._1.context.channel, x._1.context.pdata.getOrElse(defaultPDataId).id),
             Buffer(x._2)
           )
         }
         .partitionBy(new HashPartitioner(parallelization))
         .reduceByKey((a, b) => a ++ b);
 
-        partitionedData.map { x => WorkflowInput2(x._1, x._2) }
+        partitionedData.map { x => WorkflowInput(x._1, x._2) }
     }
     
-    override def algorithm(data: RDD[WorkflowInput2], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[MeasuredEvent] = {
+    override def algorithm(data: RDD[WorkflowInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[MeasuredEvent] = {
         
         
         val idleTime = config.getOrElse("idleTime", 600).asInstanceOf[Int];

@@ -24,33 +24,18 @@ object ValidateDerivedTest extends Serializable {
 
     val rootPath = ""
 
-    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-07.json.gz"
-    val jsonFileWFS2_04 = s"${rootPath}/derived2-2023-11-07-04.json.gz"
-    val jsonFileWFS2_05 = s"${rootPath}/derived2-2023-11-07-05.json.gz"
-    val jsonFileWFS2_06 = s"${rootPath}/derived2-2023-11-07-06.json.gz"
+    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-07-wfs1.json.gz"
+    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-07-wfs2.json.gz"
 
-    val userDayRootStatsDF_1 = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
-    val userDayRootStatsDF_2_04 = process(jsonFileWFS2_04, s"${rootPath}/out/summaryDF2_04")
-    val userDayRootStatsDF_2_05 = process(jsonFileWFS2_05, s"${rootPath}/out/summaryDF2_05")
-    val userDayRootStatsDF_2_06 = process(jsonFileWFS2_06, s"${rootPath}/out/summaryDF2_06")
+    val userDayRootStatsDF1 = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
+    val userDayRootStatsDF2 = process(jsonFileWFS2, s"${rootPath}/out/summaryDF2")
 
-    val userDayRootStatsDF_1_04 = userDayRootStatsDF_1.where(expr("dateIST = '2023-11-04'"))
-    val userDayRootStatsDF_1_05 = userDayRootStatsDF_1.where(expr("dateIST = '2023-11-05'"))
-    val userDayRootStatsDF_1_06 = userDayRootStatsDF_1.where(expr("dateIST = '2023-11-06'"))
-
-    Seq(
-      ("2023-11-04", userDayRootStatsDF_1_04, userDayRootStatsDF_2_04),
-      ("2023-11-05", userDayRootStatsDF_1_05, userDayRootStatsDF_2_05),
-      ("2023-11-06", userDayRootStatsDF_1_06, userDayRootStatsDF_2_06)
-    ).foreach(x => {
-      val (date, userDayRootStatsDF1, userDayRootStatsDF2) = x
-      val userID1 = userDayRootStatsDF1.select("uid").distinct()
-      val userID2 = userDayRootStatsDF2.select("uid").distinct()
-      val usersIn1NotIn2 = userID1.except(userID2)
-      val usersIn2NotIn1 = userID2.except(userID1)
-      csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out/diff12-${date}")
-      csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out/diff21-${date}")
-    })
+    val userID1 = userDayRootStatsDF1.select("uid").distinct()
+    val userID2 = userDayRootStatsDF2.select("uid").distinct()
+    val usersIn1NotIn2 = userID1.except(userID2)
+    val usersIn2NotIn1 = userID2.except(userID1)
+    csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out/diff1minus2")
+    csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out/diff2minus1")
 
   }
 
