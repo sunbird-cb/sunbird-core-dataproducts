@@ -234,6 +234,11 @@ class Summary2(val firstEvent: WFSInputEvent) {
             "env_summary" -> this.envSummary,
             "events_summary" -> eventsSummary,
             "page_summary" -> this.pageSummary);
+
+        if (this.startTime == 0l) {
+            println(s"MID_DEBUG: Offending Event generated mid=${mid}")
+        }
+
         MeasuredEvent("ME_WORKFLOW_SUMMARY", System.currentTimeMillis(), syncts, meEventVersion, mid, this.uid, null, None, None,
             Context(PData(config.getOrElse("producerId", "AnalyticsDataPipeline").asInstanceOf[String], config.getOrElse("modelVersion", "1.0").asInstanceOf[String], Option(config.getOrElse("modelId", "WorkflowSummarizer").asInstanceOf[String])), None, "SESSION", dtRange, None, None, None, this.context_rollup, this.cdata),
             org.ekstep.analytics.framework.Dimensions(Option(this.uid), Option(this.did), None, None, None, None, Option(PData(this.pdata.id, this.pdata.ver.getOrElse("1.0"), None, this.pdata.pid)), None, None, None, None, None, None, None, None, Option(this.sid), None, None, None, None, None, None, None, None, None, None, Option(this.channel), Option(this.`type`), this.mode),

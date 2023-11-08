@@ -4,8 +4,9 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.{DataFrame, RelationalGroupedDataset, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.LongType
-import org.ekstep.analytics.dashboard.DashboardUtil
+import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil}
 import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 
 
@@ -20,20 +21,31 @@ object ValidateDerivedTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    debug = true
 
-    val rootPath = ""
+    implicit val conf: DashboardConfig = parseConfig(config)
+    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
+    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-07-wfs1.json.gz"
-    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-07-wfs2.json.gz"
+    val rootPath = "/home/analytics/wfs-analysis"
+
+    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-08-wfs1.json.gz"
+    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-08-wfs2.json.gz"
 
     val userDayRootStatsDF1 = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
     val userDayRootStatsDF2 = process(jsonFileWFS2, s"${rootPath}/out/summaryDF2")
 
+    var userDF = userDataFrame()
+    userDF = userDF.drop("userProfileDetails")
+
     val userID1 = userDayRootStatsDF1.select("uid").distinct()
     val userID2 = userDayRootStatsDF2.select("uid").distinct()
-    val usersIn1NotIn2 = userID1.except(userID2)
-    val usersIn2NotIn1 = userID2.except(userID1)
+
+    var usersIn1NotIn2 = userID1.join(userID2, Seq("uid"), "leftanti")
+    var usersIn2NotIn1 = userID2.join(userID1, Seq("uid"), "leftanti")
+
+    usersIn1NotIn2 = usersIn1NotIn2.join(userDF, userDF.col("userID") === usersIn1NotIn2.col("uid"), "left")
+    usersIn2NotIn1 = usersIn2NotIn1.join(userDF, userDF.col("userID") === usersIn2NotIn1.col("uid"), "left")
+
     csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out/diff1minus2")
     csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out/diff2minus1")
 
@@ -48,12 +60,21 @@ object ValidateDerivedTest extends Serializable {
   def analyse(summaryDF: DataFrame, path: String): DataFrame = {
     val rootSummaryDF = summaryDF.where(expr("dimensions.type='app'"))
 
-    val dayStatsDF = getStats(summaryDF.groupBy("dateIST"))
+    // mid debug
+    val midCountDF = summaryDF.groupBy("mid").agg(count("*").alias("count")).where(expr("count > 1")).orderBy(col("count").desc)
+    csvWrite(midCountDF.coalesce(1), s"${path}/midCountDF")
+
+    val midRootCountDF = rootSummaryDF.groupBy("mid").agg(count("*").alias("count")).where(expr("count > 1")).orderBy(col("count").desc)
+    csvWrite(midRootCountDF.coalesce(1), s"${path}/midRootCountDF")
+
+    // group by day stats
+    val dayStatsDF = getStats(summaryDF.groupBy("dateIST")).orderBy("dateIST")
     csvWrite(dayStatsDF.coalesce(1), s"${path}/dayStatsDF")
 
-    val dayRootStatsDF = getStats(rootSummaryDF.groupBy("dateIST"))
+    val dayRootStatsDF = getStats(rootSummaryDF.groupBy("dateIST")).orderBy("dateIST")
     csvWrite(dayRootStatsDF.coalesce(1), s"${path}/dayRootStatsDF")
 
+    // group by user stats
     val userDayStatsDF = getStats(summaryDF.groupBy("dateIST", "uid")).orderBy("dateIST", "uid")
     csvWrite(userDayStatsDF.coalesce(1), s"${path}/userDayStatsDF")
 
@@ -67,28 +88,28 @@ object ValidateDerivedTest extends Serializable {
     val df = groupedDF.agg(
       count("*").alias("count"),
 
-      from_utc_timestamp(min("ets"), "Asia/Kolkata").alias("etsMin"),
-      from_utc_timestamp(max("ets"), "Asia/Kolkata").alias("etsMax"),
+      // from_utc_timestamp(min("ets"), "Asia/Kolkata").alias("etsMin"),
+      // from_utc_timestamp(max("ets"), "Asia/Kolkata").alias("etsMax"),
 
-      from_utc_timestamp(min("syncts"), "Asia/Kolkata").alias("synctsMin"),
-      from_utc_timestamp(max("syncts"), "Asia/Kolkata").alias("synctsMax"),
+      // from_utc_timestamp(min("syncts"), "Asia/Kolkata").alias("synctsMin"),
+      // from_utc_timestamp(max("syncts"), "Asia/Kolkata").alias("synctsMax"),
 
-      count("mid").alias("midCount"),
-      countDistinct("mid").alias("midDistinctCount"),
+      count("mid").alias("mid #"),
+      countDistinct("mid").alias("mid # uniq"),
 
-      count("uid").alias("uidCount"),
-      countDistinct("uid").alias("uidDistinctCount"),
+      count("uid").alias("uid #"),
+      countDistinct("uid").alias("uid # uniq"),
 
-      count("dimensions.did").alias("didCount"),
-      countDistinct("dimensions.did").alias("didDistinctCount"),
+      count("dimensions.did").alias("did #"),
+      countDistinct("dimensions.did").alias("did # uniq"),
 
-      count("dimensions.channel").alias("channelCount"),
-      countDistinct("dimensions.channel").alias("channelDistinctCount"),
+      count("dimensions.channel").alias("channel #"),
+      countDistinct("dimensions.channel").alias("channel # uniq"),
 
-      count("object.id").alias("objectCount"),
-      countDistinct("object.id").alias("objectDistinctCount"),
+      count("object.id").alias("object #"),
+      countDistinct("object.id").alias("object # uniq"),
 
-      sum("edata.eks.interact_events_count").alias("interactCount"),
+      sum("edata.eks.interact_events_count").alias("interaction #"),
       sum("edata.eks.time_spent").alias("timeSpent")
     )
 
