@@ -6,7 +6,6 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.LongType
 import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil}
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 
 
@@ -28,36 +27,90 @@ object ValidateDerivedTest extends Serializable {
 
     val rootPath = "/home/analytics/wfs-analysis"
 
-    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-08-wfs1.json.gz"
-    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-08-wfs2.json.gz"
+    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-13-wfs1.json.gz"
+    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-13-wfs2.json.gz"
+    val rawPath = s"${rootPath}/raw-2023-11-13.json"
 
-    val userDayRootStatsDF1 = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
-    val userDayRootStatsDF2 = process(jsonFileWFS2, s"${rootPath}/out/summaryDF2")
+    val (sumDF1, userDayStatsDF1, userDayRootStatsDF1) = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
+    val (sumDF2, userDayStatsDF2, userDayRootStatsDF2) = process(jsonFileWFS2, s"${rootPath}/out/summaryDF2")
 
-    var userDF = userDataFrame()
-    userDF = userDF.drop("userProfileDetails")
+//    var userDF = userDataFrame()
+//    userDF = userDF.drop("userProfileDetails")
 
-    val userID1 = userDayRootStatsDF1.select("uid").distinct()
-    val userID2 = userDayRootStatsDF2.select("uid").distinct()
+    val userID1 = userDayStatsDF1.select("uid").distinct()
+    val userID2 = userDayStatsDF2.select("uid").distinct()
 
-    var usersIn1NotIn2 = userID1.join(userID2, Seq("uid"), "leftanti")
-    var usersIn2NotIn1 = userID2.join(userID1, Seq("uid"), "leftanti")
+    val userIDRoot1 = userDayRootStatsDF1.select("uid").distinct()
+    val userIDRoot2 = userDayRootStatsDF2.select("uid").distinct()
 
-    usersIn1NotIn2 = usersIn1NotIn2.join(userDF, userDF.col("userID") === usersIn1NotIn2.col("uid"), "left")
-    usersIn2NotIn1 = usersIn2NotIn1.join(userDF, userDF.col("userID") === usersIn2NotIn1.col("uid"), "left")
+    var usersIn1NotIn2 = userIDRoot1.join(userIDRoot2, Seq("uid"), "leftanti")
+    var usersIn2NotIn1 = userIDRoot2.join(userIDRoot1, Seq("uid"), "leftanti")
+
+//    usersIn1NotIn2 = usersIn1NotIn2.join(userDF, userDF.col("userID") === usersIn1NotIn2.col("uid"), "left")
+//    usersIn2NotIn1 = usersIn2NotIn1.join(userDF, userDF.col("userID") === usersIn2NotIn1.col("uid"), "left")
 
     csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out/diff1minus2")
     csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out/diff2minus1")
 
+    // compare with raw
+    val rawDF = spark.read.json(rawPath).where(expr("eid IN ('START', 'END', 'IMPRESSION', 'INTERACT')"))
+    val rawUserDF = rawDF.where(expr("actor.type = 'User'")).select(col("actor.id").alias("uid")).distinct()
+    val rawUserDidDF = rawDF.where(expr("actor.type = 'User'"))
+      .select(
+        col("actor.id").alias("uid"),
+        col("context.did").alias("did")
+      )
+      .where(col("uid").isNotNull && col("did").isNotNull)
+      .distinct()
+    show(rawUserDidDF, "rawUserDidDF")
+
+    val rawSingleUserPerDidUserDF = rawUserDidDF
+      .groupBy("did")
+      .agg(count("*").alias("userCount"))
+      .where(expr("userCount = 1"))
+      .select("did")
+    show(rawSingleUserPerDidUserDF, "rawSingleUserPerDidUserDF")
+
+    val rawSingleUserPerDidDF = rawSingleUserPerDidUserDF.join(rawUserDidDF, Seq("did"), "left")
+    show(rawSingleUserPerDidDF, "rawSingleUserPerDidDF")
+
+    val timeSpentDF1 = sumDF1.select(
+      col("dimensions.did").alias("did"),
+      col("uid"),
+      col("edata.eks.time_spent").alias("timeSpent")
+    )
+    val timeSpentDF2 = sumDF2.select(
+      col("dimensions.did").alias("did"),
+      col("uid"),
+      col("edata.eks.time_spent").alias("timeSpent")
+    )
+    val timeSpent1 = rawSingleUserPerDidDF.join(timeSpentDF1, Seq("uid", "did"), "left")
+      .agg(sum("timeSpent").alias("totalTime"))
+    val timeSpent2 = rawSingleUserPerDidDF.join(timeSpentDF2, Seq("uid", "did"), "left")
+      .agg(sum("timeSpent").alias("totalTime"))
+
+    show(timeSpent1, "timeSpent1")
+    show(timeSpent2, "timeSpent2")
+
+    val usersInRawNotIn1 = rawUserDF.join(userID1, Seq("uid"), "leftanti")
+    val usersInRawNotIn2 = rawUserDF.join(userID2, Seq("uid"), "leftanti")
+    csvWrite(usersInRawNotIn1.coalesce(1), s"${rootPath}/out/rawUsersNotIn1")
+    csvWrite(usersInRawNotIn2.coalesce(1), s"${rootPath}/out/rawUsersNotIn2")
+
+    val usersInRawNotInRoot1 = rawUserDF.join(userIDRoot1, Seq("uid"), "leftanti")
+    val usersInRawNotInRoot2 = rawUserDF.join(userIDRoot2, Seq("uid"), "leftanti")
+    csvWrite(usersInRawNotInRoot1.coalesce(1), s"${rootPath}/out/rawUsersNotIn1Root")
+    csvWrite(usersInRawNotInRoot2.coalesce(1), s"${rootPath}/out/rawUsersNotIn2Root")
+
   }
 
-  def process(jsonFile: String, outPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): DataFrame = {
+  def process(jsonFile: String, outPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): (DataFrame, DataFrame, DataFrame) = {
     val summaryDF = getSummaryEventDF(jsonFile)
-    val userDayRootStatsDF = analyse(summaryDF, outPath)
-    userDayRootStatsDF
+    val (userDayStatsDF, userDayRootStatsDF) = analyse(summaryDF, outPath)
+    (summaryDF, userDayStatsDF, userDayRootStatsDF)
   }
 
-  def analyse(summaryDF: DataFrame, path: String): DataFrame = {
+  def analyse(summaryDF: DataFrame, path: String): (DataFrame, DataFrame) = {
     val rootSummaryDF = summaryDF.where(expr("dimensions.type='app'"))
 
     // mid debug
@@ -81,7 +134,7 @@ object ValidateDerivedTest extends Serializable {
     val userDayRootStatsDF = getStats(rootSummaryDF.groupBy("dateIST", "uid")).orderBy("dateIST", "uid")
     csvWrite(userDayRootStatsDF.coalesce(1), s"${path}/userDayRootStatsDF")
 
-    userDayRootStatsDF
+    (userDayStatsDF, userDayRootStatsDF)
   }
 
   def getStats(groupedDF: RelationalGroupedDataset): DataFrame = {
