@@ -84,3 +84,4 @@ object WeeklyClapsTest extends Serializable {
     modelParams
   }
 }
+

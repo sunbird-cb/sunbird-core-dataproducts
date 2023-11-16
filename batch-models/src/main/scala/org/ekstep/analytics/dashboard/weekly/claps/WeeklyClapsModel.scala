@@ -44,10 +44,10 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val learnerDataDF = learnerStatsDataFrame()
     show(learnerDataDF, "learner data")
 
-//    val data = Seq(("190eac0c-86f8-41ed-bbac-be5ac0025191", 10.0, 1), ("21ce101d-f44f-4f8c-8810-9e0d4f5ae3c0", 75.0, 5), ("032d8653-5977-45f2-a4f1-a657efefb66b", 20.5, 2), ("12580399-2409-49c3-9dfc-8554711caebf", 9.0, 1))
-//    val columns = Seq("userid", "platformEngagementTime", "sessionCount")
-//    val platformEngagementDF: DataFrame = spark.createDataFrame(data).toDF(columns: _*)
-//    show(platformEngagementDF, "platform engagement")
+    //    val data = Seq(("190eac0c-86f8-41ed-bbac-be5ac0025191", 10.0, 1), ("21ce101d-f44f-4f8c-8810-9e0d4f5ae3c0", 75.0, 5), ("032d8653-5977-45f2-a4f1-a657efefb66b", 20.5, 2), ("12580399-2409-49c3-9dfc-8554711caebf", 9.0, 1))
+    //    val columns = Seq("userid", "platformEngagementTime", "sessionCount")
+    //    val platformEngagementDF: DataFrame = spark.createDataFrame(data).toDF(columns: _*)
+    //    show(platformEngagementDF, "platform engagement")
 
     val platformEngagementDF = usersPlatformEngagementDataframe(weekStart)
     var df = learnerDataDF
@@ -86,3 +86,4 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
   }
 }
+
