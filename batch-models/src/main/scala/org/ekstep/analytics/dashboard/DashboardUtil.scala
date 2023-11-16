@@ -241,6 +241,37 @@ object DashboardUtil extends Serializable {
       redisConnect = null
     }
   }
+
+  def redisHsetUpdate(key: String, field: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisHsetUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, field, data)
+  }
+
+  def redisHsetUpdate(host: String, port: Int, db: Int, key: String, field: String, data: String): Unit = {
+    try {
+      redisHsetUpdateWithoutRetry(host, port, db, key, field, data)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisHsetUpdateWithoutRetry(host, port, db, key, field, data)
+    }
+  }
+
+  def redisHsetUpdateWithoutRetry(host: String, port: Int, db: Int, key: String, field: String, data: String): Unit = {
+    var cleanedData = ""
+    if (data == null || data.isEmpty) {
+      println(s"WARNING: data is empty, setting data='' for redis key=${key}")
+      cleanedData = ""
+    } else {
+      cleanedData = data
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
+      return
+    }
+    if (jedis.getDB != db) jedis.select(db)
+    jedis.hset(key, field, cleanedData)
+  }
   def redisUpdate(key: String, data: String)(implicit conf: DashboardConfig): Unit = {
     redisUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
   }
@@ -276,6 +307,7 @@ object DashboardUtil extends Serializable {
   def redisDispatch(key: String, data: util.Map[String, String])(implicit conf: DashboardConfig): Unit = {
     redisDispatch(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
   }
+
   def redisDispatch(db: Int, key: String, data: util.Map[String, String])(implicit conf: DashboardConfig): Unit = {
     redisDispatch(conf.redisHost, conf.redisPort, db, key, data)
   }
@@ -323,6 +355,8 @@ object DashboardUtil extends Serializable {
     // this will update redis hash map keys and create new ones, but will not delete ones that have been deleted
     jedis.hmset(key, data)
   }
+
+
   def getOrCreateRedisConnect(host: String, port: Int): Jedis = {
     if (redisConnect == null) {
       redisConnect = createRedisConnect(host, port)
@@ -338,6 +372,7 @@ object DashboardUtil extends Serializable {
     if (host == "") return null
     new Jedis(host, port, 30000)
   }
+
   def createRedisConnect(conf: DashboardConfig): Jedis = createRedisConnect(conf.redisHost, conf.redisPort)
   /* redis util functions over */
 
@@ -353,6 +388,7 @@ object DashboardUtil extends Serializable {
   def redisDispatchDataFrame[T](redisKey: String, df: DataFrame, keyField: String, valueField: String)(implicit conf: DashboardConfig): Unit = {
     redisDispatch(redisKey, dfToMap[T](df, keyField, valueField))
   }
+
 
   def apiThrowException(method: String, url: String, body: String): String = {
     val request = method.toLowerCase() match {

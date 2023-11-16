@@ -10,7 +10,6 @@ import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
 import DashboardUtil.StorageUtil._
-
 import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
@@ -1079,6 +1078,7 @@ object DataUtil extends Serializable {
 
     df
   }
+
 
 //  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 //    val userContentConsumptionDF = userContentConsumptionDataFrame()
