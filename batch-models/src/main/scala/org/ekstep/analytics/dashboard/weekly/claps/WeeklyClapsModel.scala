@@ -88,11 +88,13 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
      * else wait till end of week and set to 0
      */
 
+    val condition = col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps")
+
     if(yesterday.equals(weekEnd)) {
-      df = df.withColumn("total_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), col("total_claps") + 1).otherwise(0))
+      df = df.withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(0))
     } else {
-      df = df.withColumn("total_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), col("total_claps") + 1).otherwise(col("total_claps")))
-      df = df.withColumn("is_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), lit(true)).otherwise(col("is_claps")))
+      df = df.withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(col("total_claps")))
+      df = df.withColumn("is_claps", when(condition, lit(true)).otherwise(col("is_claps")))
     }
 
     df = df.drop("platformEngagementTime","sessionCount")
