@@ -196,6 +196,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     show(bpChildUserEnrolmentDF, "bpChildUserEnrolmentDF")
 
     var bpChildrenWithProgress = bpCompletionWithChildBatchInfoDF.join(bpChildUserEnrolmentDF, Seq("userID", "bpChildID"), "left")
+      .na.fill(0, Seq("bpChildResourceCount", "bpChildProgress"))
     show(bpChildrenWithProgress, "bpChildrenWithProgress -2")
 
     bpChildrenWithProgress = bpChildrenWithProgress
