@@ -269,7 +269,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("Certificate_Generated"),
         col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
-      )
+      ).distinct()
 
     show(df, "df")
 
