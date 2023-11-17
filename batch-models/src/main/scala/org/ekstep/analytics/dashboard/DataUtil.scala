@@ -1049,7 +1049,7 @@ object DataUtil extends Serializable {
    *                                  DataFrame(courseID, category, courseName, courseStatus,
    *                                  courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount)
    * @param userOrgDF DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userOrgID, userOrgName, userOrgStatus)
-   * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp,
+   * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, issuedCertificateCount,
    *         courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID,
    *         courseOrgName, courseOrgStatus, courseDuration, courseResourceCount, firstName, lastName, maskedEmail, maskedPhone, userStatus,
    *         userOrgID, userOrgName, userOrgStatus, completionPercentage, completionStatus, courseLastPublishedOn)
@@ -1066,7 +1066,7 @@ object DataUtil extends Serializable {
 
     df = df.join(userOrgDF, Seq("userID"), "left")
       .select("userID", "courseID", "batchID", "courseCompletedTimestamp", "courseEnrolledTimestamp",
-        "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
+        "lastContentAccessTimestamp", "issuedCertificateCount", "courseProgress", "dbCompletionStatus", "category", "courseName",
         "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
         "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
     df = df

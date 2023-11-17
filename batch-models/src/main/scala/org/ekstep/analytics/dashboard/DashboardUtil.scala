@@ -10,7 +10,7 @@ import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
@@ -240,6 +240,57 @@ object DashboardUtil extends Serializable {
       redisConnect.close()
       redisConnect = null
     }
+  }
+
+  def redisGetKeyValue(key: String)(implicit conf: DashboardConfig): String = {
+    redisGetKeyValue(conf.redisHost, conf.redisPort, conf.redisDB, key)
+  }
+
+  def redisGetKeyValue(host: String, port: Int, db: Int, key: String): String = {
+    if (key == null || key.isEmpty) {
+      println(s"WARNING: key is empty")
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
+      return ""
+    }
+    if (jedis.getDB != db) jedis.select(db)
+    val result = jedis.get(key)
+    jedis.close() // Close the jedis connection
+    result
+  }
+
+
+  def redisGetHsetValue(key: String, field: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    redisGetHsetValue(conf.redisHost, conf.redisPort, conf.redisDB, key, field)
+  }
+
+  def redisGetHsetValue(host: String, port: Int, db: Int, key: String, field: String)(implicit spark: SparkSession): DataFrame = {
+    if (key == null || key.isEmpty) {
+      println(s"WARNING: key is empty")
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null)
+    {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+    }
+    if (jedis.getDB != db) jedis.select(db)
+    val fieldPattern = field
+    // Fetch fields and values based on the pattern
+    val fields = jedis.keys(key + ":" + fieldPattern).toArray(Array.empty[String])
+    val values = jedis.hmget(key, fields: _*)
+
+    // Create a DataFrame from the Redis data
+    val resultDF = spark.createDataFrame(fields.zip(values)).toDF("userOrgID", "totalLearningHours")
+
+    // Close the jedis connection
+    jedis.close()
+
+    // Show the resulting DataFrame
+    resultDF.show()
+    resultDF
   }
 
   def redisHsetUpdate(key: String, field: String, data: String)(implicit conf: DashboardConfig): Unit = {
