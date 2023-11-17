@@ -86,6 +86,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpBatchSessionDetails", explode_outer(col("bpBatchAttrs.sessionDetails_v2")))
       .withColumn("bpBatchSessionType", col("bpBatchSessionDetails.sessionType"))
       .withColumn("bpBatchSessionFacilators", concat_ws(", ", col("bpBatchSessionDetails.facilatorDetails.name")))
+      .withColumn("bpBatchSessionStartTime", col("bpBatchSessionDetails.startTime"))
       .drop("bpBatchAttrs", "bpBatchSessionDetails")
 
     val relevantBatchInfoDF = bpWithOrgDF.select("bpID")
@@ -205,7 +206,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     bpChildrenWithProgress = userCourseCompletionStatus(bpChildrenWithProgress)
       .withColumnRenamed("userCourseCompletionStatus", "bpChildUserStatus")
-      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN bpChildBatchSessionType != 'Offline' THEN '' WHEN dbCompletionStatus IN (0, 1, 2) THEN 'Attended' ELSE 'Not Attended' END"))
+      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN bpChildBatchSessionType != 'Offline' THEN '' WHEN dbCompletionStatus=2 THEN 'Attended' ELSE 'Not Attended' END"))
     show(bpChildrenWithProgress, "bpChildrenWithProgress")
 
     // finalize report data frame
@@ -219,7 +220,10 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
       .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildBatchSessionType = 'Offline' THEN bpChildBatchStartDate ELSE '' END"))
+      .withColumn("bpChildUserStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Completed' ELSE 'Not Completed' END"))
     show(df, "df -1")
+
+    df = durationFormat(df, "bpChildDuration")
 
     df = df
       .select(
@@ -257,6 +261,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
         col("bpChildOfflineStartDate").alias("Offline_Session_Date"),
+        col("bpBatchSessionStartTime").alias("Offline_Session_Time"),
         col("bpChildAttendanceStatus").alias("Offline_Attendance_Status"),
         col("bpBatchSessionFacilators").alias("Instructor(s)_Name"),
         col("programDirectorName").alias("Program_Coordinator_Name"),
