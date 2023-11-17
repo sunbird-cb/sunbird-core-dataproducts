@@ -549,6 +549,7 @@ object DataUtilNew extends Serializable {
         col("duration").cast(FloatType).alias(s"${prefix}Duration"),
         col("leafNodesCount").alias(s"${prefix}ResourceCount"),
         col("lastStatusChangedOn").alias(s"${prefix}LastStatusChangedOn"),
+        col("programDirectorName").alias(s"${prefix}ProgramDirectorName"),
         col(s"${prefix}OrgID")
       )
 
