@@ -91,7 +91,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     val relevantBatchInfoDF = bpWithOrgDF.select("bpID")
       .join(bpBatchDF, Seq("bpID"), "left")
-      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpBatchCurrentSize", "bpBatchSessionType", "bpBatchSessionFacilators")
+      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpBatchCurrentSize", "bpBatchSessionType", "bpBatchSessionFacilators", "bpBatchSessionStartTime")
     show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
     val bpWithBatchDF = bpWithOrgDF.join(relevantBatchInfoDF, Seq("bpID"), "left")
