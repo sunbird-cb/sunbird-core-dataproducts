@@ -38,11 +38,11 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
-    val (weekStart, weekEnd, today, yesterday) = getThisWeekDates()
+    val (weekStart, weekEnd, yesterday) = getThisWeekDates()
 
     //get existing weekly-claps data
-    val learnerDataDF = learnerStatsDataFrame()
-    show(learnerDataDF, "learner data")
+    var df = learnerStatsDataFrame()
+    show(df, "learner data")
 
     //    val data = Seq(("190eac0c-86f8-41ed-bbac-be5ac0025191", 10.0, 1), ("21ce101d-f44f-4f8c-8810-9e0d4f5ae3c0", 75.0, 5), ("032d8653-5977-45f2-a4f1-a657efefb66b", 20.5, 2), ("12580399-2409-49c3-9dfc-8554711caebf", 9.0, 1))
     //    val columns = Seq("userid", "platformEngagementTime", "sessionCount")
@@ -50,9 +50,10 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     //    show(platformEngagementDF, "platform engagement")
 
     val platformEngagementDF = usersPlatformEngagementDataframe(weekStart)
-    var df = learnerDataDF
 
-    if(yesterday.equals(weekStart)) {
+    if(yesterday.equals(weekStart)
+//      && !yesterday.equals(df.select(col("last_updated")))
+    ) {
       df = df.select(
         col("w2").alias("w1"),
         col("w3").alias("w2"),
@@ -60,6 +61,7 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("total_claps"),
         col("userid")
       )
+//      df = df.withColumn("last_updated", lit(yesterday))
     } else {
       df = df.select(
         col("w1"),
@@ -70,17 +72,30 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       )
     }
 
+
     df = df.join(platformEngagementDF, Seq("userid"), "full")
     show(df, "after full join ")
 
     df = df.withColumn("is_claps", lit(false))
-      .withColumn("w4", map(lit("timespent"), col("platformEngagementTime"), lit("numberOfSessions"), col("sessionCount")))
+      .withColumn("w4", map(
+        lit("timespent"), when(col("platformEngagementTime").isNull, 0).otherwise(col("platformEngagementTime")),
+        lit("numberOfSessions"), when(col("sessionCount").isNull, 0).otherwise(col("sessionCount"))
+      ))
 
     /**
      * total_claps
      * check >= cutoff everyday - total_claps +=1 if met
      * else wait till end of week and set to 0
      */
+
+    if(yesterday.equals(weekEnd)) {
+      df = df.withColumn("total_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), col("total_claps") + 1).otherwise(0))
+    } else {
+      df = df.withColumn("total_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), col("total_claps") + 1).otherwise(col("total_claps")))
+      df = df.withColumn("is_claps", when(col("platformEngagementTime") >= conf.cutoffTime && !col("is_claps"), lit(true)).otherwise(col("is_claps")))
+    }
+
+    df = df.drop("platformEngagementTime","sessionCount")
 
     writeToCassandra(df, conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
 

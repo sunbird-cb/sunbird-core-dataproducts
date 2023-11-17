@@ -203,18 +203,17 @@ object DashboardUtil extends Serializable {
     dateFormat.print(System.currentTimeMillis());
   }
 
-  def getThisWeekDates():(String, String, String, String) = {
+  def getThisWeekDates():(String, String, String) = {
 
     val istTimeZone = DateTimeZone.forID("Asia/Kolkata")
     val currentDate = DateTime.now(istTimeZone)
-    val dateFormatter: format.DateTimeFormatter = format.DateTimeFormat.forPattern("yyyy-MM-dd").withZone(istTimeZone)
-    val formatter: format.DateTimeFormatter = format.DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(istTimeZone)
+    val dateFormatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(istTimeZone)
+    val formatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(istTimeZone)
 
-    val today = dateFormatter.print(currentDate)
     val yesterday = dateFormatter.print(currentDate.minusDays(1))
     val startOfWeek = currentDate.withDayOfWeek(DateTimeConstants.MONDAY).withTimeAtStartOfDay()
     val endOfWeek = startOfWeek.plusDays(6).withTime(23,59,59,999)
-    (formatter.print(startOfWeek), formatter.print(endOfWeek), today, yesterday)
+    (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), yesterday)
   }
 
   /* Util functions */
