@@ -169,9 +169,27 @@ object DataUtilNew extends Serializable {
     ))
 
     /* batch attrs schema */
+    val batchAttrsSessionDetailsV2FacilatorDetailsSchema: StructType = StructType(Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("id", StringType, nullable = true),
+      StructField("email", StringType, nullable = true)
+    ))
+    val batchAttrsSessionDetailsV2Schema: StructType = StructType(Seq(
+      StructField("sessionId", StringType, nullable = true),
+      StructField("sessionType", StringType, nullable = true),
+      StructField("sessionDuration", StringType, nullable = true),
+      StructField("title", StringType, nullable = true),
+      StructField("description", StringType, nullable = true),
+      StructField("startDate", StringType, nullable = true),
+      StructField("startTime", StringType, nullable = true),
+      StructField("endTime", StringType, nullable = true),
+      StructField("facilatorDetails", ArrayType(batchAttrsSessionDetailsV2FacilatorDetailsSchema), nullable = true)
+    ))
     val batchAttrsSchema: StructType = StructType(Seq(
       StructField("batchLocationDetails", StringType, nullable = true),
-      StructField("sessionType", StringType, nullable = true)
+      StructField("latlong", StringType, nullable = true),
+      StructField("currentBatchSize", StringType, nullable = true),
+      StructField("sessionDetails_v2", ArrayType(batchAttrsSessionDetailsV2Schema), nullable = true)
     ))
 
     /* telemetry related schema */
