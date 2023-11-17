@@ -96,18 +96,26 @@ object DataUtilNew extends Serializable {
     ))
 
     /* schema definitions for content hierarchy table */
-    val hierarchyChildSchema: StructType = StructType(Seq(
-      StructField("identifier", StringType, nullable = true),
-      StructField("name", StringType, nullable = true),
-      StructField("channel", StringType, nullable = true),
-      StructField("duration", StringType, nullable = true),
-      StructField("primaryCategory", StringType, nullable = true),
-      StructField("contentType", StringType, nullable = true),
-      StructField("objectType", StringType, nullable = true),
-      StructField("showTimer", StringType, nullable = true),
-      StructField("allowSkip", StringType, nullable = true)
-    ))
-    def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
+    def makeHierarchyChildSchema(children: Boolean = false): StructType = {
+      val fields = ListBuffer(
+        StructField("identifier", StringType, nullable = true),
+        StructField("name", StringType, nullable = true),
+        StructField("channel", StringType, nullable = true),
+        StructField("duration", StringType, nullable = true),
+        StructField("primaryCategory", StringType, nullable = true),
+        StructField("leafNodesCount", IntegerType, nullable = true),
+        StructField("contentType", StringType, nullable = true),
+        StructField("objectType", StringType, nullable = true),
+        StructField("showTimer", StringType, nullable = true),
+        StructField("allowSkip", StringType, nullable = true)
+      )
+      if (children) {
+        fields.append(StructField("children", ArrayType(makeHierarchyChildSchema()), nullable = true))
+      }
+      StructType(fields)
+    }
+
+    def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false, l2Children: Boolean = false): StructType = {
       val fields = ListBuffer(
         StructField("name", StringType, nullable = true),
         StructField("status", StringType, nullable = true),
@@ -131,7 +139,7 @@ object DataUtilNew extends Serializable {
         StructField("createdFor", ArrayType(StringType), nullable = true)
       )
       if (children) {
-        fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
+        fields.append(StructField("children", ArrayType(makeHierarchyChildSchema(l2Children)), nullable = true))
       }
       if (competencies) {
         fields.append(StructField("competencies_v3", StringType, nullable = true))
@@ -524,8 +532,8 @@ object DataUtilNew extends Serializable {
    * content from elastic search api
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
    */
-  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course")(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
+  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course", extraFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories, extraFields=extraFields)
 
     // now that error handling is done, proceed with business as usual
     df = df
@@ -753,9 +761,9 @@ object DataUtilNew extends Serializable {
    * @return
    */
   def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
-                         children: Boolean = false, competencies: Boolean = false
+                         children: Boolean = false, competencies: Boolean = false, l2Children: Boolean = false
                         )(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val hierarchySchema = Schema.makeHierarchySchema(children, competencies)
+    val hierarchySchema = Schema.makeHierarchySchema(children, competencies, l2Children)
     df.join(hierarchyDF, df.col(idCol) === hierarchyDF.col("identifier"), "left")
       .na.fill("{}", Seq("hierarchy"))
       .withColumn(asCol, from_json(col("hierarchy"), hierarchySchema))
