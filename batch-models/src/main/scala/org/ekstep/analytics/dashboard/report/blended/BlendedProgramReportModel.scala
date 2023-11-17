@@ -48,7 +48,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
     val today = getDate()
 
-    //GET ORG DATA
+    // get user and user org data
     val orgDF = orgDataFrame()
     val orgHierarchyData = orgHierarchyDataframe()
     var userDataDF = userProfileDetailsDF(orgDF)
@@ -58,7 +58,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .join(orgHierarchyData, Seq("userOrgName"), "left")
     show(userDataDF, "userDataDF")
 
-    // Get Blended Program data first
+    // Get Blended Program data
     val blendedProgramESDF = contentESDataFrame(Seq("Blended Program"), "bp")
     val bpOrgDF = orgDF.select(
       col("orgID").alias("bpOrgID"),
@@ -66,6 +66,32 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("orgCreatedDate").alias("bpOrgCreatedDate")
     )
     val bpWithOrgDF = blendedProgramESDF.join(bpOrgDF, Seq("bpOrgID"), "left")
+
+    // add BP batch info
+    val batchDF = courseBatchDataFrame()
+
+    val bpBatchDF = batchDF.select(
+      col("courseID").alias("bpID"),
+      col("batchID").alias("bpBatchID"),
+      col("courseBatchName").alias("bpBatchName"),
+      col("courseBatchStartDate").alias("bpBatchStartDate"),
+      col("courseBatchEndDate").alias("bpBatchEndDate"),
+      col("courseBatchAttrs").alias("bpBatchAttrs")
+    )
+      .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
+      .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
+      .withColumn("bpBatchSessionType", col("bpBatchAttrs.sessionType"))  // TODO
+      .drop("bpBatchAttrs")
+
+    val relevantBatchInfoDF = bpWithOrgDF.select("bpID", "bpCategory")
+      .join(bpBatchDF, Seq("bpID"), "left")
+      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpBatchSessionType")
+    show(relevantBatchInfoDF, "relevantBatchInfoDF")
+
+    val bpWithBatchDF = bpWithOrgDF.join(relevantBatchInfoDF, Seq("bpID"), "left")
+    show(bpWithBatchDF, "bpWithBatchDF")
+
+    // add BP user progress info
 
     // get enrolment table
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
@@ -80,7 +106,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("dbCompletionStatus")
     )
 
-    val bpCompletionDF = bpWithOrgDF.join(bpUserEnrolmentDF, Seq("bpID"), "left")
+    val bpCompletionDF = bpWithBatchDF.join(bpUserEnrolmentDF, Seq("bpID", "bpBatchID"), "inner")
 
     // add user and user org info
     var bpCompletionWithUserDetailsDF = bpCompletionDF.join(userDataDF, Seq("userID"), "left")
@@ -89,39 +115,42 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .drop("dbCompletionStatus")
     show(bpCompletionWithUserDetailsDF, "bpCompletionWithUserDetailsDF")
 
-    // add batch info
-    val bpBatchDF = courseBatchDataFrame().select(
-      col("courseID").alias("bpID"),
-      col("batchID").alias("bpBatchID"),
-      col("courseBatchName").alias("bpBatchName"),
-      col("courseBatchStartDate").alias("bpBatchStartDate"),
-      col("courseBatchEndDate").alias("bpBatchEndDate"),
-      col("courseBatchAttrs").alias("bpBatchAttrs")
-    )
-      .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
-      .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
-      .withColumn("bpBatchSessionType", col("bpBatchAttrs.sessionType"))
-      .drop("bpBatchAttrs")
-
-    val relevantBatchInfoDF = bpWithOrgDF.select("bpID", "bpCategory")
-      .join(bpBatchDF, Seq("bpID"), "left")
-      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpBatchSessionType")
-    show(relevantBatchInfoDF, "relevantBatchInfoDF")
-
-    val bpCompletionWithBatchInfoDF = bpCompletionWithUserDetailsDF.join(relevantBatchInfoDF, Seq("bpID", "bpBatchID"), "left")
-    show(bpCompletionWithBatchInfoDF, "bpCompletionWithBatchInfoDF")
-
-    // add and explode children
+    // children
     val hierarchyDF = contentHierarchyDataFrame()
-    val bpCompletionWithChildrenDF = addHierarchyColumn(bpCompletionWithBatchInfoDF, hierarchyDF, "bpID",
-      "data", children = true)
 
-    val bpChildrenDF = bpCompletionWithChildrenDF.withColumn("bpChild", explode_outer(col("data.children")))
+    val bpIDsDF = blendedProgramESDF.select("bpID")
+
+    // L1 children without modules
+    val bpChildL1WithModulesDF = addHierarchyColumn(bpIDsDF, hierarchyDF, "bpID", "data", children = true)
+      .withColumn("bpChild", explode_outer(col("data.children")))
       .withColumn("bpChildID", col("bpChild.identifier"))
       .withColumn("bpChildName", col("bpChild.name"))
       .withColumn("bpChildCategory", col("bpChild.category"))
       .withColumn("bpChildResourceCount", col("bpChild.leafNodesCount"))
       .withColumn("bpChildDuration", col("bpChild.duration"))
+      .drop("data")
+    show(bpChildL1WithModulesDF, "bpChildL1WithModulesDF")
+
+    val bpChildL1DF = bpChildL1WithModulesDF.where(expr("bpChildCategory != 'Course Unit'"))
+
+    // L2 (module) Children
+    val bpModuleIDsDF = bpChildL1WithModulesDF.where(expr("bpChildCategory = 'Course Unit'"))
+      .select(col("bpID"), col("bpChildID").alias("bpModuleID"))
+
+    val bpChildL2DF = addHierarchyColumn(bpModuleIDsDF, hierarchyDF, "bpModuleID", "data", children = true)
+      .withColumn("bpChild", explode_outer(col("data.children")))
+      .withColumn("bpChildID", col("bpChild.identifier"))
+      .withColumn("bpChildName", col("bpChild.name"))
+      .withColumn("bpChildCategory", col("bpChild.category"))
+      .withColumn("bpChildResourceCount", col("bpChild.leafNodesCount"))
+      .withColumn("bpChildDuration", col("bpChild.duration"))
+      .drop("data", "bpModuleID")
+
+    // merge L1 and L2 children
+    val bpChildDF = bpChildL1DF.union(bpChildL2DF)
+
+    // add children info to bpCompletionWithUserDetailsDF
+    val bpCompletionWithChildrenDF = bpCompletionWithUserDetailsDF.join(bpChildDF, Seq("bpID"), "left")
 
     // add children batch info
     val bpChildBatchDF = bpBatchDF.select(
@@ -134,12 +163,12 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("bpBatchSessionType").alias("bpChildBatchSessionType")
     )
 
-    val relevantChildBatchInfoDF = bpChildrenDF.select("bpChildID", "bpChildCategory")
+    val relevantChildBatchInfoDF = bpChildDF.select("bpChildID", "bpChildCategory")
       .join(bpChildBatchDF, Seq("bpChildID"), "left")
       .select("bpChildID", "bpChildBatchID", "bpChildBatchName", "bpChildBatchStartDate", "bpChildBatchEndDate", "bpChildBatchLocation", "bpChildBatchSessionType")
     show(relevantChildBatchInfoDF, "relevantChildBatchInfoDF")
 
-    val bpCompletionWithChildBatchInfoDF = bpChildrenDF.join(relevantChildBatchInfoDF, Seq("bpChildID", "bpChildBatchID"), "left")
+    val bpCompletionWithChildBatchInfoDF = bpCompletionWithChildrenDF.join(relevantChildBatchInfoDF, Seq("bpChildID", "bpChildBatchID"), "left")
     show(bpCompletionWithChildBatchInfoDF, "bpCompletionWithChildBatchInfoDF")
 
     // add child progress info
@@ -158,6 +187,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumnRenamed("userCourseCompletionStatus", "bpChildUserStatus")
       .withColumn("bpChildAttendanceStatus", expr("CASE WHEN bpChildBatchSessionType != 'Offline' THEN '' WHEN dbCompletionStatus IN (0, 1, 2) THEN 'Attended' ELSE 'Not Attended' END"))
 
+    // finalize report data frame
     var df = bpChildrenWithProgress
       .withColumn("enrolledOn", to_date(col("bpEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("bpBatchStartDate", to_date(col("bpBatchStartDate"), "dd/MM/yyyy"))
@@ -169,7 +199,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
       .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildBatchSessionType = 'Offline' THEN bpChildBatchStartDate ELSE '' END"))
 
-    df = df.distinct().dropDuplicates("userID", "bpID", "bpChildID")
+    df = df
       .select(
         col("userID"),
         col("userOrgID"),

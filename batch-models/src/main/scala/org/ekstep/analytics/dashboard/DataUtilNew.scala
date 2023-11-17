@@ -235,13 +235,14 @@ object DataUtilNew extends Serializable {
     val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
   }
 
-  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String], extraFields: Seq[String] = Seq(), extraArrayFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor") ++ extraFields
+    val arrayFields = Seq("createdFor") ++ extraArrayFields
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
-    elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, Seq("createdFor"))
+    elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, arrayFields)
   }
 
   def fracCompetencyAPI(host: String): String = {
