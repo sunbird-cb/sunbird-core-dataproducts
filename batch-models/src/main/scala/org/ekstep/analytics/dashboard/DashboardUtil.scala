@@ -262,28 +262,29 @@ object DashboardUtil extends Serializable {
   }
 
 
-  def redisGetHsetValue(key: String, field: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    redisGetHsetValue(conf.redisHost, conf.redisPort, conf.redisDB, key, field)
+  def redisGetHsetValue(key: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    redisGetHsetValue(conf.redisHost, conf.redisPort, conf.redisDB, key)
   }
 
-  def redisGetHsetValue(host: String, port: Int, db: Int, key: String, field: String)(implicit spark: SparkSession): DataFrame = {
+  def redisGetHsetValue(host: String, port: Int, db: Int, key: String)(implicit spark: SparkSession): DataFrame = {
     if (key == null || key.isEmpty) {
       println(s"WARNING: key is empty")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
     }
     val jedis = getOrCreateRedisConnect(host, port)
-    if (jedis == null)
-    {
-      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=$key")
       return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
     }
     if (jedis.getDB != db) jedis.select(db)
-    val fieldPattern = field
-    // Fetch fields and values based on the pattern
-    val fields = jedis.keys(key + ":" + fieldPattern).toArray(Array.empty[String])
-    val values = jedis.hmget(key, fields: _*)
+
+    // Fetch all fields and values from the Redis hash
+    val fields = jedis.hgetAll(key)
 
     // Create a DataFrame from the Redis data
-    val resultDF = spark.createDataFrame(fields.zip(values)).toDF("userOrgID", "totalLearningHours")
+    val resultDF = spark.createDataFrame(fields.toList.map { case (userOrgID, totalLearningHours) =>
+      Row(userOrgID, totalLearningHours)
+    }, StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
 
     // Close the jedis connection
     jedis.close()
