@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions._
 import org.ekstep.analytics.framework._
 import DashboardUtil._
 import DataUtil._
+import org.apache.spark.sql.expressions.Window
 
 import java.io.Serializable
 import java.text.SimpleDateFormat
@@ -321,8 +322,130 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // mdo-wise courses completed at-least once
     val liveCourseCompletedAtLeastOnceByMDODF = liveCourseCompletedDF.groupBy("userOrgID").agg(countDistinct("courseID").alias("count"))
     redisDispatchDataFrame[Long]("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
-
     // new redis updates - end
+
+    //get the current date, the previous calendar date and a day before that for learner stats - start
+    val currentDateDF = spark.range(1).select(current_date().alias("currentDate"))
+    // Format the current date as a string in the desired format
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSSZ")
+    val currentDateString = currentDateDF.select(date_format($"currentDate", "yyyy-MM-dd HH:mm:ss.SSSSSSZ").alias("formattedCurrentDate")).first().getString(0)
+    // Calculate the start and end of the current day with timezone offset "0000"
+    val endOfCurrentDay = currentDateDF.select(to_utc_timestamp(concat($"currentDate", lit(" 23:59:59.896")), "0000").alias("endOfCurrentDay")).first().getTimestamp(0)
+    // Calculate the start and end of the day 7 days ago (a week) with timezone offset "0000"
+    val startOf7thDay = currentDateDF.select(to_utc_timestamp(concat($"currentDate" - expr("INTERVAL 7 DAY"), lit(" 00:00:00")), "0000").alias("startOf7thDay")).first().getTimestamp(0)
+
+    // Format start and end of the current and previous day as strings
+    val endOfCurrentDayString = dateFormat.format(endOfCurrentDay)
+    val startOf7thDayString = dateFormat.format(startOf7thDay)
+    print(endOfCurrentDayString)
+    print(startOf7thDayString)
+    //get the current date, the previous calendar date and a day before that for learner stats - end
+
+    // learner home page data logic - start
+    print("started calculating")
+    val lastRunDate: String = redisGetKeyValue("lhp_lastRunDate")
+    print("The last run date is "+ lastRunDate)
+    print("current Date is"+ currentDateString)
+    print(lastRunDate.equals(currentDateString))
+    if(!(lastRunDate.equals(currentDateString)))
+      {
+        val totalLearningHoursTillTodayByOrg = allCourseProgramCompletionWithDetailsDF.groupBy("userOrgID").agg(sum(expr("(completionPercentage / 100) * courseDuration")).alias("totalLearningHours"))
+        totalLearningHoursTillTodayByOrg.show()
+        val totalLearningHoursTillYesterdayByOrg = redisGetHsetValue("lhp_learningHoursTillToday")
+        totalLearningHoursTillYesterdayByOrg.show()
+        val totalLearningHoursTillDayBeforeYesterdayByOrg = redisGetHsetValue("lhp_learningHoursTillYesterday")
+        totalLearningHoursTillDayBeforeYesterdayByOrg.show()
+        val totalLearningHoursTillTodayByOrgModified = totalLearningHoursTillTodayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursToday")
+
+        val totalLearningHoursTillYesterdayByOrgModified = totalLearningHoursTillYesterdayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursYesterday")
+
+        val totalLearningHoursTillDayBeforeYesterdayByOrgModified = totalLearningHoursTillDayBeforeYesterdayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursDayBeforeYesterday")
+
+        val totalLearningHoursTodayByOrg = totalLearningHoursTillTodayByOrgModified
+          .join(totalLearningHoursTillYesterdayByOrgModified, totalLearningHoursTillTodayByOrgModified("userOrgID") === totalLearningHoursTillYesterdayByOrgModified("userOrgID"), "inner")
+          .withColumn("userOrgID:today", totalLearningHoursTillTodayByOrgModified("userOrgID"))
+          .withColumn("totalLearningHours", totalLearningHoursTillTodayByOrgModified("totalLearningHoursToday") - coalesce(totalLearningHoursTillYesterdayByOrgModified("totalLearningHoursYesterday"), lit(0)))
+          .select("userOrgID:today", "totalLearningHours")
+           totalLearningHoursTodayByOrg.show()
+        val totalLearningHoursYesterdayByOrg = totalLearningHoursTillYesterdayByOrgModified
+          .join(totalLearningHoursTillDayBeforeYesterdayByOrgModified, totalLearningHoursTillYesterdayByOrgModified("userOrgID") === totalLearningHoursTillDayBeforeYesterdayByOrgModified("userOrgID"), "inner")
+          .withColumn("userOrgID:yesterday", totalLearningHoursTillYesterdayByOrgModified("userOrgID"))
+          .withColumn("totalLearningHours", totalLearningHoursTillYesterdayByOrgModified("totalLearningHoursYesterday") - coalesce(totalLearningHoursTillDayBeforeYesterdayByOrgModified("totalLearningHoursDayBeforeYesterday"), lit(0)))
+          .select("userOrgID:yesterday", "totalLearningHours")
+        totalLearningHoursYesterdayByOrg.show()
+        val totalLearningHoursYesterday: String = totalLearningHoursYesterdayByOrg.select(sum("totalLearningHours").cast("string")).collect()(0)(0).toString
+        val totalLearningHoursToday: String = totalLearningHoursTodayByOrg.select(sum("totalLearningHours").cast("string")).collect()(0)(0).toString
+        print(totalLearningHoursYesterday + "\n")
+        print(totalLearningHoursToday + "\n")
+        val totalCertificationsTillToday: String = allCourseProgramCompletionWithDetailsDF.where(expr("courseStatus IN ('Live') AND userStatus=1 AND dbCompletionStatus = 2 AND issuedCertificateCount > 0")).count().toString
+        val totalCertificationsTillYesterday: String = redisGetKeyValue("lhp_certificationsTillToday")
+        val totalCertificationsTillDayBeforeYesterday: String = redisGetKeyValue("lhp_certificationsTillYesterday")
+        val totalCertificationsToday: String = ((totalCertificationsTillToday.toFloat) - (totalCertificationsTillYesterday.toFloat)).toString
+        val totalCertificationsYesterday: String = ((totalCertificationsTillYesterday.toInt) - (totalCertificationsTillDayBeforeYesterday.toInt)).toString
+        print(totalLearningHoursToday + "\n")
+        print(totalLearningHoursYesterday + "\n")
+        val certificationsOfTheWeek = allCourseProgramCompletionWithDetailsDF.where(expr("courseStatus IN ('Live') AND userStatus=1 AND " + s"courseCompletedTimestamp > '${startOf7thDayString}' " + s"AND courseCompletedTimestamp < '${endOfCurrentDayString}' " + "AND dbCompletionStatus = 2 AND issuedCertificateCount > 0"))
+        print(certificationsOfTheWeek)
+        val top10Certifications = certificationsOfTheWeek.groupBy("courseID").agg(count("*").alias("courseCount")).orderBy(desc("courseCount")).limit(10)
+        print(top10Certifications + "\n")
+        val courseIdsString = top10Certifications.select("courseID").as[String].collect().mkString(",")
+        print(courseIdsString + "\n")
+        val trendingCourses = allCourseProgramCompletionWithDetailsDF.filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'").groupBy("courseID").agg(count("*").alias("enrollmentCount")).orderBy(desc("enrollmentCount"))
+        val trendingCourseIdsString = trendingCourses.select(col = "courseID").as[String].collect().mkString(",")
+        print(trendingCourseIdsString + "\n")
+        val trendingPrograms = allCourseProgramCompletionWithDetailsDF.filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Program'").groupBy("courseID").agg(count("*").alias("enrollmentCount")).orderBy(desc("enrollmentCount"))
+        val trendingProgramIdsString = trendingPrograms.select(col = "courseID").as[String].collect().mkString(",")
+        print(trendingProgramIdsString + "\n")
+        val trendingCoursesByOrg = allCourseProgramCompletionWithDetailsDF.filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'").groupBy("userOrgID", "courseID").agg(count("*").alias("enrollmentCount")).withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(desc("enrollmentCount")))).filter("row_num <= 50").drop("enrollmentCount", "row_num")
+        val trendingCoursesListByOrg = trendingCoursesByOrg.groupBy("userOrgID").agg(collect_list("courseID").alias("courseIds")).withColumn("userOrgID:courses", expr("userOrgID")).withColumn("trendingCourseList", concat_ws(",", col("courseIds"))).select("userOrgID:courses", "trendingCourseList").filter(col("userOrgID:courses").isNotNull && col("userOrgID:courses") =!= "")
+        print(trendingCoursesListByOrg + "\n")
+        val trendingProgramsByOrg = allCourseProgramCompletionWithDetailsDF.filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Program'").groupBy("userOrgID", "courseID").agg(count("*").alias("enrollmentCount")).withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(desc("enrollmentCount")))).filter("row_num <= 50").drop("enrollmentCount", "row_num")
+        val trendingProgramsListByOrg = trendingProgramsByOrg.groupBy("userOrgID").agg(collect_list("courseID").alias("courseIds")).withColumn("userOrgID:programs", expr("userOrgID")).withColumn("trendingProgramList", concat_ws(",", col("courseIds"))).select("userOrgID:programs", "trendingProgramList").filter(col("userOrgID:programs").isNotNull && col("userOrgID:programs") =!= "")
+        print(trendingProgramsListByOrg + "\n")
+        val totalCoursesCount = trendingCourses.count()
+        print(totalCoursesCount + "\n")
+        val tenPercent: Int = (0.10 * totalCoursesCount).toInt
+        print(tenPercent + "\n")
+        val mostEnrolledTag = trendingCourses.limit(tenPercent).select("courseID").as[String].collect().mkString(",")
+        print(mostEnrolledTag + "\n")
+        print("end of calculating")
+        // learner home page redis updates - start
+        redisHsetUpdate("lhp_learningHours", "across:yesterday", totalLearningHoursYesterday)
+        print("learning across yesterday :" + totalLearningHoursYesterday)
+        redisHsetUpdate("lhp_learningHours", "across:today", totalLearningHoursToday)
+        print("learning across today :" + totalLearningHoursToday)
+        redisDispatchDataFrame[Long]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID:today", "totalLearningHours")
+        redisUpdate("lhp_certificationsTillToday", totalCertificationsTillToday)
+        redisUpdate("lhp_certificationsTillYesterday", totalCertificationsTillYesterday)
+        redisHsetUpdate("lhp_certifications", "across:yesterday", totalCertificationsYesterday)
+        print("certifications across yesterday :" + totalCertificationsYesterday)
+        redisHsetUpdate("lhp_certifications", "across:today", totalCertificationsToday)
+        print("certifications across today :" + totalCertificationsToday)
+        redisHsetUpdate("lhp_trending", "across:certifications", courseIdsString)
+        print("trending certifications :" + courseIdsString)
+        redisHsetUpdate("lhp_trending", "across:courses", trendingCourseIdsString)
+        print("trending courses :" + trendingCourseIdsString)
+        redisHsetUpdate("lhp_trending", "across:programs", trendingProgramIdsString)
+        print("trending programs :" + trendingProgramIdsString)
+        redisDispatchDataFrame[Long]("lhp_trending", trendingCoursesListByOrg, "userOrgID:courses", "trendingCourseList")
+        redisDispatchDataFrame[Long]("lhp_trending", trendingProgramsListByOrg, "userOrgID:programs", "trendingProgramList")
+        redisUpdate("lhp_mostEnrolledTag", mostEnrolledTag)
+        print("most enrolled tag :" + mostEnrolledTag)
+        redisUpdate("lhp_lastRunDate", currentDateString)
+        // learner home page redis updates - end
+      }
+      else
+      {
+        print("This is a second run today and the computation and redis key updates are not required")
+      }
+    // learner home page data logic - end
+
 
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
