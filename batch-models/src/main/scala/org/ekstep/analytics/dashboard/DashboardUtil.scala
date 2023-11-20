@@ -16,7 +16,7 @@ import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
-import org.joda.time.DateTimeZone
+import org.joda.time.{DateTime, DateTimeConstants, DateTimeZone, format}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.sunbird.cloud.storage.BaseStorageService
 import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
@@ -68,6 +68,7 @@ case class DashboardConfig (
     cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
     cassandraUserFeedTable: String,
     cassandraCourseBatchTable: String,
+    cassandraLearnerStatsTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -92,7 +93,10 @@ case class DashboardConfig (
     courseReportPath: String,
     taggedUsersPath: String,
     cbaReportPath: String,
-    blendedReportPath: String
+    blendedReportPath: String,
+
+    // for weekly claps
+    cutoffTime: Float
 ) extends Serializable
 
 
@@ -198,6 +202,17 @@ object DashboardUtil extends Serializable {
   def getDate(): String = {
     val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
     dateFormat.print(System.currentTimeMillis());
+  }
+
+  def getThisWeekDates(): (String, String, String) = {
+    val istTimeZone = DateTimeZone.forID("Asia/Kolkata")
+    val currentDate = DateTime.now(istTimeZone)
+    val dateFormatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(istTimeZone)
+    val formatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(istTimeZone)
+    val dataTillDate = currentDate.minusDays(1)
+    val startOfWeek = dataTillDate.withDayOfWeek(DateTimeConstants.MONDAY).withTimeAtStartOfDay()
+    val endOfWeek = startOfWeek.plusDays(6).withTime(23, 59, 59, 999)
+    (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), dateFormatter.print(dataTillDate))
   }
 
   /* Util functions */
@@ -482,6 +497,13 @@ object DashboardUtil extends Serializable {
     renamedDF
   }
 
+  def writeToCassandra(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession): Unit = {
+    data.write.format("org.apache.spark.sql.cassandra")
+      .mode("append")
+      .options(Map("table" -> table, "keyspace" -> keyspace))
+      .save()
+  }
+
   /* Config functions */
   def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
     val path = key.split('.')
@@ -547,6 +569,7 @@ object DashboardUtil extends Serializable {
       cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
       cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
       cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
+      cassandraLearnerStatsTable = getConfigModelParam(config, "cassandraLearnerStatsTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
@@ -579,8 +602,10 @@ object DashboardUtil extends Serializable {
       courseReportPath = getConfigModelParam(config, "courseReportPath"),
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
       cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
-      blendedReportPath = getConfigModelParam(config, "blendedReportPath")
+      blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
 
+      // for weekly claps
+      cutoffTime = getConfigModelParam(config, "cutoffTime").toFloat
     )
   }
   /* Config functions end */
