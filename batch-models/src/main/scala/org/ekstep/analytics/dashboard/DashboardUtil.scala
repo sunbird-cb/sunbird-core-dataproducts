@@ -249,15 +249,21 @@ object DashboardUtil extends Serializable {
   def redisGetKeyValue(host: String, port: Int, db: Int, key: String): String = {
     if (key == null || key.isEmpty) {
       println(s"WARNING: key is empty")
+      return "0"
     }
     val jedis = getOrCreateRedisConnect(host, port)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
-      return ""
+      return "0"
     }
     if (jedis.getDB != db) jedis.select(db)
-    val result = jedis.get(key)
-    jedis.close() // Close the jedis connection
+
+    // Fetch the value from Redis
+    val result = Option(jedis.get(key)).getOrElse("0")
+
+    // Close the jedis connection
+    jedis.close()
+
     result
   }
 
@@ -277,6 +283,12 @@ object DashboardUtil extends Serializable {
       return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
     }
     if (jedis.getDB != db) jedis.select(db)
+
+    // Check if the key exists in Redis
+    if (!jedis.exists(key)) {
+      println(s"WARNING: Key=$key does not exist in Redis")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+    }
 
     // Fetch all fields and values from the Redis hash
     val fields = jedis.hgetAll(key)

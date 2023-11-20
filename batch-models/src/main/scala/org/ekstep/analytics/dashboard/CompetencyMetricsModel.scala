@@ -344,23 +344,38 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // learner home page data logic - start
     print("started calculating")
     val lastRunDate: String = redisGetKeyValue("lhp_lastRunDate")
-    if(lastRunDate.equals(currentDateString))
+    print("The last run date is "+ lastRunDate)
+    print("current Date is"+ currentDateString)
+    print(lastRunDate.equals(currentDateString))
+    if(!(lastRunDate.equals(currentDateString)))
       {
         val totalLearningHoursTillTodayByOrg = allCourseProgramCompletionWithDetailsDF.groupBy("userOrgID").agg(sum(expr("(completionPercentage / 100) * courseDuration")).alias("totalLearningHours"))
+        totalLearningHoursTillTodayByOrg.show()
         val totalLearningHoursTillYesterdayByOrg = redisGetHsetValue("lhp_learningHoursTillToday")
+        totalLearningHoursTillYesterdayByOrg.show()
         val totalLearningHoursTillDayBeforeYesterdayByOrg = redisGetHsetValue("lhp_learningHoursTillYesterday")
-        val totalLearningHoursTodayByOrg = totalLearningHoursTillTodayByOrg
-          .join(totalLearningHoursTillYesterdayByOrg, Seq("userOrgID"), "left_outer")
-          .withColumnRenamed("userOrgID", "userOrgID:today")
-          .withColumn("totalLearningHours", coalesce(totalLearningHoursTillTodayByOrg("totalLearningHours"), lit(0)) - coalesce(totalLearningHoursTillYesterdayByOrg("totalLearningHours"), lit(0)))
-          .withColumn("userOrgID:today", concat(col("userOrgID:today"), lit(":today")))
+        totalLearningHoursTillDayBeforeYesterdayByOrg.show()
+        val totalLearningHoursTillTodayByOrgModified = totalLearningHoursTillTodayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursToday")
+
+        val totalLearningHoursTillYesterdayByOrgModified = totalLearningHoursTillYesterdayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursYesterday")
+
+        val totalLearningHoursTillDayBeforeYesterdayByOrgModified = totalLearningHoursTillDayBeforeYesterdayByOrg
+          .withColumnRenamed("totalLearningHours", "totalLearningHoursDayBeforeYesterday")
+
+        val totalLearningHoursTodayByOrg = totalLearningHoursTillTodayByOrgModified
+          .join(totalLearningHoursTillYesterdayByOrgModified, totalLearningHoursTillTodayByOrgModified("userOrgID") === totalLearningHoursTillYesterdayByOrgModified("userOrgID"), "inner")
+          .withColumn("userOrgID:today", totalLearningHoursTillTodayByOrgModified("userOrgID"))
+          .withColumn("totalLearningHours", totalLearningHoursTillTodayByOrgModified("totalLearningHoursToday") - coalesce(totalLearningHoursTillYesterdayByOrgModified("totalLearningHoursYesterday"), lit(0)))
           .select("userOrgID:today", "totalLearningHours")
-        val totalLearningHoursYesterdayByOrg = totalLearningHoursTillYesterdayByOrg
-          .join(totalLearningHoursTillDayBeforeYesterdayByOrg, Seq("userOrgID"), "left_outer")
-          .withColumnRenamed("userOrgID", "userOrgID:today")
-          .withColumn("totalLearningHours", coalesce(totalLearningHoursTillYesterdayByOrg("totalLearningHours"), lit(0)) - coalesce(totalLearningHoursTillDayBeforeYesterdayByOrg("totalLearningHours"), lit(0)))
-          .withColumn("userOrgID:today", concat(col("userOrgID:today"), lit(":today")))
-          .select("userOrgID:today", "totalLearningHours")
+           totalLearningHoursTodayByOrg.show()
+        val totalLearningHoursYesterdayByOrg = totalLearningHoursTillYesterdayByOrgModified
+          .join(totalLearningHoursTillDayBeforeYesterdayByOrgModified, totalLearningHoursTillYesterdayByOrgModified("userOrgID") === totalLearningHoursTillDayBeforeYesterdayByOrgModified("userOrgID"), "inner")
+          .withColumn("userOrgID:yesterday", totalLearningHoursTillYesterdayByOrgModified("userOrgID"))
+          .withColumn("totalLearningHours", totalLearningHoursTillYesterdayByOrgModified("totalLearningHoursYesterday") - coalesce(totalLearningHoursTillDayBeforeYesterdayByOrgModified("totalLearningHoursDayBeforeYesterday"), lit(0)))
+          .select("userOrgID:yesterday", "totalLearningHours")
+        totalLearningHoursYesterdayByOrg.show()
         val totalLearningHoursYesterday: String = totalLearningHoursYesterdayByOrg.select(sum("totalLearningHours").cast("string")).collect()(0)(0).toString
         val totalLearningHoursToday: String = totalLearningHoursTodayByOrg.select(sum("totalLearningHours").cast("string")).collect()(0)(0).toString
         print(totalLearningHoursYesterday + "\n")
@@ -388,7 +403,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
         val trendingCoursesListByOrg = trendingCoursesByOrg.groupBy("userOrgID").agg(collect_list("courseID").alias("courseIds")).withColumn("userOrgID:courses", expr("userOrgID")).withColumn("trendingCourseList", concat_ws(",", col("courseIds"))).select("userOrgID:courses", "trendingCourseList").filter(col("userOrgID:courses").isNotNull && col("userOrgID:courses") =!= "")
         print(trendingCoursesListByOrg + "\n")
         val trendingProgramsByOrg = allCourseProgramCompletionWithDetailsDF.filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Program'").groupBy("userOrgID", "courseID").agg(count("*").alias("enrollmentCount")).withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(desc("enrollmentCount")))).filter("row_num <= 50").drop("enrollmentCount", "row_num")
-        val trendingProgramsListByOrg = trendingProgramsByOrg.groupBy("userOrgID").agg(collect_list("courseID").alias("courseIds")).withColumn("userOrgID:programs", expr("userOrgID")).withColumn("trendingProgramList", concat_ws(",", col("courseIds"))).select("userOrgID:programs", "trendingProgramList").filter(col("userOrgID:courses").isNotNull && col("userOrgID:programs") =!= "")
+        val trendingProgramsListByOrg = trendingProgramsByOrg.groupBy("userOrgID").agg(collect_list("courseID").alias("courseIds")).withColumn("userOrgID:programs", expr("userOrgID")).withColumn("trendingProgramList", concat_ws(",", col("courseIds"))).select("userOrgID:programs", "trendingProgramList").filter(col("userOrgID:programs").isNotNull && col("userOrgID:programs") =!= "")
         print(trendingProgramsListByOrg + "\n")
         val totalCoursesCount = trendingCourses.count()
         print(totalCoursesCount + "\n")
@@ -399,30 +414,30 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
         print("end of calculating")
         // learner home page redis updates - start
         redisHsetUpdate("lhp_learningHours", "across:yesterday", totalLearningHoursYesterday)
+        print("learning across yesterday :" + totalLearningHoursYesterday)
         redisHsetUpdate("lhp_learningHours", "across:today", totalLearningHoursToday)
+        print("learning across today :" + totalLearningHoursToday)
         redisDispatchDataFrame[Long]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours")
-        redisDispatchDataFrame[Long]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours")
-        redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours")
-        redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID:today", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours")
+        //redisDispatchDataFrame[Long]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID:today", "totalLearningHours")
         redisUpdate("lhp_certificationsTillToday", totalCertificationsTillToday)
         redisUpdate("lhp_certificationsTillYesterday", totalCertificationsTillYesterday)
         redisHsetUpdate("lhp_certifications", "across:yesterday", totalCertificationsYesterday)
+        print("certifications across yesterday :" + totalCertificationsYesterday)
         redisHsetUpdate("lhp_certifications", "across:today", totalCertificationsToday)
+        print("certifications across today :" + totalCertificationsToday)
         redisHsetUpdate("lhp_trending", "across:certifications", courseIdsString)
+        print("trending certifications :" + courseIdsString)
         redisHsetUpdate("lhp_trending", "across:courses", trendingCourseIdsString)
+        print("trending courses :" + trendingCourseIdsString)
         redisHsetUpdate("lhp_trending", "across:programs", trendingProgramIdsString)
+        print("trending programs :" + trendingProgramIdsString)
         redisDispatchDataFrame[Long]("lhp_trending", trendingCoursesListByOrg, "userOrgID:courses", "trendingCourseList")
         redisDispatchDataFrame[Long]("lhp_trending", trendingProgramsListByOrg, "userOrgID:programs", "trendingProgramList")
         redisUpdate("lhp_mostEnrolledTag", mostEnrolledTag)
-        redisUpdate("lhp_lastRunDate", currentDateString)
-        print("learning across yesterday :" + totalLearningHoursYesterday)
-        print("learning across today :" + totalLearningHoursToday)
-        print("certifications across yesterday :" + totalCertificationsYesterday)
-        print("certifications across today :" + totalCertificationsToday)
-        print("trending certifications :" + courseIdsString)
-        print("trending courses :" + trendingCourseIdsString)
-        print("trending courses :" + trendingProgramIdsString)
         print("most enrolled tag :" + mostEnrolledTag)
+        redisUpdate("lhp_lastRunDate", currentDateString)
         // learner home page redis updates - end
       }
       else
