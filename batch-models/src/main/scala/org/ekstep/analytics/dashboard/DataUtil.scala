@@ -1515,7 +1515,9 @@ object DataUtil extends Serializable {
    * Reading existing weekly claps data
    */
   def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+    df = df.withColumn("claps_updated_this_week", when(col("claps_updated_this_week").isNull, false).otherwise(true))
+      .withColumn("total_claps", when(col("total_claps").isNull, 0).otherwise(col("total_claps")))
     show(df, "Learner stats data")
     df
   }
