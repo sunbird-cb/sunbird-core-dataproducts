@@ -1556,8 +1556,8 @@ object DataUtil extends Serializable {
   /**
    * Get user engagement data - timespent and number of sessions from druid summary-events for the current week (Mon - sun)
    */
-  def usersPlatformEngagementDataframe(weekStart: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = raw"""SELECT uid AS userid, SUM(total_time_spent) / 60.0 AS platformEngagementTime, COUNT(*) AS sessionCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= TIMESTAMP '${weekStart}' GROUP BY 1"""
+  def usersPlatformEngagementDataframe(weekStart: String, weekEnd: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT uid AS userid, SUM(total_time_spent) / 60.0 AS platformEngagementTime, COUNT(*) AS sessionCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= TIMESTAMP '${weekStart}' AND __time <= TIMESTAMP '${weekEnd}' GROUP BY 1"""
     val df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.usersPlatformEngagementSchema)
     show(df, "usersPlatformEngagementDataframe")

@@ -39,14 +39,19 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     // get weekStart, weekEnd and dataTillDate(previous day) from today's date
-    val (weekStart, weekEnd, dataTillDate) = getThisWeekDates()
+    val (weekStart, weekEnd, weekEndTime, dataTillDate) = getThisWeekDates()
 
     //get existing weekly-claps data
     var df = learnerStatsDataFrame()
     // get platform engagement data from summary-events druid datasource
-    val platformEngagementDF = usersPlatformEngagementDataframe(weekStart)
+    val platformEngagementDF = usersPlatformEngagementDataframe(weekStart, weekEndTime)
 
     df = df.join(platformEngagementDF, Seq("userid"), "full")
+
+    df = df.withColumn("w4", map(
+      lit("timespent"), when(col("platformEngagementTime").isNull, 0).otherwise(col("platformEngagementTime")),
+      lit("numberOfSessions"), when(col("sessionCount").isNull, 0).otherwise(col("sessionCount"))
+    ))
 
     val condition = col("platformEngagementTime") >= conf.cutoffTime && !col("claps_updated_this_week")
 
@@ -68,11 +73,6 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       df = df.withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(col("total_claps")))
         .withColumn("claps_updated_this_week", when(condition, lit(true)).otherwise(col("claps_updated_this_week")))
     }
-
-    df =df.withColumn("w4", map(
-      lit("timespent"), when(col("platformEngagementTime").isNull, 0).otherwise(col("platformEngagementTime")),
-      lit("numberOfSessions"), when(col("sessionCount").isNull, 0).otherwise(col("sessionCount"))
-    ))
 
     df = df.drop("platformEngagementTime","sessionCount")
 
