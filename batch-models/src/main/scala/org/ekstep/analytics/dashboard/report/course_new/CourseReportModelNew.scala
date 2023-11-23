@@ -5,6 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil.generateWarehouseReport
 import org.ekstep.analytics.dashboard.DataUtilNew._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
@@ -144,7 +145,38 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     df = df.drop("courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
+    val df_warehouse = curatedCourseDataDFWithBatchInfo
+      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
+      .withColumn("lastStatusChangedOn", to_date(col("lastStatusChangedOn"), "dd/MM/yyyy"))
+      .withColumn("ArchivedOn", when(col("courseStatus").equalTo("Retired"), col("lastStatusChangedOn")))
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .select(
+        col("courseID").alias("cbp_id"),
+        col("courseActualOrgId").alias("cbp_provider_id"),
+        col("courseOrgName").alias("cbp_provider_name"),
+        col("courseName").alias("cbp_name"),
+        col("category").alias("cbp_type"),
+        col("batchID").alias("batch_id"),
+        col("courseBatchName").alias("batch_name"),
+        col("courseBatchStartDate").alias("batch_start_date"),
+        col("courseBatchEndDate").alias("batch_end_date"),
+        col("courseDuration").alias("cbp_duration"),
+        col("rating").alias("cbp_rating"),
+        col("courseLastPublishedOn").alias("last_published_on"),
+        col("ArchivedOn").alias("cbp_retired_on"),
+        col("courseStatus").alias("cbp_status"),
+        col("courseResourceCount").alias("resource_count"),
+        col("totalCertificatesIssued").alias("total_certificates_issued"),
+        col("courseReviewStatus").alias("cbp_substatus"),
+        col("Report_Last_Generated_On").alias("data_last_generated_on")
+      ).where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
+
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
+
     closeRedisConnect()
+
   }
 
 }

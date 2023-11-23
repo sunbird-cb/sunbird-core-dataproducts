@@ -69,6 +69,23 @@ case class DashboardConfig (
     cassandraUserFeedTable: String,
     cassandraCourseBatchTable: String,
 
+    //warehouse tables;
+    appPostgresHost: String,
+    appPostgresSchema: String,
+    appPostgresUsername: String,
+    appPostgresCredential: String,
+    appOrgHierarchyTable: String,
+    dwPostgresHost: String,
+    dwPostgresSchema: String,
+    dwPostgresUsername: String,
+    dwPostgresCredential: String,
+    dwUserTable: String,
+    dwCourseTable: String,
+    dwEnrollmentsTable: String,
+    dwOrgTable: String,
+    dwAssessmentTable: String,
+    dwBPEnrollmentsTable: String,
+
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
     redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
@@ -454,6 +471,28 @@ object DashboardUtil extends Serializable {
       .persist(StorageLevel.MEMORY_ONLY)
   }
 
+  def postgresTableAsDataFrame(postgresUrl: String, tableName: String, dbUserName: String, dbCredential: String)(implicit spark: SparkSession): DataFrame = {
+    val connectionProperties = new java.util.Properties()
+    connectionProperties.setProperty("user", dbUserName)
+    connectionProperties.setProperty("password", dbCredential)
+    connectionProperties.setProperty("driver", "org.postgresql.Driver")
+
+    spark.read.jdbc(postgresUrl, tableName, connectionProperties)
+  }
+
+  def saveDataframeToPostgresTable(df: DataFrame, dwPostgresUrl: String, tableName: String,
+                                   dbUserName: String, dbCredential: String)(implicit spark: SparkSession): Unit = {
+    df.write
+      .mode(SaveMode.Overwrite)
+      .option("url", dwPostgresUrl)
+      .option("dbtable", tableName)
+      .option("user", dbUserName)
+      .option("password", dbCredential)
+      .option("driver", "org.postgresql.Driver")
+      .format("jdbc")
+      .save()
+  }
+
   def elasticSearchDataFrame(host: String, index: String, query: String, fields: Seq[String], arrayFields: Seq[String] = Seq())(implicit spark: SparkSession): DataFrame = {
     var dfr = spark.read.format("org.elasticsearch.spark.sql")
       .option("es.read.metadata", "false")
@@ -530,6 +569,25 @@ object DashboardUtil extends Serializable {
       orgTopic = getConfigSideTopic(config, "org"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       assessmentTopic = getConfigSideTopic(config, "assessment"),
+
+
+      //Newly added for the datawarehouse job
+      appPostgresHost = getConfigModelParam(config, "appPostgresHost"),
+      appPostgresSchema = getConfigModelParam(config, "appPostgresSchema"),
+      appPostgresUsername = getConfigModelParam(config, "appPostgresUsername"),
+      appPostgresCredential = getConfigModelParam(config, "appPostgresCredential"),
+      appOrgHierarchyTable = getConfigModelParam(config, "appOrgHierarchyTable"),
+      dwPostgresHost = getConfigModelParam(config, "dwPostgresHost"),
+      dwPostgresSchema = getConfigModelParam(config, "dwPostgresSchema"),
+      dwPostgresUsername = getConfigModelParam(config, "dwPostgresUsername"),
+      dwPostgresCredential = getConfigModelParam(config, "dwPostgresCredential"),
+      dwUserTable = getConfigModelParam(config, "dwUserTable"),
+      dwCourseTable = getConfigModelParam(config, "dwCourseTable"),
+      dwEnrollmentsTable = getConfigModelParam(config, "dwEnrollmentsTable"),
+      dwOrgTable = getConfigModelParam(config, "dwOrgTable"),
+      dwAssessmentTable = getConfigModelParam(config, "dwAssessmentTable"),
+      dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
+
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
       cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
