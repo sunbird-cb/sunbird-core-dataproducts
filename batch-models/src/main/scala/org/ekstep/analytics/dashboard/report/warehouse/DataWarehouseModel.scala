@@ -83,16 +83,8 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    // saveDataframeToPostgresTable(orgDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
-    saveDataframeToPostgresTable(orgDwDf, dwPostgresUrl, "org_hierarchy", conf.dwPostgresUsername, conf.dwPostgresCredential)
+    saveDataframeToPostgresTable(orgDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-
-    //  orgTableDF.show()
-
-    // You can perform various operations on orgTableDF as needed
-    // For example: orgTableDF.printSchema(), orgTableDF.count(), etc.
-
-    // Stop the SparkSession
     spark.stop()
 
   }
