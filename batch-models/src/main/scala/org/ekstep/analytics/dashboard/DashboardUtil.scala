@@ -10,7 +10,7 @@ import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
@@ -242,6 +242,128 @@ object DashboardUtil extends Serializable {
       redisConnect = null
     }
   }
+  def redisGetKeyValue(key: String)(implicit conf: DashboardConfig): String = {
+    redisGetKeyValue(conf.redisHost, conf.redisPort, conf.redisDB, key)
+  }
+
+  def redisGetKeyValue(host: String, port: Int, db: Int, key: String): String = {
+    try {
+      redisGetKeyValueWithoutRetry(host, port, db, key)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisGetKeyValueWithoutRetry(host, port, db, key)
+    }
+  }
+
+  def redisGetKeyValueWithoutRetry(host: String, port: Int, db: Int, key: String): String = {
+    if (key == null || key.isEmpty) {
+      println(s"WARNING: key is empty")
+      return "0" // or any other default value
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
+      return "0" // or any other default value
+    }
+    if (jedis.getDB != db) jedis.select(db)
+
+    // Check if the key exists in Redis
+    if (!jedis.exists(key)) {
+      println(s"WARNING: Key=$key does not exist in Redis")
+      jedis.close() // Close the jedis connection
+      return "0" // or any other default value
+    }
+
+    val result = jedis.get(key)
+    jedis.close() // Close the jedis connection
+    result
+  }
+
+
+  def redisGetHsetValue(key: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    redisGetHsetValue(conf.redisHost, conf.redisPort, conf.redisDB, key,spark)
+  }
+
+
+  def redisGetHsetValue(host: String, port: Int, db: Int, key: String, spark: SparkSession): DataFrame = {
+    try {
+      redisGetHsetValueWithoutRetry(host, port, db, key, spark)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisGetHsetValueWithoutRetry(host, port, db, key, spark)
+    }
+  }
+
+  def redisGetHsetValueWithoutRetry(host: String, port: Int, db: Int, key: String, spark: SparkSession): DataFrame = {
+    if (key == null || key.isEmpty) {
+      println(s"WARNING: key is empty")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=$key")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+    }
+    if (jedis.getDB != db) jedis.select(db)
+
+    // Check if the key exists in Redis
+    if (!jedis.exists(key)) {
+      println(s"WARNING: Key=$key does not exist in Redis")
+      return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+    }
+
+    // Fetch all fields and values from the Redis hash
+    val fields = jedis.hgetAll(key)
+
+    // Create a DataFrame from the Redis data
+    val resultDF = spark.createDataFrame(fields.toList.map { case (userOrgID, totalLearningHours) =>
+      Row(userOrgID, totalLearningHours)
+    }, StructType(Seq(StructField("userOrgID", StringType), StructField("totalLearningHours", StringType))))
+
+    // Close the jedis connection
+    jedis.close()
+
+    // Show the resulting DataFrame
+    resultDF.show()
+    resultDF
+  }
+  
+    def redisGetHsetValueAString(key: String, field: String)(implicit conf: DashboardConfig): String = {
+    redisGetHsetValueAString(conf.redisHost, conf.redisPort, conf.redisDB, key, field)
+  }
+
+
+  def redisGetHsetValueAString(host: String, port: Int, db: Int, key: String, field: String): String = {
+    try {
+      redisGetHsetValueAsStringWithoutRetry(host, port, db, key, field)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisGetHsetValueAsStringWithoutRetry(host, port, db, key, field)
+    }
+  }
+
+  def redisGetHsetValueAsStringWithoutRetry(host: String, port: Int, db: Int, key: String, field: String): String = {
+    if (key == null || key.isEmpty) {
+      println(s"WARNING: key is empty")
+      return "0"
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=$key")
+      return "0"
+    }
+    if (jedis.getDB != db) jedis.select(db)
+
+    // Check if the key exists in Redis
+    if (!jedis.exists(key)) {
+      println(s"WARNING: Key=$key does not exist in Redis")
+      return "0"
+    }
+    
+    
   def redisUpdate(key: String, data: String)(implicit conf: DashboardConfig): Unit = {
     redisUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
   }
@@ -274,6 +396,70 @@ object DashboardUtil extends Serializable {
     if (jedis.getDB != db) jedis.select(db)
     jedis.set(key, cleanedData)
   }
+  
+    def redisHsetUpdate(key: String, field: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisHsetUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, field, data)
+  }
+
+  def redisHsetUpdate(host: String, port: Int, db: Int, key: String, field: String, data: String): Unit = {
+    try {
+      redisHsetUpdateWithoutRetry(host, port, db, key, field, data)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisHsetUpdateWithoutRetry(host, port, db, key, field, data)
+    }
+  }
+
+  def redisHsetUpdateWithoutRetry(host: String, port: Int, db: Int, key: String, field: String, data: String): Unit = {
+    var cleanedData = ""
+    if (data == null || data.isEmpty) {
+      println(s"WARNING: data is empty, setting data='' for redis key=${key}")
+      cleanedData = ""
+    } else {
+      cleanedData = data
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
+      return
+    }
+    if (jedis.getDB != db) jedis.select(db)
+    jedis.hset(key, field, cleanedData)
+  }
+  def redisUpdate(key: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisUpdate(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
+  }
+  def redisUpdate(db: Int, key: String, data: String)(implicit conf: DashboardConfig): Unit = {
+    redisUpdate(conf.redisHost, conf.redisPort, db, key, data)
+  }
+  def redisUpdate(host: String, port: Int, db: Int, key: String, data: String): Unit = {
+    try {
+      redisUpdateWithoutRetry(host, port, db, key, data)
+    } catch {
+      case e: JedisException =>
+        redisConnect = createRedisConnect(host, port)
+        redisUpdateWithoutRetry(host, port, db, key, data)
+    }
+  }
+  def redisUpdateWithoutRetry(host: String, port: Int, db: Int, key: String, data: String): Unit = {
+    var cleanedData = ""
+    if (data == null || data.isEmpty) {
+      println(s"WARNING: data is empty, setting data='' for redis key=${key}")
+      cleanedData = ""
+    } else {
+      cleanedData = data
+    }
+    val jedis = getOrCreateRedisConnect(host, port)
+    if (jedis == null) {
+      println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
+      return
+    }
+
+    if (jedis.getDB != db) jedis.select(db)
+    jedis.set(key, cleanedData)
+  }
+  
   def redisDispatch(key: String, data: util.Map[String, String])(implicit conf: DashboardConfig): Unit = {
     redisDispatch(conf.redisHost, conf.redisPort, conf.redisDB, key, data)
   }
