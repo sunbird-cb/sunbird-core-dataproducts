@@ -181,12 +181,15 @@ object DashboardUtil extends Serializable {
     def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String): Unit = {
       ids.foreach(id => {
         val orgReportPath = new File(s"${reportTempPath}/mdoid=${id}/")
-        val csvFiles = orgReportPath.listFiles().filter(f => {f.getName.startsWith("part-") && f.getName.endsWith(".csv")})
+        val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
+          orgReportPath.listFiles().filter(f => {f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")}).toList
+        } else {
+          List[File]()
+        }
 
         csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
           val (csvFile, index) = csvFileWithIndex
           val customizedPath = new File(s"${reportTempPath}/mdoid=${id}/${fileName}${if (index == 0) "" else index}.csv")
-          // println(s"RENAME: renaming ${csvFile} to ${customizedPath}")
           csvFile.renameTo(customizedPath)
         })
 
@@ -569,16 +572,35 @@ object DashboardUtil extends Serializable {
     }
   }
 
+  implicit class DataFrameMod(df: DataFrame) {
+    def durationFormat(inCol: String, outCol: String = null): DataFrame = {
+      val outColName = if (outCol == null) inCol else outCol
+      df.withColumn(outColName,
+        when(col(inCol).isNull, lit(""))
+          .otherwise(
+            format_string("%02d:%02d:%02d",
+              expr(s"${inCol} / 3600").cast("int"),
+              expr(s"${inCol} % 3600 / 60").cast("int"),
+              expr(s"${inCol} % 60").cast("int")
+            )
+          )
+      )
+    }
+  }
+
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
 
   def durationFormat(df: DataFrame, inCol: String, outCol: String = null): DataFrame = {
     val outColName = if (outCol == null) inCol else outCol
     df.withColumn(outColName,
-      format_string("%02d:%02d:%02d",
-        expr(s"${inCol} / 3600").cast("int"),
-        expr(s"${inCol} % 3600 / 60").cast("int"),
-        expr(s"${inCol} % 60").cast("int")
-      )
+      when(col(inCol).isNull, lit(""))
+        .otherwise(
+          format_string("%02d:%02d:%02d",
+            expr(s"${inCol} / 3600").cast("int"),
+            expr(s"${inCol} % 3600 / 60").cast("int"),
+            expr(s"${inCol} % 60").cast("int")
+          )
+        )
     )
   }
 
@@ -621,11 +643,6 @@ object DashboardUtil extends Serializable {
   }
 
   def dfToMap[T](df: DataFrame, keyField: String, valueField: String): util.Map[String, String] = {
-    // previous in-efficient implementation
-    // val map = new util.HashMap[String, String]()
-    // df.collect().foreach(row => map.put(row.getAs[String](keyField), row.getAs[T](valueField).toString))
-    // map
-
     // faster implementation
     df.rdd.map(row => (row.getAs[String](keyField), row.getAs[T](valueField).toString))
       .collectAsMap()

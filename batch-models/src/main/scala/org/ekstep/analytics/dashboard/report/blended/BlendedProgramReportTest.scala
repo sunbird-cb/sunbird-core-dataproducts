@@ -77,7 +77,7 @@ object BlendedProgramReportTest extends Serializable {
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
       "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
-      "blendedReportPath" -> "standalone-reports/blended-program-report-mdo",
+      "blendedReportPath" -> "standalone-reports/blended-program-report",
 
       "sideOutput" -> sideOutput
     )
