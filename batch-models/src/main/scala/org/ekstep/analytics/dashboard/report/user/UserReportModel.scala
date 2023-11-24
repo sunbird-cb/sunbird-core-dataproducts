@@ -130,7 +130,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 }

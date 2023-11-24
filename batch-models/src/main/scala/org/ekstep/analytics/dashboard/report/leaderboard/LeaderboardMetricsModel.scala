@@ -93,7 +93,7 @@ object LeaderboardMetricsModel extends IBatchModelTemplate[String, DummyInput, D
 
     csvWrite(leaderboardDF.coalesce(1), "/tmp/user-leaderboard-data/")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 

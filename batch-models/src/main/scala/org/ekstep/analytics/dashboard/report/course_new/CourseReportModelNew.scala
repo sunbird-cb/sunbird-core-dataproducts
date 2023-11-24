@@ -175,7 +175,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
 
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 

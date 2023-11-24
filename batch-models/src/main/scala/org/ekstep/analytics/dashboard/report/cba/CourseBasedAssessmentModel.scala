@@ -178,7 +178,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       )
     generateWarehouseReport(warehouseDF, reportPath)
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 }

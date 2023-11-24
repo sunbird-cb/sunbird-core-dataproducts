@@ -193,7 +193,7 @@ object AllAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     generateReports(df.drop("cbpid"), "mdoid", s"/tmp/${reportPathMDO}", "AllAssessmentReportMDO")
     // generateAndSyncReports(df.drop("cbpid"), "mdoid", reportPathMDO, "AllAssessmentReportMDO")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 

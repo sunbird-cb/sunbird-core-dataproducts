@@ -170,7 +170,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     )
     generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 }

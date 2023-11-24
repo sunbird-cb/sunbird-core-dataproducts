@@ -153,6 +153,6 @@ object RozgarEnrolmentModel extends IBatchModelTemplate[String, DummyInput, Dumm
     csvWrite(df, s"/tmp/${conf.userEnrolmentReportPath}/${today}/full/")
     generateAndSyncReports(df, "mdoid", s"${conf.userEnrolmentReportPath}/${today}/${conf.taggedUsersPath}", "RozgarConsumptionReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }
