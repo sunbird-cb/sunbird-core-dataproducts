@@ -188,6 +188,11 @@ object DataUtil extends Serializable {
       StructField("userID", StringType, nullable = true),
       StructField("userActualTimeSpentLearning", FloatType, nullable = true)
     ))
+    val usersPlatformEngagementSchema: StructType = StructType(Seq(
+      StructField("userid", StringType, nullable = true),
+      StructField("platformEngagementTime", FloatType, nullable = true),
+      StructField("sessionCount", IntegerType, nullable = true)
+    ))
     val npsUserIds: StructType = StructType(Seq(
       StructField("userid", StringType, nullable = true)
     ))
@@ -1511,6 +1516,17 @@ object DataUtil extends Serializable {
     df
   }
 
+  /**
+   * Reading existing weekly claps data
+   */
+  def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+    df = df.withColumn("claps_updated_this_week", when(col("claps_updated_this_week").isNull, false).otherwise(col("claps_updated_this_week")))
+      .withColumn("total_claps", when(col("total_claps").isNull, 0).otherwise(col("total_claps")))
+    show(df, "Learner stats data")
+    df
+  }
+
   /* telemetry data frames */
 
   def loggedInMobileUserDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1539,6 +1555,17 @@ object DataUtil extends Serializable {
     if (df == null) return emptySchemaDataFrame(Schema.userActualTimeSpentLearningSchema)
 
     show(df, "actualTimeSpentLearningDataFrame")
+    df
+  }
+
+  /**
+   * Get user engagement data - timespent and number of sessions from druid summary-events for the current week (Mon - sun)
+   */
+  def usersPlatformEngagementDataframe(weekStart: String, weekEnd: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT uid AS userid, SUM(total_time_spent) / 60.0 AS platformEngagementTime, COUNT(*) AS sessionCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= TIMESTAMP '${weekStart}' AND __time <= TIMESTAMP '${weekEnd}' GROUP BY 1"""
+    val df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.usersPlatformEngagementSchema)
+    show(df, "usersPlatformEngagementDataframe")
     df
   }
 
