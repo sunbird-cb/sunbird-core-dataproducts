@@ -1615,6 +1615,14 @@ object DataUtil extends Serializable {
     println(s"REPORT: Finished Writing full report to ${fullReportPath}")
   }
 
+  def generateWarehouseReport(df: DataFrame, reportPath: String): Unit = {
+    val warehouseReportPath = s"/tmp/${reportPath}-warehouse"
+    println(s"REPORT: Writing warehouse report to ${warehouseReportPath} ...")
+    csvWrite(df, warehouseReportPath)
+    println(s"REPORT: Finished Writing warehouse report to ${warehouseReportPath}")
+  }
+
+
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     println(s"REPORT: Writing mdo wise report to ${reportTempPath} ...")

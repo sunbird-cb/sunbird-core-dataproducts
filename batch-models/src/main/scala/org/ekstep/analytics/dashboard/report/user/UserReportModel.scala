@@ -53,7 +53,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val today = getDate()
 
     // get user roles data
-    val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role"))    // return - userID, role
+    val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role")) // return - userID, role
 
     val orgDF = orgDataFrame()
     val userDataDF = userProfileDetailsDF(orgDF)
@@ -66,12 +66,12 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    var df = userDataDF
+    val userData = userDataDF
       // .join(userDataDF, Seq("userOrgID"), "inner")
       .join(userRolesDF, Seq("userID"), "left")
-      .join(orgHierarchyData, Seq("userOrgName"),"left")
+      .join(orgHierarchyData, Seq("userOrgName"), "left")
 
-    df = df.where(expr("userStatus=1"))
+    var df = userData.where(expr("userStatus=1"))
     df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
     df = df.dropDuplicates("userID")
@@ -88,7 +88,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
         col("ministry_name").alias("Ministry"),
         col("dept_name").alias("Department"),
         col("userOrgName").alias("Organization"),
-        from_unixtime(col("userCreatedTimestamp"),"dd/MM/yyyy").alias("User_Registration_Date"),
+        from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("User_Registration_Date"),
         col("role").alias("Roles"),
         col("personalDetails.gender").alias("Gender"),
         col("personalDetails.category").alias("Category"),
@@ -106,6 +106,31 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
     generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
+    val df_warehouse = userData
+      .dropDuplicates("userID")
+      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .select(
+        col("userID").alias("user_id"),
+        col("userOrgID").alias("mdo_id"),
+        col("fullName").alias("full_name"),
+        col("professionalDetails.designation").alias("designation"),
+        col("personalDetails.primaryEmail").alias("email"),
+        col("personalDetails.mobile").alias("phone"),
+        col("professionalDetails.group").alias("groups"),
+        col("Tag").alias("tag"),
+        from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
+        col("role").alias("roles"),
+        col("personalDetails.gender").alias("gender"),
+        col("personalDetails.category").alias("category"),
+        col("additionalProperties.externalSystem").alias("external_system"),
+        col("additionalProperties.externalSystemId").alias("external_system_id"),
+        col("data_last_generated_on")
+      )
+
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
+
     Redis.closeRedisConnect()
+
   }
 }

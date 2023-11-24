@@ -1031,7 +1031,7 @@ object DataUtilNew extends Serializable {
   def userCourseProgramCompletionDataFrame(extraCols: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val selectCols = Seq("userID", "courseID", "batchID", "courseProgress", "dbCompletionStatus", "courseCompletedTimestamp",
-      "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount") ++ extraCols
+      "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount", "certificateGeneratedOn") ++ extraCols
 
     val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
@@ -1039,6 +1039,7 @@ object DataUtilNew extends Serializable {
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
+      .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
       .withColumnRenamed("userid", "userID")
       .withColumnRenamed("courseid", "courseID")
       .withColumnRenamed("batchid", "batchID")
@@ -1046,6 +1047,7 @@ object DataUtilNew extends Serializable {
       .withColumnRenamed("status", "dbCompletionStatus")
       .withColumnRenamed("contentstatus", "courseContentStatus")
       .na.fill(0, Seq("courseProgress", "issuedCertificateCount"))
+      .na.fill("", Seq("certificateGeneratedOn"))
       .select(selectCols.head, selectCols.tail: _*)
 
     show(df)

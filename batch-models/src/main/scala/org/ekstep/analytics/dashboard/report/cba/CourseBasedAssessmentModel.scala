@@ -52,7 +52,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment","Curated Program"), runValidation = false)
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment", "Curated Program"), runValidation = false)
 
     val assessmentDF = assessmentESDataFrame(Seq("Course", "Standalone Assessment", "Blended Program"))
     val assessWithHierarchyDF = assessWithHierarchyDataFrame(assessmentDF, hierarchyDF, orgDF)
@@ -89,8 +89,8 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
     show(df, "df 1")
 
-//    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
-//    show(df, "df 2")
+    //    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
+    //    show(df, "df 2")
 
     df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
     show(df, "df 3")
@@ -113,6 +113,8 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     df = df.dropDuplicates("userID", "assessChildID")
       .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
+
+    val fullReportDF = df
       .select(
         col("userID").alias("User ID"),
         col("assessID"),
@@ -149,10 +151,34 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
 
     df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
-    generateFullReport(df, reportPath)
-    df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
-    generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
+    generateFullReport(fullReportDF, reportPath)
+
+    val mdoReportDF = fullReportDF.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
+    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "UserAssessmentReport")
+
+    var warehouseDF = df
+    warehouseDF = warehouseDF
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .select(
+        col("userID").alias("user_id"),
+        col("course_id").alias("cbp_id"),
+        col("assessID").alias("assessment_id"),
+        col("assessChildName").alias("assessment_name"),
+        col("assessment_type").alias("assessment_type"),
+        col("totalAssessmentDuration").alias("assessment_duration"),
+        col("totalAssessmentDuration").alias("time_spent_by_the_user"),
+        from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("completion_date"),
+        col("assessOverallResult").alias("score_achieved"),
+        col("assessMaxQuestions").alias("overall_score"),
+        col("assessPercentage").alias("cut_off_percentage"),
+        col("assessMaxQuestions").alias("total_question"),
+        col("assessIncorrect").alias("number_of_incorrect_responses"),
+        col("retakes").alias("number_of_retakes"),
+        col("data_last_generated_on")
+      )
+    generateWarehouseReport(warehouseDF, reportPath)
 
     Redis.closeRedisConnect()
+
   }
 }
