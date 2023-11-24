@@ -149,14 +149,15 @@ object DataUtilNew extends Serializable {
 
     /* assessment related schema */
     val assessmentReadResponseSchema: StructType = StructType(Seq(
-      StructField("name", StringType, nullable = false),
-      StructField("objectType", StringType, nullable = false),
-      StructField("version", IntegerType, nullable = false),
-      StructField("status", StringType, nullable = false),
-      StructField("totalQuestions", IntegerType, nullable = false),
-      StructField("maxQuestions", IntegerType, nullable = false),
-      StructField("expectedDuration", IntegerType, nullable = false),
-      StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = false)
+      StructField("name", StringType, nullable = true),
+      StructField("objectType", StringType, nullable = true),
+      StructField("version", IntegerType, nullable = true),
+      StructField("status", StringType, nullable = true),
+      StructField("totalQuestions", IntegerType, nullable = true),
+      StructField("maxQuestions", IntegerType, nullable = true),
+      StructField("expectedDuration", IntegerType, nullable = true),
+      StructField("primaryCategory", StringType, nullable = true),
+      StructField("maxAssessmentRetakeAttempts", IntegerType, nullable = true)
     ))
     val submitAssessmentRequestSchema: StructType = StructType(Seq(
       StructField("courseId", StringType, nullable = false),
@@ -212,6 +213,11 @@ object DataUtilNew extends Serializable {
     val userActualTimeSpentLearningSchema: StructType = StructType(Seq(
       StructField("userID", StringType, nullable = true),
       StructField("userActualTimeSpentLearning", FloatType, nullable = true)
+    ))
+    val usersPlatformEngagementSchema: StructType = StructType(Seq(
+      StructField("userid", StringType, nullable = true),
+      StructField("platformEngagementTime", FloatType, nullable = true),
+      StructField("sessionCount", IntegerType, nullable = true)
     ))
     val npsUserIds: StructType = StructType(Seq(
       StructField("userid", StringType, nullable = true)
@@ -1592,6 +1598,17 @@ object DataUtilNew extends Serializable {
     df
   }
 
+  /**
+   * Reading existing weekly claps data
+   */
+  def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+    df = df.withColumn("claps_updated_this_week", when(col("claps_updated_this_week").isNull, false).otherwise(col("claps_updated_this_week")))
+      .withColumn("total_claps", when(col("total_claps").isNull, 0).otherwise(col("total_claps")))
+    show(df, "Learner stats data")
+    df
+  }
+
   /* telemetry data frames */
 
   def loggedInMobileUserDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1624,6 +1641,17 @@ object DataUtilNew extends Serializable {
   }
 
   /**
+   * Get user engagement data - timespent and number of sessions from druid summary-events for the current week (Mon - sun)
+   */
+  def usersPlatformEngagementDataframe(weekStart: String, weekEnd: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT uid AS userid, SUM(total_time_spent) / 60.0 AS platformEngagementTime, COUNT(*) AS sessionCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= TIMESTAMP '${weekStart}' AND __time <= TIMESTAMP '${weekEnd}' GROUP BY 1"""
+    val df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.usersPlatformEngagementSchema)
+    show(df, "usersPlatformEngagementDataframe")
+    df
+  }
+
+  /**
    * gets the user_id and survey_submitted_time from cassandra
    * gets the user_ids who have submitted the survey in last 3 months
    */
@@ -1651,6 +1679,15 @@ object DataUtilNew extends Serializable {
     df
   }
 
+  def userFeedFromCassandraDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
+      .select(col("userid").alias("userid"))
+      .where(col("category") === "NPS")
+    if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
+    df = df.na.drop(Seq("userid"))
+    df
+  }
+
   /* report generation stuff */
   def generateFullReport(df: DataFrame, reportPath: String): Unit = {
     val fullReportPath = s"/tmp/${reportPath}-full"
@@ -1658,6 +1695,14 @@ object DataUtilNew extends Serializable {
     csvWrite(df, fullReportPath)
     println(s"REPORT: Finished Writing full report to ${fullReportPath}")
   }
+
+  def generateWarehouseReport(df: DataFrame, reportPath: String): Unit = {
+    val warehouseReportPath = s"/tmp/${reportPath}-warehouse"
+    println(s"REPORT: Writing warehouse report to ${warehouseReportPath} ...")
+    csvWrite(df, warehouseReportPath)
+    println(s"REPORT: Finished Writing warehouse report to ${warehouseReportPath}")
+  }
+
 
   def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._

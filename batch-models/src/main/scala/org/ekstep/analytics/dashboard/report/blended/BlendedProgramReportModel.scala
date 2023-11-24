@@ -327,7 +327,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     // mdo wise
     val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "cbpid")
-    generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramAttendanceReport")
+    generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
 
     // cbp wise
     val cbpReportDF = reportDF
@@ -336,7 +336,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumnRenamed("maskedPhone", "Phone_Number")
 
     show(cbpReportDF, "cbpReportDF")
-    generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramAttendanceReport")
+    generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramReport")
 
     Redis.closeRedisConnect()
   }

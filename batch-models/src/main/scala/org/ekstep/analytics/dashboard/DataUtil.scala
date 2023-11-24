@@ -96,18 +96,26 @@ object DataUtil extends Serializable {
     ))
 
     /* schema definitions for content hierarchy table */
-    val hierarchyChildSchema: StructType = StructType(Seq(
-      StructField("identifier", StringType, nullable = true),
-      StructField("name", StringType, nullable = true),
-      StructField("channel", StringType, nullable = true),
-      StructField("duration", StringType, nullable = true),
-      StructField("primaryCategory", StringType, nullable = true),
-      StructField("contentType", StringType, nullable = true),
-      StructField("objectType", StringType, nullable = true),
-      StructField("showTimer", StringType, nullable = true),
-      StructField("allowSkip", StringType, nullable = true)
-    ))
-    def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false): StructType = {
+    def makeHierarchyChildSchema(children: Boolean = false): StructType = {
+      val fields = ListBuffer(
+        StructField("identifier", StringType, nullable = true),
+        StructField("name", StringType, nullable = true),
+        StructField("channel", StringType, nullable = true),
+        StructField("duration", StringType, nullable = true),
+        StructField("primaryCategory", StringType, nullable = true),
+        StructField("leafNodesCount", IntegerType, nullable = true),
+        StructField("contentType", StringType, nullable = true),
+        StructField("objectType", StringType, nullable = true),
+        StructField("showTimer", StringType, nullable = true),
+        StructField("allowSkip", StringType, nullable = true)
+      )
+      if (children) {
+        fields.append(StructField("children", ArrayType(makeHierarchyChildSchema()), nullable = true))
+      }
+      StructType(fields)
+    }
+
+    def makeHierarchySchema(children: Boolean = false, competencies: Boolean = false, l2Children: Boolean = false): StructType = {
       val fields = ListBuffer(
         StructField("name", StringType, nullable = true),
         StructField("status", StringType, nullable = true),
@@ -131,7 +139,7 @@ object DataUtil extends Serializable {
         StructField("createdFor", ArrayType(StringType), nullable = true)
       )
       if (children) {
-        fields.append(StructField("children", ArrayType(hierarchyChildSchema), nullable = true))
+        fields.append(StructField("children", ArrayType(makeHierarchyChildSchema(l2Children)), nullable = true))
       }
       if (competencies) {
         fields.append(StructField("competencies_v3", StringType, nullable = true))
@@ -170,9 +178,27 @@ object DataUtil extends Serializable {
     ))
 
     /* batch attrs schema */
+    val batchAttrsSessionDetailsV2FacilatorDetailsSchema: StructType = StructType(Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("id", StringType, nullable = true),
+      StructField("email", StringType, nullable = true)
+    ))
+    val batchAttrsSessionDetailsV2Schema: StructType = StructType(Seq(
+      StructField("sessionId", StringType, nullable = true),
+      StructField("sessionType", StringType, nullable = true),
+      StructField("sessionDuration", StringType, nullable = true),
+      StructField("title", StringType, nullable = true),
+      StructField("description", StringType, nullable = true),
+      StructField("startDate", StringType, nullable = true),
+      StructField("startTime", StringType, nullable = true),
+      StructField("endTime", StringType, nullable = true),
+      StructField("facilatorDetails", ArrayType(batchAttrsSessionDetailsV2FacilatorDetailsSchema), nullable = true)
+    ))
     val batchAttrsSchema: StructType = StructType(Seq(
       StructField("batchLocationDetails", StringType, nullable = true),
-      StructField("sessionType", StringType, nullable = true)
+      StructField("latlong", StringType, nullable = true),
+      StructField("currentBatchSize", StringType, nullable = true),
+      StructField("sessionDetails_v2", ArrayType(batchAttrsSessionDetailsV2Schema), nullable = true)
     ))
 
     /* telemetry related schema */
@@ -246,13 +272,14 @@ object DataUtil extends Serializable {
     val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
   }
 
-  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String], extraFields: Seq[String] = Seq(), extraArrayFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor")
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor") ++ extraFields
+    val arrayFields = Seq("createdFor") ++ extraArrayFields
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
 
-    elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, Seq("createdFor"))
+    elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, arrayFields)
   }
 
   def fracCompetencyAPI(host: String): String = {
@@ -512,6 +539,42 @@ object DataUtil extends Serializable {
     (orgRegisteredUserCountMap, orgTotalUserCountMap, orgNameMap)
   }
 
+
+  /**
+   * content from elastic search api
+   * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
+   */
+  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course", extraFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories, extraFields=extraFields)
+
+    // now that error handling is done, proceed with business as usual
+    df = df
+      .withColumn(s"${prefix}OrgID", explode_outer(col("createdFor")))
+      .select(
+        col("identifier").alias(s"${prefix}ID"),
+        col("primaryCategory").alias(s"${prefix}Category"),
+        col("name").alias(s"${prefix}Name"),
+        col("status").alias(s"${prefix}Status"),
+        col("reviewStatus").alias(s"${prefix}ReviewStatus"),
+        col("channel").alias(s"${prefix}Channel"),
+        col("lastPublishedOn").alias(s"${prefix}LastPublishedOn"),
+        col("duration").cast(FloatType).alias(s"${prefix}Duration"),
+        col("leafNodesCount").alias(s"${prefix}ResourceCount"),
+        col("lastStatusChangedOn").alias(s"${prefix}LastStatusChangedOn"),
+        col("programDirectorName").alias(s"${prefix}ProgramDirectorName"),
+        col(s"${prefix}OrgID")
+      )
+
+    df = df.dropDuplicates(s"${prefix}ID", s"${prefix}Category")
+    df = df
+      .na.fill(0.0, Seq(s"${prefix}Duration"))
+      .na.fill(0, Seq(s"${prefix}ResourceCount"))
+    df = durationFormat(df, s"${prefix}Duration")
+    show(df, "contentESDataFrame")
+    df
+  }
+
+
   /**
    * All courses/programs from elastic search api
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
@@ -705,9 +768,9 @@ object DataUtil extends Serializable {
    * @return
    */
   def addHierarchyColumn(df: DataFrame, hierarchyDF: DataFrame, idCol: String, asCol: String,
-                         children: Boolean = false, competencies: Boolean = false
+                         children: Boolean = false, competencies: Boolean = false, l2Children: Boolean = false
                         )(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val hierarchySchema = Schema.makeHierarchySchema(children, competencies)
+    val hierarchySchema = Schema.makeHierarchySchema(children, competencies, l2Children)
     df.join(hierarchyDF, df.col(idCol) === hierarchyDF.col("identifier"), "left")
       .na.fill("{}", Seq("hierarchy"))
       .withColumn(asCol, from_json(col("hierarchy"), hierarchySchema))
@@ -1375,6 +1438,7 @@ object DataUtil extends Serializable {
       col("userID"),
       col("assessStartTimestamp"),
       col("assessEndTimestamp"),
+
       col("readResponse.totalQuestions").alias("assessTotalQuestions"),
       col("readResponse.maxQuestions").alias("assessMaxQuestions"),
       col("readResponse.expectedDuration").alias("assessExpectedDuration"),
@@ -1596,16 +1660,15 @@ object DataUtil extends Serializable {
     df = df.na.drop(Seq("userid"))
     df
   }
-  
+
   def userFeedFromCassandraDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     var df = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
-            .select(col("userid").alias("userid"))
-            .where(col("category") === "NPS")
+      .select(col("userid").alias("userid"))
+      .where(col("category") === "NPS")
     if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
     df = df.na.drop(Seq("userid"))
     df
   }
-
 
   /* report generation stuff */
   def generateFullReport(df: DataFrame, reportPath: String): Unit = {
