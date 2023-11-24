@@ -40,6 +40,8 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     // get weekStart, weekEnd and dataTillDate(previous day) from today's date
     val (weekStart, weekEnd, weekEndTime, dataTillDate) = getThisWeekDates()
+//    val weekStart = ""     //for manual testing
+//    val weekEndTime = ""
 
     //get existing weekly-claps data
     var df = learnerStatsDataFrame()
