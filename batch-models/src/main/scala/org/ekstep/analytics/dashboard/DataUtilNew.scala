@@ -1030,6 +1030,7 @@ object DataUtilNew extends Serializable {
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
+      .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
@@ -1039,8 +1040,10 @@ object DataUtilNew extends Serializable {
         col("courseCompletedTimestamp"),
         col("courseEnrolledTimestamp"),
         col("lastContentAccessTimestamp"),
-        col("issuedCertificateCount")
+        col("issuedCertificateCount"),
+        col("certificateGeneratedOn")
       )
+      .na.fill("", Seq("certificateGeneratedOn"))
       .na.fill(0, Seq("courseProgress", "issuedCertificateCount"))
 
     show(df)
