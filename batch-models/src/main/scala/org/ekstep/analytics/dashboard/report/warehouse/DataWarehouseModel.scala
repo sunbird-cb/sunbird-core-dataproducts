@@ -71,7 +71,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"))
     val orgDfWithOrgType = orgDf.join(orgCassandraDF, Seq("sborgid"), "inner")
 
-    val orgDwDf = orgDfWithOrgType.select(
+    var orgDwDf = orgDfWithOrgType.select(
         col("sborgid").alias("mdo_id"),
         col("orgname").alias("mdo_name"),
         col("l1orgname").alias("ministry"),
@@ -83,7 +83,8 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
 
-    saveDataframeToPostgresTable(orgDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    orgDwDf= orgDwDf.drop("orgType")
+    saveDataframeToPostgresTable(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     spark.stop()
 
