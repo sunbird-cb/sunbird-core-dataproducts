@@ -123,7 +123,7 @@ object UserAssessmentModel extends IBatchModelTemplate[String, DummyInput, Dummy
     df = df.drop("assessID", "assessOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 

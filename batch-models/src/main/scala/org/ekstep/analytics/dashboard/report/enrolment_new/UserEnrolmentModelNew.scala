@@ -152,6 +152,6 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

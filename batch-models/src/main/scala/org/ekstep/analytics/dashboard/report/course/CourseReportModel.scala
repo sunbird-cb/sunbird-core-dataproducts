@@ -164,6 +164,6 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     generateFullReport(df, reportPath)
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

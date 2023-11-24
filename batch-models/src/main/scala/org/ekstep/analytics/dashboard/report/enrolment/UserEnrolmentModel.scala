@@ -146,6 +146,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     generateFullReport(df, reportPath)
     generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

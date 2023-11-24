@@ -106,6 +106,6 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
     generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

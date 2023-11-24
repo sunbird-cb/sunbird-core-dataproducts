@@ -153,6 +153,6 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(df, "mdoid", reportPath, "UserAssessmentReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

@@ -145,7 +145,7 @@ object ValidateDashboardModel extends IBatchModelTemplate[String, DummyInput, Du
     show(uniqueUsersCompletedDF, "uniqueUsersCompletedDF")
     uniqueUsersCompletedDF.show()
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
 
   }
 

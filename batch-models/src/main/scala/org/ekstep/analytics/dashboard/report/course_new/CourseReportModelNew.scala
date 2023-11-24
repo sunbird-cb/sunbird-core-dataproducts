@@ -144,7 +144,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     df = df.drop("courseID", "courseActualOrgId")
     generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 
 }

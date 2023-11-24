@@ -137,7 +137,7 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
     show(clickByCompleted, "clickByCompleted")
     csvWrite(clickByCompleted.coalesce(1),s"${loc}clicks-by-completed.csv")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 
   def bucketGroupBy(df: DataFrame, bucketCol: String, groupCol: String): DataFrame = {

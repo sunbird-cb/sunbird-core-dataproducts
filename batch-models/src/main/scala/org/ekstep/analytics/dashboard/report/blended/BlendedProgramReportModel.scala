@@ -202,7 +202,10 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("bpBatchLocation").alias("bpChildBatchLocation"),
       col("bpBatchCurrentSize").alias("bpChildBatchCurrentSize"),
       col("bpBatchSessionType").alias("bpChildBatchSessionType"),
-      col("bpBatchSessionFacilators").alias("bpChildBatchSessionFacilators")
+      col("bpBatchSessionFacilators").alias("bpChildBatchSessionFacilators"),
+      col("bpBatchSessionStartDate").alias("bpChildBatchSessionStartDate"),
+      col("bpBatchSessionStartTime").alias("bpChildBatchSessionStartTime"),
+      col("bpBatchSessionEndTime").alias("bpChildBatchSessionEndTime")
     )
     show(bpChildBatchDF, "bpChildBatchDF")
 
@@ -333,6 +336,6 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramAttendanceReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }

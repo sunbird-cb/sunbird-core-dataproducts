@@ -97,7 +97,7 @@ object RozgarUserModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     csvWrite(df, s"/tmp/${conf.userReportPath}/${today}/full/")
     generateAndSyncReports(df, "mdoid", s"${conf.userReportPath}/${today}/${conf.taggedUsersPath}", "RozgarReport")
 
-    closeRedisConnect()
+    Redis.closeRedisConnect()
   }
 }
 
