@@ -258,6 +258,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
       .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildBatchSessionType NOT IN ('Offline', 'offline') THEN bpBatchSessionStartDate ELSE '' END"))
       .withColumn("bpChildOfflineStartTime", expr("CASE WHEN bpChildBatchSessionType  NOT IN ('Offline', 'offline') THEN bpBatchSessionStartTime ELSE '' END"))
+      .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildBatchSessionType  NOT IN ('Offline', 'offline') THEN bpBatchSessionEndTime ELSE '' END"))
       .withColumn("bpChildUserStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Completed' ELSE 'Not Completed' END"))
       .durationFormat("bpChildDuration")
     show(fullDF, "fullDF")
@@ -300,7 +301,8 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
         col("bpChildOfflineStartDate").alias("Offline_Session_Date"),
-        col("bpChildOfflineStartTime").alias("Offline_Session_Time"),
+        col("bpChildOfflineStartTime").alias("Offline_Session_Start_Time"),
+        col("bpChildOfflineEndTime").alias("Offline_Session_End_Time"),
         col("bpChildAttendanceStatus").alias("Offline_Attendance_Status"),
         col("bpBatchSessionFacilators").alias("Instructor(s)_Name"),
         col("bpProgramDirectorName").alias("Program_Coordinator_Name"),
