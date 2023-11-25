@@ -13,7 +13,7 @@ import java.io.Serializable
 
 object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.BlendedProgramReportModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportModel"
 
   override def name() = "BlendedProgramReportModel"
 

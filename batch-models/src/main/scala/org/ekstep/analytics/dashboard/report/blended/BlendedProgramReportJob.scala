@@ -6,7 +6,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IJob, JobDriver}
 
 object BlendedProgramReportJob extends optional.Application with IJob{
 
-  implicit val className = "org.ekstep.analytics.dashboard.report.enrolment.BlendedProgramReportJob"
+  implicit val className = "org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob"
 
   def main(config: String)(implicit sc: Option[SparkContext] = None, fc: Option[FrameworkContext] = None) {
     implicit val sparkContext: SparkContext = sc.getOrElse(null);

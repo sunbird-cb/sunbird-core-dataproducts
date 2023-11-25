@@ -13,7 +13,7 @@ import java.io.Serializable
 
 object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.datawarehouse.DataWarehouseModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseModel"
   override def name() = "DataWarehouseModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
