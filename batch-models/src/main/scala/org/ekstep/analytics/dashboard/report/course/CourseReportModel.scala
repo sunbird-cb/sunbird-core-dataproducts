@@ -107,7 +107,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     df = df.withColumn("notStartedCount", df("enrolmentCount") - df("startedCount") - df("inProgressCount") - df("completedCount"))
     df = df.withColumn("Average_Rating", round(col("ratingAverage"), 2))
 
-    df = durationFormat(df, "courseDuration", "CBP_Duration")
+    df = df.durationFormat("courseDuration", "CBP_Duration")
 
     var certificateIssued = df.filter(col("issuedCertificates") =!= "[]").select(col("courseID"), col("issuedCertificates"))
     certificateIssued = certificateIssued.groupBy(col("courseID")).agg(count(col("issuedCertificates")).alias("Total_Certificates_Issued"))

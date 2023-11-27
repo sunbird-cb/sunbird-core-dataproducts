@@ -261,6 +261,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildBatchSessionType  NOT IN ('Offline', 'offline') THEN bpBatchSessionEndTime ELSE '' END"))
       .withColumn("bpChildUserStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Completed' ELSE 'Not Completed' END"))
       .durationFormat("bpChildDuration")
+      .distinct()
     show(fullDF, "fullDF")
 
     val fullReportDF = fullDF
@@ -308,10 +309,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpProgramDirectorName").alias("Program_Coordinator_Name"),
         col("Certificate_Generated"),
         col("userOrgID").alias("mdoid"),
-        coalesce(col("bpOrgID"), col("bpChannel")).alias("cbpid"),
+        col("bpOrgID").alias("cbpid"),
         col("Report_Last_Generated_On")
       )
-      .distinct()
       .orderBy("bpID", "userID")
       .coalesce(1)
 
@@ -337,6 +337,31 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramReport")
+
+    val df_warehouse = fullDF
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .select(
+        col("userID").alias("user_id"),
+        col("bpOrgID").alias("cbp_id"),
+        col("bpBatchID").alias("batch_id"),
+        col("bpBatchLocation").alias("batch_location"),
+        col("bpChildName").alias("component_name"),
+        col("bpChildID").alias("component_id"),
+        col("bpChildCategory").alias("component_type"),
+        col("bpChildBatchSessionType").alias("component_mode"),
+        col("bpChildUserStatus").alias("component_status"),
+        col("bpChildDuration").alias("component_duration"),
+        col("bpChildProgressPercentage").alias("component_progress_percentage"),
+        col("bpChildOfflineStartDate").alias("offline_session_date"),
+        col("bpChildOfflineStartTime").alias("offline_session_start_time"),
+        col("bpChildOfflineEndTime").alias("offline_session_end_time"),
+        col("bpChildAttendanceStatus").alias("offline_attendance_status"),
+        col("bpBatchSessionFacilators").alias("instructor(s)_name"),
+        col("bpProgramDirectorName").alias("program_coordinator_name"),
+        col("data_last_generated_on")
+      )
+
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
   }

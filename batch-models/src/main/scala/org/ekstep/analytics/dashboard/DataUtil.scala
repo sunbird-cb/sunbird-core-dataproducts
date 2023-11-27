@@ -389,7 +389,8 @@ object DataUtil extends Serializable {
         col("status").alias("userStatus"),
         col("profiledetails").alias("userProfileDetails"),
         col("createddate").alias("userCreatedTimestamp"),
-        col("updateddate").alias("userUpdatedTimestamp")
+        col("updateddate").alias("userUpdatedTimestamp"),
+        col("createdby").alias("userCreatedBy")
       )
       .na.fill("", Seq("userOrgID", "firstName", "lastName"))
       .na.fill("{}", Seq("userProfileDetails"))
@@ -569,7 +570,8 @@ object DataUtil extends Serializable {
     df = df
       .na.fill(0.0, Seq(s"${prefix}Duration"))
       .na.fill(0, Seq(s"${prefix}ResourceCount"))
-    df = durationFormat(df, s"${prefix}Duration")
+      .durationFormat(s"${prefix}Duration")
+
     show(df, "contentESDataFrame")
     df
   }

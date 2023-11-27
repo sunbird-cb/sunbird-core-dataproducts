@@ -89,10 +89,10 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
     show(df, "df 1")
 
-    //    df = durationFormat(df, "userAssessmentDuration", "actualDuration")
+    //    df = df.durationFormat("userAssessmentDuration", "actualDuration")
     //    show(df, "df 2")
 
-    df = durationFormat(df, "assessExpectedDuration", "totalAssessmentDuration")
+    df = df.durationFormat("assessExpectedDuration", "totalAssessmentDuration")
     show(df, "df 3")
 
     val caseExpression = "CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"
@@ -176,7 +176,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("retakes").alias("number_of_retakes"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(warehouseDF, reportPath)
+    generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
 

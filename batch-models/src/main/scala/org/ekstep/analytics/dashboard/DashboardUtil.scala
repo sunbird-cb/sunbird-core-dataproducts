@@ -122,10 +122,41 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
-  val allowedContentCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+  implicit class DataFrameMod(df: DataFrame) {
 
-  def validateContentCategories(categories: Seq[String]): Unit = {
+    /**
+     * duration format a column
+     *
+     * @param inCol input column name
+     * @param outCol output column name
+     * @return data frame with duration formatted column
+     */
+    def durationFormat(inCol: String, outCol: String = null): DataFrame = {
+      val outColName = if (outCol == null) inCol else outCol
+      df.withColumn(outColName,
+        when(col(inCol).isNull, lit(""))
+          .otherwise(
+            format_string("%02d:%02d:%02d",
+              expr(s"${inCol} / 3600").cast("int"),
+              expr(s"${inCol} % 3600 / 60").cast("int"),
+              expr(s"${inCol} % 60").cast("int")
+            )
+          )
+      )
+    }
 
+    /**
+     * collect values in keyField and valueField as a map
+     *
+     * @param keyField key field
+     * @param valueField value field
+     * @tparam T type of the value
+     * @return java.util.Map[String, String] of keyField and valueField values
+     */
+    def toMap[T](keyField: String, valueField: String): util.Map[String, String] = {
+      df.rdd.map(row => (row.getAs[String](keyField), row.getAs[T](valueField).toString))
+        .collectAsMap()
+    }
   }
 
   object Test extends Serializable {
@@ -219,55 +250,6 @@ object DashboardUtil extends Serializable {
 
   }
 
-  def getDate(): String = {
-    val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
-    dateFormat.print(System.currentTimeMillis());
-  }
-
-  def getThisWeekDates(): (String, String, String, String) = {
-    val istTimeZone = DateTimeZone.forID("Asia/Kolkata")
-    val currentDate = DateTime.now(istTimeZone)
-    val dateFormatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(istTimeZone)
-    val formatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(istTimeZone)
-    val dataTillDate = currentDate.minusDays(1)
-    val startOfWeek = dataTillDate.withDayOfWeek(DateTimeConstants.MONDAY).withTimeAtStartOfDay()
-    val endOfWeek = startOfWeek.plusDays(6).withTime(23, 59, 59, 999)
-    (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), formatter.print(endOfWeek), dateFormatter.print(dataTillDate))
-  }
-
-  /* Util functions */
-  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
-  }
-
-  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
-      .partitionBy(partitionKey).save(path)
-  }
-
-  def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {
-    df.withColumn("timestamp", lit(timestamp))
-  }
-
-  def kafkaDispatch(data: RDD[String], topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    if (topic == "") {
-      println("ERROR: topic is blank, skipping kafka dispatch")
-    } else if (conf.broker == "") {
-      println("ERROR: broker list is blank, skipping kafka dispatch")
-    } else {
-      KafkaDispatcher.dispatch(Map("brokerList" -> conf.broker, "topic" -> topic, "compression" -> conf.compression), data)
-    }
-  }
-
-  def kafkaDispatch(data: DataFrame, topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    kafkaDispatch(data.toJSON.rdd, topic)
-  }
-
-  def kafkaDispatchDS[T](data: Dataset[T], topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    kafkaDispatch(data.toJSON.rdd, topic)
-  }
-
-  /* redis util functions */
   object Redis extends Serializable {
 
     var redisConnect: Jedis = null
@@ -556,9 +538,68 @@ object DashboardUtil extends Serializable {
      * @tparam T type of the value column
      */
     def dispatchDataFrame[T](redisKey: String, df: DataFrame, keyField: String, valueField: String)(implicit conf: DashboardConfig): Unit = {
-      dispatch(redisKey, dfToMap[T](df, keyField, valueField))
+      dispatch(redisKey, df.toMap[T](keyField, valueField))
     }
 
+  }
+
+  val allowedContentCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment")
+
+  def validateContentCategories(categories: Seq[String]): Unit = {
+
+  }
+
+  /**
+   * add a `timestamp` column with give constant value, will override current `timestamp` column if present
+   * @param timestamp provided timestamp value
+   * @return data frame with timestamp column
+   */
+  def withTimestamp(df: DataFrame, timestamp: Long): DataFrame = {
+    df.withColumn("timestamp", lit(timestamp))
+  }
+
+  def getDate(): String = {
+    val dateFormat: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(DateTimeZone.forOffsetHoursMinutes(5, 30));
+    dateFormat.print(System.currentTimeMillis());
+  }
+
+  def getThisWeekDates(): (String, String, String, String) = {
+    val istTimeZone = DateTimeZone.forID("Asia/Kolkata")
+    val currentDate = DateTime.now(istTimeZone)
+    val dateFormatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd").withZone(istTimeZone)
+    val formatter: DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withZone(istTimeZone)
+    val dataTillDate = currentDate.minusDays(1)
+    val startOfWeek = dataTillDate.withDayOfWeek(DateTimeConstants.MONDAY).withTimeAtStartOfDay()
+    val endOfWeek = startOfWeek.plusDays(6).withTime(23, 59, 59, 999)
+    (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), formatter.print(endOfWeek), dateFormatter.print(dataTillDate))
+  }
+
+  /* Util functions */
+  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
+  }
+
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
+    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+      .partitionBy(partitionKey).save(path)
+  }
+
+  def kafkaDispatch(data: RDD[String], topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    if (topic == "") {
+      println("ERROR: topic is blank, skipping kafka dispatch")
+    } else if (conf.broker == "") {
+      println("ERROR: broker list is blank, skipping kafka dispatch")
+    } else {
+      KafkaDispatcher.dispatch(Map("brokerList" -> conf.broker, "topic" -> topic, "compression" -> conf.compression), data)
+    }
+  }
+
+  def kafkaDispatch(data: DataFrame, topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    kafkaDispatch(data.toJSON.rdd, topic)
+  }
+
+  def kafkaDispatchDS[T](data: Dataset[T], topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    kafkaDispatch(data.toJSON.rdd, topic)
   }
 
   def apiThrowException(method: String, url: String, body: String): String = {
@@ -589,37 +630,7 @@ object DashboardUtil extends Serializable {
     }
   }
 
-  implicit class DataFrameMod(df: DataFrame) {
-    def durationFormat(inCol: String, outCol: String = null): DataFrame = {
-      val outColName = if (outCol == null) inCol else outCol
-      df.withColumn(outColName,
-        when(col(inCol).isNull, lit(""))
-          .otherwise(
-            format_string("%02d:%02d:%02d",
-              expr(s"${inCol} / 3600").cast("int"),
-              expr(s"${inCol} % 3600 / 60").cast("int"),
-              expr(s"${inCol} % 60").cast("int")
-            )
-          )
-      )
-    }
-  }
-
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
-
-  def durationFormat(df: DataFrame, inCol: String, outCol: String = null): DataFrame = {
-    val outColName = if (outCol == null) inCol else outCol
-    df.withColumn(outColName,
-      when(col(inCol).isNull, lit(""))
-        .otherwise(
-          format_string("%02d:%02d:%02d",
-            expr(s"${inCol} / 3600").cast("int"),
-            expr(s"${inCol} % 3600 / 60").cast("int"),
-            expr(s"${inCol} % 60").cast("int")
-          )
-        )
-    )
-  }
 
   def dataFrameFromJSONString(jsonString: String)(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
@@ -657,12 +668,6 @@ object DashboardUtil extends Serializable {
     }
     // now that error handling is done, proceed with business as usual
     Some(df)
-  }
-
-  def dfToMap[T](df: DataFrame, keyField: String, valueField: String): util.Map[String, String] = {
-    // faster implementation
-    df.rdd.map(row => (row.getAs[String](keyField), row.getAs[T](valueField).toString))
-      .collectAsMap()
   }
 
   def cassandraTableAsDataFrame(keySpace: String, table: String)(implicit spark: SparkSession): DataFrame = {
@@ -712,13 +717,13 @@ object DashboardUtil extends Serializable {
     df
   }
 
-  def mongodbTableAsDataFrame(mongodatabase: String, collection: String)(implicit spark: SparkSession): DataFrame = {
+  def mongodbTableAsDataFrame(mongoDatabase: String, collection: String)(implicit spark: SparkSession): DataFrame = {
     val schema = new StructType()
       .add("topiccount", IntegerType, true)
       .add("postcount", IntegerType, true)
       .add("sunbird-oidcId", StringType, true)
       .add("username", StringType, true)
-    val df = spark.read.schema(schema).format("com.mongodb.spark.sql.DefaultSource").option("database", mongodatabase).option("collection", collection).load()
+    val df = spark.read.schema(schema).format("com.mongodb.spark.sql.DefaultSource").option("database", mongoDatabase).option("collection", collection).load()
     val filterDf = df.select("sunbird-oidcId").where(col("username").isNotNull or col("topiccount") > 0 and (col("postcount") > 0))
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
     renamedDF

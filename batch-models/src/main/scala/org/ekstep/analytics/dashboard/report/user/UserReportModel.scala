@@ -70,15 +70,16 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       // .join(userDataDF, Seq("userOrgID"), "inner")
       .join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"), "left")
-
-    var df = userData.where(expr("userStatus=1"))
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-
-    df = df.dropDuplicates("userID")
+      .dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
+      .where(expr("userStatus=1"))
+
+    val fullReportDF = userData
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
         col("userID"),
         col("userOrgID"),
+        col("userCreatedBy"),
         col("fullName").alias("Full_Name"),
         col("professionalDetails.designation").alias("Designation"),
         col("personalDetails.primaryEmail").alias("Email"),
@@ -97,18 +98,16 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
         col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
+      .coalesce(1)
 
-    df = df.coalesce(1)
     val reportPath = s"${conf.userReportPath}/${today}"
     // generateFullReport(df, s"${conf.userReportPath}-test/${today}")
-    generateFullReport(df, reportPath)
-    df = df.drop("userID", "userOrgID")
+    generateFullReport(fullReportDF, reportPath)
+    val mdoWiseReportDF = fullReportDF.drop("userID", "userOrgID", "userCreatedBy")
     // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
-    generateAndSyncReports(df, "mdoid", reportPath, "UserReport")
+    generateAndSyncReports(mdoWiseReportDF, "mdoid", reportPath, "UserReport")
 
     val df_warehouse = userData
-      .dropDuplicates("userID")
-      .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),

@@ -78,7 +78,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     df = userCourseCompletionStatus(df)
 
-    df = durationFormat(df, "courseDuration", "CBP_Duration")
+    df = df.durationFormat("courseDuration", "CBP_Duration")
 
     val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
     val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"

@@ -388,7 +388,8 @@ object DataUtilNew extends Serializable {
         col("status").alias("userStatus"),
         col("profiledetails").alias("userProfileDetails"),
         col("createddate").alias("userCreatedTimestamp"),
-        col("updateddate").alias("userUpdatedTimestamp")
+        col("updateddate").alias("userUpdatedTimestamp"),
+        col("createdby").alias("userCreatedBy")
       )
       .na.fill("", Seq("userOrgID", "firstName", "lastName"))
       .na.fill("{}", Seq("userProfileDetails"))
@@ -568,7 +569,8 @@ object DataUtilNew extends Serializable {
     df = df
       .na.fill(0.0, Seq(s"${prefix}Duration"))
       .na.fill(0, Seq(s"${prefix}ResourceCount"))
-    df = durationFormat(df, s"${prefix}Duration")
+      .durationFormat(s"${prefix}Duration")
+
     show(df, "contentESDataFrame")
     df
   }
@@ -602,7 +604,8 @@ object DataUtilNew extends Serializable {
     df = df
       .na.fill(0.0, Seq("courseDuration"))
       .na.fill(0, Seq("courseResourceCount"))
-    df = durationFormat(df, "courseDuration")
+      .durationFormat("courseDuration")
+
     show(df, "allCourseProgramESDataFrame")
     df
   }
