@@ -65,6 +65,10 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .csv(s"/tmp/${conf.cbaReportPath}/${today}-warehouse")
     saveDataframeToPostgresTable(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
+    val blended_details = spark.read.option("header", "true")
+      .csv(s"/tmp/${conf.blendedReportPath}/${today}-warehouse")
+    saveDataframeToPostgresTable(blended_details, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
     //Read the org hierarchy from postgres and then save it the Datawarehouse postgres
     val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
