@@ -5,6 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil.generateWarehouseReport
 import org.ekstep.analytics.dashboard.DataUtilNew._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
@@ -315,6 +316,8 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .orderBy("bpID", "userID")
       .coalesce(1)
 
+    var df_warehouse = fullReportDF
+
     show(fullReportDF, "fullReportDF")
 
     val reportPath = s"${conf.blendedReportPath}/${today}"
@@ -337,6 +340,32 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramReport")
+
+    df_warehouse= df_warehouse
+      .select(
+        col("userID"),
+        coalesce(col("bpOrgID"), col("bpChannel")).alias("cbpid"),
+        col("bpBatchID").alias("batch_id"),
+
+        col("bpBatchLocation").alias("batch_location"),
+        col("bpChildName").alias("component_name"),
+        col("bpChildID").alias("component_id"),
+        col("bpChildCategory").alias("component_type"),
+        col("bpChildBatchSessionType").alias("component_mode"),
+        col("bpChildUserStatus").alias("component_status"),
+        col("bpChildDuration").alias("component_duration"),
+        col("bpChildProgressPercentage").alias("component_progress_percentage"),
+        col("bpChildOfflineStartDate").alias("offline_session_date"),
+        col("bpChildOfflineStartTime").alias("offline_session_start_time"),
+        col("bpChildOfflineEndTime").alias("offline_session_end_time"),
+        col("bpChildAttendanceStatus").alias("offline_attendance_status"),
+        col("bpBatchSessionFacilators").alias("instructor(s)_name"),
+        col("bpProgramDirectorName").alias("program_coordinator_name"),
+        col("data_last_generated_on")
+      )
+      .distinct()
+
+    generateWarehouseReport(df_warehouse, reportPath)
 
     Redis.closeRedisConnect()
   }
