@@ -13,6 +13,7 @@ import org.ekstep.analytics.dashboard.report.course_new.CourseReportJobNew
 import org.ekstep.analytics.dashboard.report.enrolment_new.UserEnrolmentJobNew
 import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
 import org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseJob
+import org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsJob
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob
@@ -54,6 +55,8 @@ object JobFactory {
         BlendedProgramReportJob
       case "data-warehouse-sync" =>
         DataWarehouseJob
+      case "weekly-claps" =>
+        WeeklyClapsJob
       case "rozgar-user-report" =>
         RozgarUserJob
       case "rozgar-enrolment-report" =>
