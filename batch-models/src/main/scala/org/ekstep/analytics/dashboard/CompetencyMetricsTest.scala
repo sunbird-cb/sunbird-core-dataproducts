@@ -2,6 +2,7 @@ package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
+import DashboardUtil.parseConfig
 import org.ekstep.analytics.framework.FrameworkContext
 
 
@@ -16,7 +17,10 @@ object CompetencyMetricsTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CompetencyMetricsModel.processCompetencyMetricsData(System.currentTimeMillis(), config)
+    import spark.implicits._
+    println(config)
+    implicit val conf: DashboardConfig = parseConfig(config)
+    // CompetencyMetricsModel.processCompetencyMetricsData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

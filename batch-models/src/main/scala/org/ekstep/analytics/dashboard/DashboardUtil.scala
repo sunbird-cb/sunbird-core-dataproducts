@@ -1,7 +1,7 @@
 package org.ekstep.analytics.dashboard
 
 import org.apache.hadoop.fs.{FileSystem, Path}
-import redis.clients.jedis.Jedis
+import redis.clients.jedis.{Jedis, JedisPool}
 import org.apache.spark.SparkContext
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
@@ -641,6 +641,7 @@ object Redis extends Serializable {
   var redisConnect: Jedis = null
   var redisHost: String = ""
   var redisPort: Int = 0
+  var redisDb: Int = 0
 
   // open/close redis connection
   def closeRedisConnect(): Unit = {
@@ -649,22 +650,24 @@ object Redis extends Serializable {
       redisConnect = null
     }
   }
-  def getOrCreateRedisConnect(host: String, port: Int): Jedis = {
+  def getOrCreateRedisConnect(host: String, port: Int, db: Int): Jedis = {
     if (redisConnect == null) {
-      redisConnect = createRedisConnect(host, port)
-    } else if (redisHost != host || redisPort != port) {
-      redisConnect = createRedisConnect(host, port)
+      redisConnect = createRedisConnect(host, port, db)
+    } else if (redisHost != host || redisPort != port || redisDb != db) {
+      redisConnect = createRedisConnect(host, port, db)
     }
     redisConnect
   }
-  def getOrCreateRedisConnect(conf: DashboardConfig): Jedis = getOrCreateRedisConnect(conf.redisHost, conf.redisPort)
-  def createRedisConnect(host: String, port: Int): Jedis = {
+  def getOrCreateRedisConnect(conf: DashboardConfig): Jedis = getOrCreateRedisConnect(conf.redisHost, conf.redisPort, conf.redisDB)
+  def createRedisConnect(host: String, port: Int, db: Int): Jedis = {
     redisHost = host
     redisPort = port
+    redisDb = db
     if (host == "") return null
-    new Jedis(host, port, 30000)
+    new Jedis(s"redis://${host}:${port}/${db}?timeout=30000")
+    // new Jedis(host, port, 30000)
   }
-  def createRedisConnect(conf: DashboardConfig): Jedis = createRedisConnect(conf.redisHost, conf.redisPort)
+  def createRedisConnect(conf: DashboardConfig): Jedis = createRedisConnect(conf.redisHost, conf.redisPort, conf.redisDB)
 
   // get key value
   def get(key: String)(implicit conf: DashboardConfig): String = {
@@ -675,7 +678,7 @@ object Redis extends Serializable {
       getWithoutRetry(host, port, db, key)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        redisConnect = createRedisConnect(host, port, db)
         getWithoutRetry(host, port, db, key)
     }
   }
@@ -684,12 +687,12 @@ object Redis extends Serializable {
       println(s"WARNING: key is empty")
       return "0" // or any other default value
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
       return "0" // or any other default value
     }
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
 
     // Check if the key exists in Redis
     if (!jedis.exists(key)) {
@@ -712,10 +715,12 @@ object Redis extends Serializable {
   }
   def update(host: String, port: Int, db: Int, key: String, data: String): Unit = {
     try {
+      println(s"update db=${db}")
       updateWithoutRetry(host, port, db, key, data)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        println(s"update exception db=${db}")
+        redisConnect = createRedisConnect(host, port, db)
         updateWithoutRetry(host, port, db, key, data)
     }
   }
@@ -727,13 +732,13 @@ object Redis extends Serializable {
     } else {
       cleanedData = data
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
       return
     }
 
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
     jedis.set(key, cleanedData)
   }
 
@@ -747,7 +752,7 @@ object Redis extends Serializable {
       getMapFieldWithoutRetry(host, port, db, key, field)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        redisConnect = createRedisConnect(host, port, db)
         getMapFieldWithoutRetry(host, port, db, key, field)
     }
   }
@@ -757,12 +762,12 @@ object Redis extends Serializable {
       println(s"WARNING: key is empty")
       return ""
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
       return ""
     }
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
 
     // Check if the key exists in Redis
     if (!jedis.exists(key)) {
@@ -787,7 +792,7 @@ object Redis extends Serializable {
       updateMapFieldWithoutRetry(host, port, db, key, field, data)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        redisConnect = createRedisConnect(host, port, db)
         updateMapFieldWithoutRetry(host, port, db, key, field, data)
     }
   }
@@ -799,12 +804,12 @@ object Redis extends Serializable {
     } else {
       cleanedData = data
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
       return
     }
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
     jedis.hset(key, field, cleanedData)
   }
 
@@ -831,7 +836,7 @@ object Redis extends Serializable {
       getMapWithoutRetry(host, port, db, key)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        redisConnect = createRedisConnect(host, port, db)
         getMapWithoutRetry(host, port, db, key)
     }
   }
@@ -841,12 +846,12 @@ object Redis extends Serializable {
       println(s"WARNING: key is empty")
       return new util.HashMap[String, String]()
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping fetching the redis key=${key}")
       return new util.HashMap[String, String]()
     }
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
 
     // Check if the key exists in Redis
     if (!jedis.exists(key)) {
@@ -874,7 +879,7 @@ object Redis extends Serializable {
       dispatchWithoutRetry(host, port, db, key, data, replace)
     } catch {
       case e: JedisException =>
-        redisConnect = createRedisConnect(host, port)
+        redisConnect = createRedisConnect(host, port, db)
         dispatchWithoutRetry(host, port, db, key, data, replace)
     }
   }
@@ -883,12 +888,12 @@ object Redis extends Serializable {
       println(s"WARNING: map is empty, skipping saving to redis key=${key}")
       return
     }
-    val jedis = getOrCreateRedisConnect(host, port)
+    val jedis = getOrCreateRedisConnect(host, port, db)
     if (jedis == null) {
       println(s"WARNING: jedis=null means host is not set, skipping saving to redis key=${key}")
       return
     }
-    if (jedis.getDB != db) jedis.select(db)
+    // if (jedis.getDB != db) jedis.select(db)
     if (replace) {
       replaceMap(jedis, key, data)
     } else {

@@ -136,6 +136,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       {userOrgDF.filter(expr("userStatus=1 AND userOrgID IS NOT NULL AND userOrgStatus=1")).select("userOrgID").distinct().count()},
       "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
+    Redis.update("dashboard_update_time2", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
@@ -161,6 +163,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // mdo-wise registered user count
     val activeUsersByMDODF = userDF.where(expr("userStatus=1")).groupBy("userOrgID").agg(count("*").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_user_count_by_user_org", activeUsersByMDODF, "userOrgID", "count")
+
+    Redis.update("dashboard_update_time3", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     // new users registered yesterday
     val usersRegisteredYesterdayDF = userDF
@@ -191,6 +195,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.dispatchDataFrame[Long]("dashboard_retired_course_count_by_course_org", retiredCourseCountByCBPDF, "courseOrgID", "count")
     val pendingPublishCourseCountByCBPDF = pendingPublishCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_pending_publish_course_count_by_course_org", pendingPublishCourseCountByCBPDF, "courseOrgID", "count")
+
+    Redis.update("dashboard_update_time4", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     // MDO with at least one live course
     val orgWithLiveCourseCount = liveCourseDF.select("courseOrgID").distinct().count()
@@ -324,10 +330,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val liveCourseCompletedAtLeastOnceByMDODF = liveCourseCompletedDF.groupBy("userOrgID").agg(countDistinct("courseID").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
 
+    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     // new redis updates - end
     
     // do home page data update
     updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
+
+    Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
@@ -453,6 +462,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .agg(avg("rate").alias("rate"))
     show(orgCompetencyGapAvgClosedRateDF, "OL13")
     Redis.dispatchDataFrame[Double](conf.redisOrgCompetencyGapClosedRate, orgCompetencyGapAvgClosedRateDF, "orgID", "rate")
+
+    Redis.update("dashboard_update_time7", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     Redis.closeRedisConnect()
 
