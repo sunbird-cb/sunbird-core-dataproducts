@@ -365,7 +365,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       )
       .distinct()
 
-    generateWarehouseReport(df_warehouse, reportPath)
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
   }

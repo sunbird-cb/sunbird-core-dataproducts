@@ -176,7 +176,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("retakes").alias("number_of_retakes"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(warehouseDF, reportPath)
+    generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
 
