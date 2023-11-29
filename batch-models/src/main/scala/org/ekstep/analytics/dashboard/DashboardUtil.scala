@@ -656,6 +656,8 @@ object Redis extends Serializable {
     } else if (redisHost != host || redisPort != port) {
       try {
         closeRedisConnect()
+      } catch {
+        case e: Exception => {}
       }
       redisConnect = createRedisConnect(host, port)
     }

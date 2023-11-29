@@ -509,8 +509,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .join(learningHoursTillDay0.withColumnRenamed("totalLearningHours", "learningHoursTillDay0"), Seq("userOrgID"), "left")
       .na.fill(0.0, Seq("learningHoursTillDay0", "learningHoursTillDay1"))
       .withColumn("totalLearningHours", expr("learningHoursTillDay1 - learningHoursTillDay0"))
-      .withColumn(s"userOrgID:${prefix}", concat(col("userOrgID"), lit(s":${prefix}")))
-      .select(s"userOrgID:${prefix}", "totalLearningHours")
+      .withColumn(s"userOrgID", concat(col("userOrgID"), lit(s":${prefix}")))
+      .select(s"userOrgID", "totalLearningHours")
   }
 
   def processLearningHours(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
@@ -541,8 +541,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     Redis.dispatchDataFrame[Double]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours", replace = false)
     Redis.dispatchDataFrame[Double]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours", replace = false)
-    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours", replace = false)
-    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID:today", "totalLearningHours", replace = false)
+    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID", "totalLearningHours", replace = false)
+    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID", "totalLearningHours", replace = false)
 
     // over all
     val totalLearningHoursYesterday: String = Redis.getMapField("lhp_learningHours", "across:today")
@@ -561,8 +561,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val totalCertificationsTillToday = allCourseProgramCompletionWithDetailsDF
       .where(expr("courseStatus IN ('Live') AND userStatus=1 AND dbCompletionStatus = 2 AND issuedCertificateCount > 0")).count()
 
-    val totalCertificationsTillYesterday = Redis.get("lhp_certificationsTillToday").toLong
-    val totalCertificationsTillDayBeforeYesterday = Redis.get("lhp_certificationsTillYesterday").toLong
+    val totalCertificationsTillYesterdayStr = Redis.get("lhp_certificationsTillToday")
+    val totalCertificationsTillYesterday = if (totalCertificationsTillYesterdayStr == "") { 0L } else { totalCertificationsTillYesterdayStr.toLong }
+    val totalCertificationsTillDayBeforeYesterdayStr = Redis.get("lhp_certificationsTillYesterday")
+    val totalCertificationsTillDayBeforeYesterday = if (totalCertificationsTillDayBeforeYesterdayStr == "") { 0L } else { totalCertificationsTillDayBeforeYesterdayStr.toLong }
 
     val totalCertificationsToday = totalCertificationsTillToday - totalCertificationsTillYesterday
     val totalCertificationsYesterday = totalCertificationsTillYesterday - totalCertificationsTillDayBeforeYesterday
