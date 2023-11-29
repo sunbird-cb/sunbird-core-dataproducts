@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.framework._
 import DashboardUtil._
@@ -330,12 +330,11 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val liveCourseCompletedAtLeastOnceByMDODF = liveCourseCompletedDF.groupBy("userOrgID").agg(countDistinct("courseID").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
 
-    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     // new redis updates - end
     
     // do home page data update
+    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
-
     Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
@@ -471,6 +470,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
   def updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
+    Redis.update("dashboard_update_time5.0", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     //get the current date and 7 days before that for learner stats - start
     print("started calculating")
     val currentDateDF = spark.range(1).select(current_date().alias("currentDate"))
@@ -488,13 +488,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     print("current Date is" + currentDateString + "\n")
     //get the current date and 7 days before that for learner stats - end
 
+    Redis.update("dashboard_update_time5.1", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
     // calculate redis keys
     if(!lastRunDate.equals(currentDateString)) {
       learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF, startOf7thDayString, endOfCurrentDayString, currentDateString)
     } else {
       print("This is a second run today and the computation and redis key updates are not required")
     }
-    // learner home page data logic - end
+
   }
 
   def learningHoursDiff(learningHoursTillDay0: DataFrame, learningHoursTillDay1: DataFrame, defaultLearningHours: DataFrame, prefix: String): DataFrame = {
@@ -512,6 +514,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
   }
 
   def processLearningHours(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+
+    Redis.update("dashboard_update_time5.2", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     val totalLearningHoursTillTodayByOrg = allCourseProgramCompletionWithDetailsDF
       .filter("userOrgID IS NOT NULL AND TRIM(userOrgID) != ''")
@@ -533,6 +537,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val totalLearningHoursYesterdayByOrg = learningHoursDiff(totalLearningHoursTillDayBeforeYesterdayByOrg, totalLearningHoursTillYesterdayByOrg, totalLearningHoursTillTodayByOrg, "yesterday")
     show(totalLearningHoursYesterdayByOrg, "totalLearningHoursYesterdayByOrg")
 
+    Redis.update("dashboard_update_time5.3", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
     Redis.dispatchDataFrame[Double]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours", replace = false)
     Redis.dispatchDataFrame[Double]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours", replace = false)
     Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours", replace = false)
@@ -546,9 +552,12 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.updateMapField("lhp_learningHours", "across:yesterday", totalLearningHoursYesterday)
     println("learning across today :" + totalLearningHoursToday)
     Redis.updateMapField("lhp_learningHours", "across:today", totalLearningHoursToday)
+
+    Redis.update("dashboard_update_time5.4", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
   }
 
   def processCertifications(allCourseProgramCompletionWithDetailsDF: DataFrame, startOf7thDayString: String, endOfCurrentDayString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    Redis.update("dashboard_update_time5.5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     val totalCertificationsTillToday = allCourseProgramCompletionWithDetailsDF
       .where(expr("courseStatus IN ('Live') AND userStatus=1 AND dbCompletionStatus = 2 AND issuedCertificateCount > 0")).count()
 
@@ -576,12 +585,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     println("certifications across today :" + totalCertificationsToday)
     Redis.updateMapField("lhp_certifications", "across:today", totalCertificationsToday.toString)
 
+    Redis.update("dashboard_update_time5.6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
     topNCertifications
   }
 
   def processTrending(allCourseProgramCompletionWithDetailsDF: DataFrame, topNCertifications: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
 
+    Redis.update("dashboard_update_time5.7", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     val courseIdsString = topNCertifications
       .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
 
@@ -657,7 +669,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     print("most enrolled tag :" + mostEnrolledTag)
     Redis.update("lhp_mostEnrolledTag", mostEnrolledTag + "\n")
-
+    Redis.update("dashboard_update_time5.8", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
   }
 
   def learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF: DataFrame, startOf7thDayString: String, endOfCurrentDayString: String, currentDateString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
