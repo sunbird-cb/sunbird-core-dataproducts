@@ -1715,7 +1715,7 @@ object DataUtilNew extends Serializable {
     // generate partitioned report
     csvWritePartition(df, reportTempPath, partitionKey)
     removeFile( s"${reportTempPath}/_SUCCESS") // remove success file
-    renameCSV(ids, reportTempPath, fileName) // rename part-*.csv files to provided name
+    renameCSV(ids, reportTempPath, fileName, partitionKey) // rename part-*.csv files to provided name
     println(s"REPORT: Finished Writing mdo wise report to ${reportTempPath}")
   }
 

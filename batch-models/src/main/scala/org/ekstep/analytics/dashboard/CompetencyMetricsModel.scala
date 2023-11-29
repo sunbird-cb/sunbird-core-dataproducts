@@ -8,6 +8,7 @@ import org.ekstep.analytics.framework._
 import DashboardUtil._
 import DataUtil._
 import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.types.DoubleType
 
 import java.io.Serializable
 import java.text.SimpleDateFormat
@@ -485,50 +486,50 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // learner home page data logic - end
   }
 
+  def learningHoursDiff(learningHoursTillDay0: DataFrame, learningHoursTillDay1: DataFrame, defaultLearningHours: DataFrame, prefix: String): DataFrame = {
+    if (learningHoursTillDay0.isEmpty) {
+      return defaultLearningHours
+    }
+
+    learningHoursTillDay1
+      .withColumnRenamed("totalLearningHours", "learningHoursTillDay1")
+      .join(learningHoursTillDay0.withColumnRenamed("totalLearningHours", "learningHoursTillDay0"), Seq("userOrgID"), "left")
+      .na.fill(0.0, Seq("learningHoursTillDay0", "learningHoursTillDay1"))
+      .withColumn("totalLearningHours", expr("learningHoursTillDay1 - learningHoursTillDay0"))
+      .withColumn(s"userOrgID:${prefix}", concat(col("userOrgID"), lit(s":${prefix}")))
+      .select(s"userOrgID:${prefix}", "totalLearningHours")
+  }
+
   def processLearningHours(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val totalLearningHoursTillTodayByOrg = allCourseProgramCompletionWithDetailsDF
       .filter("userOrgID IS NOT NULL AND TRIM(userOrgID) != ''")
       .groupBy("userOrgID")
       .agg(sum(expr("(courseProgress / 100) * courseDuration")).alias("totalLearningHours"))
+    show(totalLearningHoursTillTodayByOrg, "totalLearningHoursTillTodayByOrg")
 
     val totalLearningHoursTillYesterdayByOrg = Redis.getMapAsDataFrame("lhp_learningHoursTillToday", Schema.totalLearningHoursSchema)
-    val totalLearningHoursTillDayBeforeYesterdayByOrg = Redis.getMapAsDataFrame("lhp_learningHoursTillYesterday", Schema.totalLearningHoursSchema)
-
-    val totalLearningHoursTodayByOrg = if (totalLearningHoursTillYesterdayByOrg.isEmpty) {
-      totalLearningHoursTillTodayByOrg
-    } else {
-      totalLearningHoursTillTodayByOrg
-        .withColumnRenamed("totalLearningHours", "totalLearningHoursTillToday")
-        .join(totalLearningHoursTillYesterdayByOrg.withColumnRenamed("totalLearningHours", "totalLearningHoursTillYesterday"), Seq("userOrgID"), "inner")
-        .withColumn("totalLearningHours", expr("totalLearningHoursTillToday - totalLearningHoursTillYesterday"))
-    }
-      .withColumn("userOrgID:today", concat(col("userOrgID"), lit(":today")))
-      .select("userOrgID:today", "totalLearningHours")
-
-    val totalLearningHoursYesterdayByOrg = if (totalLearningHoursTillDayBeforeYesterdayByOrg.isEmpty) {
-      totalLearningHoursTillTodayByOrg
-    } else {
-      totalLearningHoursTillYesterdayByOrg
-        .withColumnRenamed("totalLearningHours", "totalLearningHoursTillYesterday")
-        .join(totalLearningHoursTillDayBeforeYesterdayByOrg.withColumnRenamed("totalLearningHours", "totalLearningHoursTillDayBeforeYesterday"), Seq("userOrgID"), "inner")
-        .withColumn("totalLearningHours", expr("totalLearningHoursTillYesterday - totalLearningHoursTillDayBeforeYesterday"))
-    }
-      .withColumn("userOrgID:yesterday", concat(col("userOrgID"), lit(":yesterday")))
-      .select("userOrgID:yesterday", "totalLearningHours")
-
-    show(totalLearningHoursTillTodayByOrg, "totalLearningHoursTillTodayByOrg")
-    Redis.dispatchDataFrame[Double]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours", replace = false)
+      .withColumn("totalLearningHours", col("totalLearningHours").cast(DoubleType))
     show(totalLearningHoursTillYesterdayByOrg, "totalLearningHoursTillYesterdayByOrg")
-    Redis.dispatchDataFrame[Double]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours", replace = false)
-    show(totalLearningHoursYesterdayByOrg, "totalLearningHoursYesterdayByOrg")
-    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours", replace = false)
+
+    val totalLearningHoursTillDayBeforeYesterdayByOrg = Redis.getMapAsDataFrame("lhp_learningHoursTillYesterday", Schema.totalLearningHoursSchema)
+      .withColumn("totalLearningHours", col("totalLearningHours").cast(DoubleType))
+    show(totalLearningHoursTillDayBeforeYesterdayByOrg, "totalLearningHoursTillDayBeforeYesterdayByOrg")
+
+    val totalLearningHoursTodayByOrg = learningHoursDiff(totalLearningHoursTillYesterdayByOrg, totalLearningHoursTillTodayByOrg, totalLearningHoursTillTodayByOrg, "today")
     show(totalLearningHoursTodayByOrg, "totalLearningHoursTodayByOrg")
+
+    val totalLearningHoursYesterdayByOrg = learningHoursDiff(totalLearningHoursTillDayBeforeYesterdayByOrg, totalLearningHoursTillYesterdayByOrg, totalLearningHoursTillTodayByOrg, "yesterday")
+    show(totalLearningHoursYesterdayByOrg, "totalLearningHoursYesterdayByOrg")
+
+    Redis.dispatchDataFrame[Double]("lhp_learningHoursTillToday", totalLearningHoursTillTodayByOrg, "userOrgID", "totalLearningHours", replace = false)
+    Redis.dispatchDataFrame[Double]("lhp_learningHoursTillYesterday", totalLearningHoursTillYesterdayByOrg, "userOrgID", "totalLearningHours", replace = false)
+    Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursYesterdayByOrg, "userOrgID:yesterday", "totalLearningHours", replace = false)
     Redis.dispatchDataFrame[Double]("lhp_learningHours", totalLearningHoursTodayByOrg, "userOrgID:today", "totalLearningHours", replace = false)
 
     // over all
     val totalLearningHoursYesterday: String = Redis.getMapField("lhp_learningHours", "across:today")
-    val totalLearningHoursToday: String = totalLearningHoursTodayByOrg.agg(sum("totalLearningHours")).first().getLong(0).toString
+    val totalLearningHoursToday: String = totalLearningHoursTodayByOrg.agg(sum("totalLearningHours")).first().getDouble(0).toString
 
     println("learning across yesterday :" + totalLearningHoursYesterday)
     Redis.updateMapField("lhp_learningHours", "across:yesterday", totalLearningHoursYesterday)

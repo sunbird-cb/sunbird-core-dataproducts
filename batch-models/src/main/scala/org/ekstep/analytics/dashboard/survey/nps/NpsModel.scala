@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.{coalesce, col, current_date, expr, from_unixtime, lit}
 import org.apache.spark.sql.types.{DateType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession, functions}
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._

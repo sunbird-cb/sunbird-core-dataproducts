@@ -61,6 +61,8 @@ object CompetencyMetricsTest extends Serializable {
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
 
+      "cutoffTime" -> "60.0",
+
       "sideOutput" -> sideOutput
     )
     modelParams
