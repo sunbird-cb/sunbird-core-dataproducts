@@ -9,6 +9,7 @@ import DashboardUtil._
 import DataUtil._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.types.DoubleType
+import org.joda.time.DateTime
 
 import java.io.Serializable
 import java.text.SimpleDateFormat
@@ -471,28 +472,19 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
   def updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     Redis.update("dashboard_update_time5.0", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
-    //get the current date and 7 days before that for learner stats - start
-    print("started calculating")
-    val currentDateDF = spark.range(1).select(current_date().alias("currentDate"))
-    // Format the current date as a string in the desired format
+
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSSZ")
-    val currentDateString = currentDateDF.select(date_format(col("currentDate"), "yyyy-MM-dd HH:mm:ss.SSSSSSZ").alias("formattedCurrentDate")).first().getString(0)
-    // Calculate the start and end of the current day with timezone offset "0000"
-    val endOfCurrentDay = currentDateDF.select(to_utc_timestamp(concat(col("currentDate"), lit(" 23:59:59.896")), "0000").alias("endOfCurrentDay")).first().getTimestamp(0)
-    // Calculate the start and end of the day 7 days ago (a week) with timezone offset "0000"
-    val startOf7thDay = currentDateDF.select(to_utc_timestamp(concat(expr("currentDate - INTERVAL 7 DAY"), lit(" 00:00:00")), "0000").alias("startOf7thDay")).first().getTimestamp(0)
-    val endOfCurrentDayString = dateFormat.format(endOfCurrentDay)
-    val startOf7thDayString = dateFormat.format(startOf7thDay)
+    val currentDateString = dateFormat.format(System.currentTimeMillis())
+
     val lastRunDate: String = Redis.get("lhp_lastRunDate")
     print("The last run date is " + lastRunDate + "\n")
     print("current Date is" + currentDateString + "\n")
-    //get the current date and 7 days before that for learner stats - end
 
     Redis.update("dashboard_update_time5.1", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     // calculate redis keys
     if(!lastRunDate.equals(currentDateString)) {
-      learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF, startOf7thDayString, endOfCurrentDayString, currentDateString)
+      learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF, currentDateString)
     } else {
       print("This is a second run today and the computation and redis key updates are not required")
     }
@@ -556,7 +548,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update("dashboard_update_time5.4", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
   }
 
-  def processCertifications(allCourseProgramCompletionWithDetailsDF: DataFrame, startOf7thDayString: String, endOfCurrentDayString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+  def processCertifications(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
     Redis.update("dashboard_update_time5.5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
     val totalCertificationsTillToday = allCourseProgramCompletionWithDetailsDF
       .where(expr("courseStatus IN ('Live') AND userStatus=1 AND dbCompletionStatus = 2 AND issuedCertificateCount > 0")).count()
@@ -569,14 +561,20 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val totalCertificationsToday = totalCertificationsTillToday - totalCertificationsTillYesterday
     val totalCertificationsYesterday = totalCertificationsTillYesterday - totalCertificationsTillDayBeforeYesterday
 
+    val currentDayStart = DateTime.now().withTimeAtStartOfDay()
+    val endOfCurrentDay = currentDayStart.plusDays(1).getMillis
+    val startOf7thDay = currentDayStart.minusDays(7).getMillis
+
     val certificationsOfTheWeek = allCourseProgramCompletionWithDetailsDF
-      .where(expr(s"courseStatus IN ('Live') AND userStatus=1 AND courseCompletedTimestamp > '${startOf7thDayString}' AND courseCompletedTimestamp < '${endOfCurrentDayString}' AND dbCompletionStatus = 2 AND issuedCertificateCount > 0"))
+      .where(expr(s"courseStatus IN ('Live') AND userStatus=1 AND courseCompletedTimestamp > '${startOf7thDay}' AND courseCompletedTimestamp < '${endOfCurrentDay}' AND dbCompletionStatus = 2 AND issuedCertificateCount > 0"))
 
     val topNCertifications = certificationsOfTheWeek
       .groupBy("courseID")
       .agg(count("*").alias("courseCount"))
       .orderBy(desc("courseCount"))
       .limit(10)
+
+    val topNCertificationsStr = topNCertifications.select("courseID")
 
     println("certifications till today :" + totalCertificationsTillToday)
     Redis.update("lhp_certificationsTillToday", totalCertificationsTillToday.toString)
@@ -674,12 +672,12 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update("dashboard_update_time5.8", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
   }
 
-  def learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF: DataFrame, startOf7thDayString: String, endOfCurrentDayString: String, currentDateString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF: DataFrame, currentDateString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     // calculate and save learning hours to redis
     processLearningHours(allCourseProgramCompletionWithDetailsDF)
 
     // calculate and save certifications to redis
-    val topNCertifications = processCertifications(allCourseProgramCompletionWithDetailsDF, startOf7thDayString, endOfCurrentDayString)
+    val topNCertifications = processCertifications(allCourseProgramCompletionWithDetailsDF)
 
     // calculate and save trending data
     processTrending(allCourseProgramCompletionWithDetailsDF, topNCertifications)
