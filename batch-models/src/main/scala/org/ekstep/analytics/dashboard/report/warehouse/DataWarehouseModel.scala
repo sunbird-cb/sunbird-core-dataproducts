@@ -48,28 +48,68 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
 
-
     val user_details = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.userReportPath}/${today}-warehouse")
-    saveDataframeToPostgresTable(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val cbp_details = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.cbaReportPath}/${today}-warehouse")
-    saveDataframeToPostgresTable(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    truncateWarehouseTable(conf.dwUserTable)
+    saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val enrollment_details = spark.read.option("header", "true")
+
+    var cbp_details = spark.read.option("header", "true")
+      .csv(s"/tmp/${conf.courseReportPath}/${today}-warehouse")
+
+    cbp_details = cbp_details
+      .withColumn("resource_count", col("resource_count").cast("int"))
+      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
+      .withColumn("cbp_rating", col("cbp_rating").cast("float"))
+
+    cbp_details = cbp_details.dropDuplicates(Seq("cbp_id"))
+
+    truncateWarehouseTable(conf.dwCourseTable)
+    saveDataframeToPostgresTable_With_Append(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    var enrollment_details = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
-    saveDataframeToPostgresTable(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val assessment_details = spark.read.option("header", "true")
+    enrollment_details = enrollment_details
+      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float"))
+      .withColumn("user_rating", col("user_rating").cast("float"))
+      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
+      .filter(col("cbp_id").isNotNull)
+
+    truncateWarehouseTable(conf.dwEnrollmentsTable)
+    saveDataframeToPostgresTable_With_Append(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    var assessment_details = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.cbaReportPath}/${today}-warehouse")
-    saveDataframeToPostgresTable(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val blended_details = spark.read.option("header", "true")
+    assessment_details = assessment_details
+      .withColumn("score_achieved", col("score_achieved").cast("float"))
+      .withColumn("overall_score", col("overall_score").cast("float"))
+      .withColumn("cut_off_percentage", col("cut_off_percentage").cast("float"))
+      .withColumn("total_question", col("total_question").cast("int"))
+      .withColumn("number_of_incorrect_responses", col("number_of_incorrect_responses").cast("int"))
+      .withColumn("number_of_retakes", col("number_of_retakes").cast("int"))
+      .filter(col("cbp_id").isNotNull)
+
+    truncateWarehouseTable(conf.dwAssessmentTable)
+    saveDataframeToPostgresTable_With_Append(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+
+    var bp_enrollments = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.blendedReportPath}/${today}-warehouse")
-    saveDataframeToPostgresTable(blended_details, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    //Read the org hierarchy from postgres and then save it the Datawarehouse postgres
+    bp_enrollments = bp_enrollments
+      .withColumn("component_progress_percentage", col("component_progress_percentage").cast("float"))
+      .withColumnRenamed("instructor(s)_name", "instructors_name")
+
+      .filter(col("cbp_id").isNotNull)
+      .filter(col("user_id").isNotNull)
+      .filter(col("batch_id").isNotNull)
+
+    truncateWarehouseTable(conf.dwBPEnrollmentsTable)
+    saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
     val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
     val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"))
@@ -83,15 +123,20 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
         col("orgType")
       )
       .withColumn("is_cbp_provider",
-        when(col("orgType").cast("int")  === 128 || col("orgType").cast("int")  === 128, lit("Y")).otherwise(lit("N")))
+        when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("data_last_generated_on", to_date(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .distinct()
 
-    orgDwDf= orgDwDf.drop("orgType")
-    saveDataframeToPostgresTable(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    orgDwDf = orgDwDf.drop("orgType")
+
+    orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
+
+    truncateWarehouseTable(conf.dwOrgTable)
+
+    saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     spark.stop()
-
   }
 
 }

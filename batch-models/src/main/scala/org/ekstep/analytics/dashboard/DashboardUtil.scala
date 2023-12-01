@@ -425,6 +425,38 @@ object DashboardUtil extends Serializable {
     df
   }
 
+  def saveDataframeToPostgresTable_With_Append(df: DataFrame, dwPostgresUrl: String, tableName: String,
+                                               dbUserName: String, dbCredential: String)(implicit spark: SparkSession): Unit = {
+
+    println("inside write method")
+    df.write
+      .mode(SaveMode.Append)
+      .option("url", dwPostgresUrl)
+      .option("dbtable", tableName)
+      .option("user", dbUserName)
+      .option("password", dbCredential)
+      .option("driver", "org.postgresql.Driver")
+      .format("jdbc")
+      .save()
+  }
+
+  def truncateWarehouseTable(table: String)(implicit spark: SparkSession, conf: DashboardConfig): Unit = {
+    val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
+    val postgresProperties = new java.util.Properties()
+    postgresProperties.setProperty("user", conf.dwPostgresUsername)
+    postgresProperties.setProperty("password", conf.dwPostgresCredential)
+    postgresProperties.setProperty("driver", "org.postgresql.Driver")
+
+    val connection = java.sql.DriverManager.getConnection(dwPostgresUrl, postgresProperties)
+    try {
+      val statement = connection.createStatement()
+      statement.executeUpdate(s"TRUNCATE TABLE ${table}")
+    } finally {
+      connection.close()
+    }
+  }
+
+
   def mongodbTableAsDataFrame(mongoDatabase: String, collection: String)(implicit spark: SparkSession): DataFrame = {
     val schema = new StructType()
       .add("topiccount", IntegerType, true)
