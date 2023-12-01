@@ -440,7 +440,7 @@ object DashboardUtil extends Serializable {
       .save()
   }
 
-  def postgresConnection(table: String)(implicit spark: SparkSession, conf: DashboardConfig): Unit = {
+  def truncateWarehouseTable(table: String)(implicit spark: SparkSession, conf: DashboardConfig): Unit = {
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val postgresProperties = new java.util.Properties()
     postgresProperties.setProperty("user", conf.dwPostgresUsername)
