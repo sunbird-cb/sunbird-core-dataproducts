@@ -356,7 +356,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildOfflineStartTime").alias("offline_session_start_time"),
         col("bpChildOfflineEndTime").alias("offline_session_end_time"),
         col("bpChildAttendanceStatus").alias("offline_attendance_status"),
-        col("bpBatchSessionFacilators").alias("instructor(s)_name"),
+        col("bpBatchSessionFacilators").alias("instructors_name"),
         col("bpProgramDirectorName").alias("program_coordinator_name"),
         col("data_last_generated_on")
       )
