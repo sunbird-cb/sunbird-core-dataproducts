@@ -1151,9 +1151,12 @@ object DataUtil extends Serializable {
         "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
         "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
         "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
+
+    // The below snippet is different in DataUtilNew. if the completionPercentage is between 0 and 100, taking that as the value.
+    // This is the reason why completation percentage is null in druid as well and so this should fix druid and the computation for learner hours
     df = df
       .withColumn("completionPercentage", expr("CASE WHEN courseResourceCount=0 OR courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
-      .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0 END"))
+      .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0  ELSE completionPercentage END"))
     df = withCompletionStatusColumn(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")

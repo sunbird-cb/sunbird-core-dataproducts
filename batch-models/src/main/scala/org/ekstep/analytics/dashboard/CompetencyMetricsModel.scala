@@ -473,7 +473,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     Redis.update("dashboard_update_time5.0", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
-    val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSSZ")
+    //We only want the date here as the intent is to run this part of the script only once a day. The competency metrics
+    // script may run a second time if we run into issues and this function should be skipped in that case.
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
     val currentDateString = dateFormat.format(System.currentTimeMillis())
 
     val lastRunDate: String = Redis.get("lhp_lastRunDate")
@@ -509,10 +511,14 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     Redis.update("dashboard_update_time5.2", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
+    // The courseDuration is coming in seconds from ES, so converting it to hours. Also courseProgress is number of leaf nodes
+    // consumed and we should look at completion percentage as the % of learning hours
     val totalLearningHoursTillTodayByOrg = allCourseProgramCompletionWithDetailsDF
       .filter("userOrgID IS NOT NULL AND TRIM(userOrgID) != ''")
       .groupBy("userOrgID")
-      .agg(sum(expr("(courseProgress / 100) * courseDuration")).alias("totalLearningHours"))
+      .agg(sum(expr("(completionPercentage / 100) * courseDuration")).alias("totalLearningSeconds"))
+      .withColumn("totalLearningHours", col("totalLearningSeconds") / 3600)
+      .drop("totalLearningSeconds")
     show(totalLearningHoursTillTodayByOrg, "totalLearningHoursTillTodayByOrg")
 
     val totalLearningHoursTillYesterdayByOrg = Redis.getMapAsDataFrame("lhp_learningHoursTillToday", Schema.totalLearningHoursSchema)
@@ -523,6 +529,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .withColumn("totalLearningHours", col("totalLearningHours").cast(DoubleType))
     show(totalLearningHoursTillDayBeforeYesterdayByOrg, "totalLearningHoursTillDayBeforeYesterdayByOrg")
 
+    //one issue with the learningHoursDiff returning the totalLearningHoursTillTodayByOrg as default if the 1st input DF is
+    // empty implies that there would be entries in lhp_learningHours for "orgid":"hours", but I dont see an issue with this
+    // I have unit tested the learning hours computation and it looks fine as long as it is run only once a day which we achieving
+    // through the lhp_lastRunDate redis key
     val totalLearningHoursTodayByOrg = learningHoursDiff(totalLearningHoursTillYesterdayByOrg, totalLearningHoursTillTodayByOrg, totalLearningHoursTillTodayByOrg, "today")
     show(totalLearningHoursTodayByOrg, "totalLearningHoursTodayByOrg")
 
@@ -562,8 +572,11 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val totalCertificationsYesterday = totalCertificationsTillYesterday - totalCertificationsTillDayBeforeYesterday
 
     val currentDayStart = DateTime.now().withTimeAtStartOfDay()
-    val endOfCurrentDay = currentDayStart.plusDays(1).getMillis
-    val startOf7thDay = currentDayStart.minusDays(7).getMillis
+
+    //The courseCompletionTimestamp is a toLong while getting the completedOn timestamp col from cassandra and it has
+    // epoch seconds and not milliseconds. So converting the below to seconds
+    val endOfCurrentDay = currentDayStart.plusDays(1).getMillis / 1000
+    val startOf7thDay = currentDayStart.minusDays(7).getMillis / 1000
 
     val certificationsOfTheWeek = allCourseProgramCompletionWithDetailsDF
       .where(expr(s"courseStatus IN ('Live') AND userStatus=1 AND courseCompletedTimestamp > '${startOf7thDay}' AND courseCompletedTimestamp < '${endOfCurrentDay}' AND dbCompletionStatus = 2 AND issuedCertificateCount > 0"))
