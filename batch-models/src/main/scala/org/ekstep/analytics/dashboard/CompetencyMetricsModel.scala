@@ -335,6 +335,12 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     
     // do home page data update
     Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+    val cbpsUnder30minsDf = allCourseProgramDetailsWithRatingDF.where(expr("courseStatus='Live' and courseDuration < 1800") && !col("courseID").endsWith("_rc"))
+    show(cbpsUnder30minsDf, "cbpsUnder30minsDf")
+    val coursesUnder30mins = cbpsUnder30minsDf
+      .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
+    Redis.updateMapField("lhp_trending", "across:under_30_mins", coursesUnder30mins)
+
     updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
     Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
