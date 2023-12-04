@@ -135,8 +135,6 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     truncateWarehouseTable(conf.dwOrgTable)
 
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
-
-    spark.stop()
   }
 
 }
