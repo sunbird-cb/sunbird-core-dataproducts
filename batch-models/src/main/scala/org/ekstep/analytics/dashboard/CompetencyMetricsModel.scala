@@ -154,6 +154,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
+    // do home page data update
+    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+    val cbpsUnder30minsDf = allCourseProgramDetailsWithRatingDF.where(expr("courseStatus='Live' and courseDuration < 1800") && !col("courseID").endsWith("_rc"))
+    show(cbpsUnder30minsDf, "cbpsUnder30minsDf")
+    val coursesUnder30mins = cbpsUnder30minsDf
+      .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
+    Redis.updateMapField("lhp_trending", "across:under_30_mins", coursesUnder30mins)
+
+    updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
+    Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
     // new redis updates - start
     // MDO onboarded, with atleast one MDO_ADMIN/MDO_LEADER
     val orgWithMdoAdminLeaderCount = orgRoleCount.where(expr("role IN ('MDO_ADMIN', 'MDO_LEADER') AND count > 0")).select("orgID").distinct().count()
@@ -332,18 +343,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.dispatchDataFrame[Long]("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
 
     // new redis updates - end
-    
-    // do home page data update
-    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
-    val cbpsUnder30minsDf = allCourseProgramDetailsWithRatingDF.where(expr("courseStatus='Live' and courseDuration < 1800") && !col("courseID").endsWith("_rc"))
-    show(cbpsUnder30minsDf, "cbpsUnder30minsDf")
-    val coursesUnder30mins = cbpsUnder30minsDf
-      .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
-    Redis.updateMapField("lhp_trending", "across:under_30_mins", coursesUnder30mins)
-
-    updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
-    Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
-
     val liveCourseCompetencyDF = liveCourseCompetencyDataFrame(allCourseProgramCompetencyDF)
 
     // get user's expected competency data, dispatch to kafka to be ingested by druid data-source: dashboards-expected-user-competency
@@ -492,10 +491,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // calculate redis keys
     if(!lastRunDate.equals(currentDateString)) {
-      learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF, currentDateString)
+      learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF)
     } else {
       print("This is a second run today and the computation and redis key updates are not required")
     }
+
+    print("the current date is :" + currentDateString + "\n")
+    Redis.update("lhp_lastRunDate", currentDateString)
 
   }
 
@@ -579,7 +581,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     val currentDayStart = DateTime.now().withTimeAtStartOfDay()
 
-    //The courseCompletionTimestamp is a toLong while getting the completedOn timestamp col from cassandra and it has
+    // The courseCompletionTimestamp is a toLong while getting the completedOn timestamp col from cassandra and it has
     // epoch seconds and not milliseconds. So converting the below to seconds
     val endOfCurrentDay = currentDayStart.plusDays(1).getMillis / 1000
     val startOf7thDay = currentDayStart.minusDays(7).getMillis / 1000
@@ -592,8 +594,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .agg(count("*").alias("courseCount"))
       .orderBy(desc("courseCount"))
       .limit(10)
-
-    val topNCertificationsStr = topNCertifications.select("courseID")
 
     println("certifications till today :" + totalCertificationsTillToday)
     Redis.update("lhp_certificationsTillToday", totalCertificationsTillToday.toString)
@@ -691,7 +691,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update("dashboard_update_time5.8", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
   }
 
-  def learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF: DataFrame, currentDateString: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     // calculate and save learning hours to redis
     processLearningHours(allCourseProgramCompletionWithDetailsDF)
 
@@ -700,9 +700,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // calculate and save trending data
     processTrending(allCourseProgramCompletionWithDetailsDF, topNCertifications)
-
-    print("the current date is :" + currentDateString + "\n")
-    Redis.update("lhp_lastRunDate", currentDateString)
   }
 
 }

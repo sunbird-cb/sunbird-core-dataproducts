@@ -104,13 +104,16 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
       .join(relevantBatchInfoDF, Seq("courseID"), "left")
     show(curatedCourseDataDFWithBatchInfo, "curatedCourseDataDFWithBatchInfo")
 
-    var df = curatedCourseDataDFWithBatchInfo
+    val fullDF = curatedCourseDataDFWithBatchInfo
+      .where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("lastStatusChangedOn", to_date(col("lastStatusChangedOn"), "dd/MM/yyyy"))
       .withColumn("ArchivedOn", when(col("courseStatus").equalTo("Retired"), col("lastStatusChangedOn")))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+
+    val fullReportDF = fullDF
       .select(
         col("courseID"),
         col("courseActualOrgId"),
@@ -135,23 +138,17 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseActualOrgId").alias("mdoid"),
         col("Report_Last_Generated_On")
-      ).where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
-    show(df)
+      )
+      .coalesce(1)
+    show(fullReportDF, "fullReportDF")
 
-    df = df.coalesce(1)
     val reportPath = s"${conf.courseReportPath}/${today}"
-    // generateFullReport(df, s"${conf.courseReportPath}-test/${today}")
-    generateFullReport(df, reportPath)
-    df = df.drop("courseID", "courseActualOrgId")
-    generateAndSyncReports(df, "mdoid", reportPath, "CBPReport")
+    // generateFullReport(fullReportDF, s"${conf.courseReportPath}-test/${today}")
+    generateFullReport(fullReportDF, reportPath)
+    val mdoReportDF = fullReportDF.drop("courseID", "courseActualOrgId")
+    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "CBPReport")
 
-    val df_warehouse = curatedCourseDataDFWithBatchInfo
-      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
-      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
-      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
-      .withColumn("lastStatusChangedOn", to_date(col("lastStatusChangedOn"), "dd/MM/yyyy"))
-      .withColumn("ArchivedOn", when(col("courseStatus").equalTo("Retired"), col("lastStatusChangedOn")))
-      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+    val df_warehouse = fullDF
       .select(
         col("courseID").alias("cbp_id"),
         col("courseActualOrgId").alias("cbp_provider_id"),
@@ -171,12 +168,10 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("totalCertificatesIssued").alias("total_certificates_issued"),
         col("courseReviewStatus").alias("cbp_substatus"),
         col("Report_Last_Generated_On").alias("data_last_generated_on")
-      ).where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
-
+      )
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
-
   }
 
 }

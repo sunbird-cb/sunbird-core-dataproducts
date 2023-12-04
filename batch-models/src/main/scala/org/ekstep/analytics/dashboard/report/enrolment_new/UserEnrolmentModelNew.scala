@@ -101,7 +101,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
 
     df = df.distinct().dropDuplicates("userID", "courseID")
-    df = df.coalesce(1)
+
     val fullReportDF = df.select(
       col("userID"),
       col("userOrgID"),
@@ -144,6 +144,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
       col("Report_Last_Generated_On")
     )
+      .coalesce(1)
 
     show(df, "df")
 

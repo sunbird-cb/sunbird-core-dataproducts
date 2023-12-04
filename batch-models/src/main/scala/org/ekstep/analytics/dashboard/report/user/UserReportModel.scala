@@ -113,6 +113,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),
         col("fullName").alias("full_name"),
+        col("userCreatedBy").alias("user_created_by"),
         col("professionalDetails.designation").alias("designation"),
         col("personalDetails.primaryEmail").alias("email"),
         col("personalDetails.mobile").alias("phone"),

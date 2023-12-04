@@ -147,9 +147,9 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("retakes").alias("No. of Retakes"),
         col("userOrgID").alias("mdoid")
       )
-    show(df, "final")
+      .coalesce(1)
+    show(fullReportDF, "fullReportDF")
 
-    df = df.coalesce(1)
     val reportPath = s"${conf.cbaReportPath}/${today}"
     generateFullReport(fullReportDF, reportPath)
 

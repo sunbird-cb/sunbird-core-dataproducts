@@ -323,10 +323,10 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     // generateFullReport(df, s"${conf.blendedReportPath}-test/${today}")
     generateFullReport(fullReportDF, reportPath)
-    val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount")
+    val reportDF = fullReportDF.drop("userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount")
 
     // mdo wise
-    val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "cbpid")
+    val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "cbpid", "userID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
 
     // cbp wise
@@ -334,6 +334,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .drop("Email", "Phone_Number", "mdoid")
       .withColumnRenamed("maskedEmail", "Email")
       .withColumnRenamed("maskedPhone", "Phone_Number")
+      .withColumnRenamed("userID", "user_id")
 
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramReport")

@@ -864,7 +864,7 @@ object DataUtilNew extends Serializable {
 
     val courseWithHierarchyInfo = allCourseProgramESDF
       // .join(hierarchyDF, allCourseProgramESDF.col("courseID").equalTo(hierarchyDF.col("identifier")), "left")
-      .select("courseID", "category", "courseName", "courseStatus", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "lastStatusChangedOn")
+      .select("courseID", "category", "courseName", "courseStatus", "courseDuration", "courseLastPublishedOn", "courseActualOrgId", "courseResourceCount", "courseReviewStatus", "lastStatusChangedOn")
 
     courseWithHierarchyInfo
 
