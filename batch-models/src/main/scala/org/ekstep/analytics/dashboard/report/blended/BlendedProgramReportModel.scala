@@ -332,11 +332,12 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     // cbp wise
     val cbpReportDF = reportDF
       .drop("Email", "Phone_Number", "mdoid")
+      .withColumnRenamed("cbpid", "mdoid")
       .withColumnRenamed("maskedEmail", "Email")
       .withColumnRenamed("maskedPhone", "Phone_Number")
 
     show(cbpReportDF, "cbpReportDF")
-    generateAndSyncReports(cbpReportDF, "cbpid", reportPathCBP, "BlendedProgramReport")
+    generateAndSyncReports(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
