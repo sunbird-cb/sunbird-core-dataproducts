@@ -88,6 +88,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val bpBatchDF = batchDF.select(
       col("courseID").alias("bpID"),
       col("batchID").alias("bpBatchID"),
+      col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
       col("courseBatchName").alias("bpBatchName"),
       col("courseBatchStartDate").alias("bpBatchStartDate"),
       col("courseBatchEndDate").alias("bpBatchEndDate"),
@@ -105,15 +106,15 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .drop("bpBatchAttrs", "bpBatchSessionDetails")
     show(bpBatchDF, "bpBatchDF")
 
-//    val relevantBatchInfoDF = bpWithOrgDF.select("bpID")
-//      .join(bpBatchDF, Seq("bpID"), "left")
-//      .select("bpID", "bpBatchID", "bpBatchName", "bpBatchStartDate", "bpBatchEndDate", "bpBatchLocation", "bpBatchCurrentSize", "bpBatchSessionType", "bpBatchSessionFacilators", "bpBatchSessionStartDate", "bpBatchSessionStartTime")
-//    show(relevantBatchInfoDF, "relevantBatchInfoDF")
-//
-//    val bpWithBatchDF = bpWithOrgDF.join(relevantBatchInfoDF, Seq("bpID"), "left")
-
-    val bpWithBatchDF = bpWithOrgDF.join(bpBatchDF, Seq("bpID"), "left")
+    var bpWithBatchDF = bpWithOrgDF
+      .join(bpBatchDF, Seq("bpID"), "left")
     show(bpWithBatchDF, "bpWithBatchDF")
+
+    val batchCreatedByDF = userDataDF.select(
+      col("userID").alias("bpBatchCreatedBy"),
+      col("fullName").alias("bpBatchCreatedByName")
+    )
+    bpWithBatchDF = bpWithBatchDF.join(batchCreatedByDF, Seq("bpBatchCreatedBy"), "left")
 
     // add BP user progress info
 
@@ -190,6 +191,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     // add children info to bpCompletionWithUserDetailsDF
     val bpCompletionWithChildrenDF = bpCompletionWithUserDetailsDF.join(bpChildDF, Seq("bpID"), "left")
+      .withColumn("bpChildMode", expr("CASE LOWER(bpChildCategory) = 'offline sessions' THEN 'Offline' ELSE '' END"))
     show(bpCompletionWithChildrenDF, "bpCompletionWithChildrenDF")
 
     // add children batch info
@@ -244,7 +246,8 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     bpChildrenWithProgress = userCourseCompletionStatus(bpChildrenWithProgress)
       .withColumnRenamed("userCourseCompletionStatus", "bpChildUserStatus")
-      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN bpChildBatchSessionType NOT IN ('Offline', 'offline') THEN '' WHEN dbCompletionStatus=2 THEN 'Attended' ELSE 'Not Attended' END"))
+      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN dbCompletionStatus=2 THEN 'Attended' ELSE 'Not Attended' END"))
+      .withColumn("bpChildOfflineAttendanceStatus", expr("CASE WHEN bpChildMode='Offline' THEN bpChildAttendanceStatus ELSE '' END"))
     show(bpChildrenWithProgress, "bpChildrenWithProgress")
 
     // finalize report data frame
@@ -256,9 +259,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpChildProgressPercentage", round(col("bpChildProgressPercentage"), 2))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
-      .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildBatchSessionType NOT IN ('Offline', 'offline') THEN bpBatchSessionStartDate ELSE '' END"))
-      .withColumn("bpChildOfflineStartTime", expr("CASE WHEN bpChildBatchSessionType  NOT IN ('Offline', 'offline') THEN bpBatchSessionStartTime ELSE '' END"))
-      .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildBatchSessionType  NOT IN ('Offline', 'offline') THEN bpBatchSessionEndTime ELSE '' END"))
+      .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionStartDate ELSE '' END"))
+      .withColumn("bpChildOfflineStartTime", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionStartTime ELSE '' END"))
+      .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionEndTime ELSE '' END"))
       .withColumn("bpChildUserStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Completed' ELSE 'Not Completed' END"))
       .durationFormat("bpChildDuration")
       .distinct()
@@ -304,9 +307,10 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildOfflineStartDate").alias("Offline_Session_Date"),
         col("bpChildOfflineStartTime").alias("Offline_Session_Start_Time"),
         col("bpChildOfflineEndTime").alias("Offline_Session_End_Time"),
-        col("bpChildAttendanceStatus").alias("Offline_Attendance_Status"),
+        col("bpChildOfflineAttendanceStatus").alias("Offline_Attendance_Status"),
         col("bpBatchSessionFacilators").alias("Instructor(s)_Name"),
-        col("bpProgramDirectorName").alias("Program_Coordinator_Name"),
+        col("bpBatchCreatedByName").alias("Program_Coordinator_Name"),
+        col("bpProgramDirectorName"),
         col("Certificate_Generated"),
         col("userOrgID").alias("mdoid"),
         col("bpOrgID").alias("cbpid"),
@@ -323,7 +327,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     // generateFullReport(df, s"${conf.blendedReportPath}-test/${today}")
     generateFullReport(fullReportDF, reportPath)
-    val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount")
+    val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount", "bpProgramDirectorName")
 
     // mdo wise
     val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "cbpid")

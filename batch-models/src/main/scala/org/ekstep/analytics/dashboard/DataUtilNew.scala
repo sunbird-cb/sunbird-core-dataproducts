@@ -1018,10 +1018,11 @@ object DataUtilNew extends Serializable {
    *         courseBatchStatus, courseBatchUpdatedDate)
    */
   def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
       col("courseid").alias("courseID"),
       col("batchid").alias("batchID"),
       col("name").alias("courseBatchName"),
+      col("createdby").alias("courseBatchCreatedBy"),
       col("start_date").alias("courseBatchStartDate"),
       col("end_date").alias("courseBatchEndDate"),
       col("batch_attributes").alias("courseBatchAttrs")
