@@ -6,7 +6,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.LongType
 import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil}
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
+// import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 
 
@@ -28,14 +28,16 @@ object ValidateDerivedTest extends Serializable {
 
     val rootPath = "/home/analytics/wfs-analysis"
 
-    val jsonFileWFS1 = s"${rootPath}/derived-2023-11-08-wfs1.json.gz"
-    val jsonFileWFS2 = s"${rootPath}/derived-2023-11-08-wfs2.json.gz"
+    val date = "2023-12-01"
 
-    val userDayRootStatsDF1 = process(jsonFileWFS1, s"${rootPath}/out/summaryDF1")
-    val userDayRootStatsDF2 = process(jsonFileWFS2, s"${rootPath}/out/summaryDF2")
+    val jsonFileWFS1 = s"${rootPath}/derived-${date}-wfs1.json.gz"
+    val jsonFileWFS2 = s"${rootPath}/derived-${date}-wfs2.json.gz"
 
-    var userDF = userDataFrame()
-    userDF = userDF.drop("userProfileDetails")
+    val userDayRootStatsDF1 = process(jsonFileWFS1, s"${rootPath}/out-${date}/summaryDF1")
+    val userDayRootStatsDF2 = process(jsonFileWFS2, s"${rootPath}/out-${date}/summaryDF2")
+
+    //var userDF = userDataFrame()
+    //userDF = userDF.drop("userProfileDetails")
 
     val userID1 = userDayRootStatsDF1.select("uid").distinct()
     val userID2 = userDayRootStatsDF2.select("uid").distinct()
@@ -43,11 +45,11 @@ object ValidateDerivedTest extends Serializable {
     var usersIn1NotIn2 = userID1.join(userID2, Seq("uid"), "leftanti")
     var usersIn2NotIn1 = userID2.join(userID1, Seq("uid"), "leftanti")
 
-    usersIn1NotIn2 = usersIn1NotIn2.join(userDF, userDF.col("userID") === usersIn1NotIn2.col("uid"), "left")
-    usersIn2NotIn1 = usersIn2NotIn1.join(userDF, userDF.col("userID") === usersIn2NotIn1.col("uid"), "left")
+    //usersIn1NotIn2 = usersIn1NotIn2.join(userDF, userDF.col("userID") === usersIn1NotIn2.col("uid"), "left")
+    //usersIn2NotIn1 = usersIn2NotIn1.join(userDF, userDF.col("userID") === usersIn2NotIn1.col("uid"), "left")
 
-    csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out/diff1minus2")
-    csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out/diff2minus1")
+    csvWrite(usersIn1NotIn2.coalesce(1), s"${rootPath}/out-${date}/diff1minus2")
+    csvWrite(usersIn2NotIn1.coalesce(1), s"${rootPath}/out-${date}/diff2minus1")
 
   }
 
