@@ -259,9 +259,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpChildProgressPercentage", round(col("bpChildProgressPercentage"), 2))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
-      .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionStartDate ELSE '' END"))
-      .withColumn("bpChildOfflineStartTime", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionStartTime ELSE '' END"))
-      .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildMode!='Offline' THEN bpBatchSessionEndTime ELSE '' END"))
+      .withColumn("bpChildOfflineStartDate", expr("CASE WHEN bpChildMode='Offline' THEN bpBatchSessionStartDate ELSE '' END"))
+      .withColumn("bpChildOfflineStartTime", expr("CASE WHEN bpChildMode='Offline' THEN bpBatchSessionStartTime ELSE '' END"))
+      .withColumn("bpChildOfflineEndTime", expr("CASE WHEN bpChildMode='Offline' THEN bpBatchSessionEndTime ELSE '' END"))
       .withColumn("bpChildUserStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Completed' ELSE 'Not Completed' END"))
       .durationFormat("bpChildDuration")
       .distinct()
@@ -300,7 +300,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
         col("bpChildName").alias("Component_Name"),
         col("bpChildCategory").alias("Component_Type"),
-        col("bpChildBatchSessionType").alias("Component_Mode"),
+        col("bpChildMode").alias("Component_Mode"),
         col("bpChildUserStatus").alias("Status"),
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
