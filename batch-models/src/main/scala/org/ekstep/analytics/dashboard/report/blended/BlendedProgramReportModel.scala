@@ -191,7 +191,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
 
     // add children info to bpCompletionWithUserDetailsDF
     val bpCompletionWithChildrenDF = bpCompletionWithUserDetailsDF.join(bpChildDF, Seq("bpID"), "left")
-      .withColumn("bpChildMode", expr("CASE LOWER(bpChildCategory) = 'offline sessions' THEN 'Offline' ELSE '' END"))
+      .withColumn("bpChildMode", expr("CASE WHEN LOWER(bpChildCategory) = 'offline session' THEN 'Offline' ELSE '' END"))
     show(bpCompletionWithChildrenDF, "bpCompletionWithChildrenDF")
 
     // add children batch info
