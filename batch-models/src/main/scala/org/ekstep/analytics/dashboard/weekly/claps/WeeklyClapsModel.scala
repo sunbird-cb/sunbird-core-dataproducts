@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
+import org.ekstep.analytics.framework.util.JobLogger
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
@@ -58,6 +59,7 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val condition = col("w4")("timespent") >= conf.cutoffTime && !col("claps_updated_this_week")
 
     if(dataTillDate.equals(weekEnd) && !dataTillDate.equals(df.select(col("last_updated_on")))) {
+      JobLogger.log("Started weekend updates")
       df = df.select(
         col("w2").alias("w1"),
         col("w3").alias("w2"),
@@ -73,10 +75,17 @@ object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         .withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(col("total_claps")))
         .withColumn("last_updated_on", lit(dataTillDate))
         .withColumn("claps_updated_this_week", lit(false))
+        .withColumn("w4", map(lit("timespent"), lit(0.0), lit("numberOfSessions"), lit(0)))
+
+      JobLogger.log("Completed weekend updates")
+
     } else {
       df = df.withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(col("total_claps")))
         .withColumn("claps_updated_this_week", when(condition, lit(true)).otherwise(col("claps_updated_this_week")))
     }
+
+    df = df.withColumn("total_claps", when(col("total_claps").isNull, 0).otherwise(col("total_claps")))
+      .withColumn("claps_updated_this_week", when(col("claps_updated_this_week").isNull, false).otherwise(col("claps_updated_this_week")))
 
     df = df.drop("platformEngagementTime","sessionCount")
 
