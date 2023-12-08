@@ -1047,7 +1047,7 @@ object DataUtilNew extends Serializable {
       .where(expr("active=true"))
       .withColumn("courseCompletedTimestamp", col("completedon"))
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
-      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
+      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
       .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
       .withColumnRenamed("userid", "userID")
