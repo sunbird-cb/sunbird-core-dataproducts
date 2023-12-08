@@ -129,7 +129,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("courseEnrolledTimestamp").alias("bpEnrolledTimestamp"),
       col("issuedCertificateCount").alias("bpIssuedCertificateCount"),
       col("courseContentStatus").alias("bpContentStatus"),
-      col("dbCompletionStatus")
+      col("dbCompletionStatus").alias("bpUserCompletionStatus"),
+      col("lastContentAccessTimestamp").alias("bpLastContentAccessTimestamp"),
+      col("courseCompletedTimestamp").alias("bpCompletedTimestamp")
     )
     show(bpUserEnrolmentDF, "bpUserEnrolmentDF")
 
@@ -144,10 +146,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     show(bpUserContentStatusDF, "bpUserContentStatusDF")
 
     // add user and user org info
-    var bpCompletionWithUserDetailsDF = bpCompletionDF.join(userDataDF, Seq("userID"), "left")
-    bpCompletionWithUserDetailsDF = userCourseCompletionStatus(bpCompletionWithUserDetailsDF)
-      .withColumnRenamed("userCourseCompletionStatus", "bpUserCompletionStatus")
-      .drop("dbCompletionStatus")
+    val bpCompletionWithUserDetailsDF = bpCompletionDF.join(userDataDF, Seq("userID"), "left")
     show(bpCompletionWithUserDetailsDF, "bpCompletionWithUserDetailsDF")
 
     // children
@@ -224,7 +223,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("userID"),
       col("courseID").alias("bpChildID"),
       col("courseProgress").alias("bpChildProgress"),
-      col("dbCompletionStatus")
+      col("dbCompletionStatus").alias("bpChildUserStatus"),
+      col("lastContentAccessTimestamp").alias("bpChildLastContentAccessTimestamp"),
+      col("courseCompletedTimestamp").alias("bpChildCompletedTimestamp")
     )
     show(bpChildUserEnrolmentDF, "bpChildUserEnrolmentDF")
 
@@ -235,18 +236,17 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     // add content status from map
     bpChildrenWithProgress = bpChildrenWithProgress
       .join(bpUserContentStatusDF, Seq("userID", "bpID", "bpChildID", "bpBatchID"), "left")
-      .withColumn("dbCompletionStatus", coalesce(col("dbCompletionStatus"), col("bpContentStatus")))
+      .withColumn("bpChildUserStatus", coalesce(col("bpChildUserStatus"), col("bpContentStatus")))
       .drop("bpContentStatus")
 
     bpChildrenWithProgress = bpChildrenWithProgress
-      .withColumn("completionPercentage", expr("CASE WHEN dbCompletionStatus=2 THEN 100.0 WHEN bpChildProgress=0 OR bpChildResourceCount=0 OR dbCompletionStatus=0 THEN 0.0 ELSE 100.0 * bpChildProgress / bpChildResourceCount END"))
+      .withColumn("completionPercentage", expr("CASE WHEN bpChildUserStatus=2 THEN 100.0 WHEN bpChildProgress=0 OR bpChildResourceCount=0 OR bpChildUserStatus=0 THEN 0.0 ELSE 100.0 * bpChildProgress / bpChildResourceCount END"))
       .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0 ELSE completionPercentage END"))
       .withColumnRenamed("completionPercentage", "bpChildProgressPercentage")
     show(bpChildrenWithProgress, "bpChildrenWithProgress -1")
 
-    bpChildrenWithProgress = userCourseCompletionStatus(bpChildrenWithProgress)
-      .withColumnRenamed("userCourseCompletionStatus", "bpChildUserStatus")
-      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN dbCompletionStatus=2 THEN 'Attended' ELSE 'Not Attended' END"))
+    bpChildrenWithProgress = bpChildrenWithProgress
+      .withColumn("bpChildAttendanceStatus", expr("CASE WHEN bpChildUserStatus=2 THEN 'Attended' ELSE 'Not Attended' END"))
       .withColumn("bpChildOfflineAttendanceStatus", expr("CASE WHEN bpChildMode='Offline' THEN bpChildAttendanceStatus ELSE '' END"))
     show(bpChildrenWithProgress, "bpChildrenWithProgress")
 
@@ -256,6 +256,9 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpBatchStartDate", to_date(col("bpBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("bpBatchEndDate", to_date(col("bpBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("bpChildBatchStartDate", to_date(col("bpChildBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("bpChildCompletedTimestamp", to_date(col("bpChildBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("lastContentAccessTimestamp", to_date(col("lastContentAccessTimestamp"), "dd/MM/yyyy"))
+      .withColumn("bpChildLastAccessedOn", expr("CASE WHEN bpChildMode='Offline' THEN bpBatchSessionStartDate ELSE lastContentAccessTimestamp END"))
       .withColumn("bpChildProgressPercentage", round(col("bpChildProgressPercentage"), 2))
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("Certificate_Generated", expr("CASE WHEN bpIssuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
@@ -304,6 +307,8 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildUserStatus").alias("Status"),
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
+        col("bpChildCompletedTimestamp").alias("Component_Completed_On"),
+        col("bpChildLastAccessedOn").alias("Last_Accessed_On"),
         col("bpChildOfflineStartDate").alias("Offline_Session_Date"),
         col("bpChildOfflineStartTime").alias("Offline_Session_Start_Time"),
         col("bpChildOfflineEndTime").alias("Offline_Session_End_Time"),
