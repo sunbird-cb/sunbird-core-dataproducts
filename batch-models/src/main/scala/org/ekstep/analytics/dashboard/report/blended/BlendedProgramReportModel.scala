@@ -257,6 +257,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("bpBatchEndDate", to_date(col("bpBatchEndDate"), "dd/MM/yyyy"))
       .withColumn("bpChildBatchStartDate", to_date(col("bpChildBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("bpChildCompletedTimestamp", to_date(col("bpChildBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("bpChildCompletedOn", expr("CASE WHEN bpChildMode='Offline' AND bpChildUserStatus=2 THEN bpBatchSessionStartDate ELSE bpChildCompletedTimestamp END"))
       .withColumn("bpChildLastContentAccessTimestamp", to_date(col("bpChildLastContentAccessTimestamp"), "dd/MM/yyyy"))
       .withColumn("bpChildLastAccessedOn", expr("CASE WHEN bpChildMode='Offline' THEN bpBatchSessionStartDate ELSE bpChildLastContentAccessTimestamp END"))
       .withColumn("bpChildProgressPercentage", round(col("bpChildProgressPercentage"), 2))
@@ -307,7 +308,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpChildUserStatus").alias("Status"),
         col("bpChildDuration").alias("Component_Duration"),
         col("bpChildProgressPercentage").alias("Component_Progress_Percentage"),
-        col("bpChildCompletedTimestamp").alias("Component_Completed_On"),
+        col("bpChildCompletedOn").alias("Component_Completed_On"),
         col("bpChildLastAccessedOn").alias("Last_Accessed_On"),
         col("bpChildOfflineStartDate").alias("Offline_Session_Date"),
         col("bpChildOfflineStartTime").alias("Offline_Session_Start_Time"),
