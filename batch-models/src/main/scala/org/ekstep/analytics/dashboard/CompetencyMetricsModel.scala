@@ -490,6 +490,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update("dashboard_update_time5.1", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     // calculate redis keys
+
     if(!lastRunDate.equals(currentDateString)) {
       learnerHPRedisCalculations(allCourseProgramCompletionWithDetailsDF)
     } else {
@@ -642,8 +643,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(desc("enrollmentCount"))))
-      .filter(col("row_num") <= ceil(col("enrollmentCount") * 0.1).cast("int"))
+      .withColumn("percentile", percent_rank().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
+      .filter(col("percentile") <= 0.1)
       .drop("enrollmentCount", "row_num")
 
     val trendingCoursesListByOrg = trendingCoursesByOrg
@@ -659,8 +660,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Program'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(desc("enrollmentCount"))))
-      .filter(col("row_num") <= ceil(col("enrollmentCount") * 0.1).cast("int"))
+      .withColumn("percentile", percent_rank().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
+      .filter(col("percentile") <= 0.1)
       .drop("enrollmentCount", "row_num")
 
     val trendingProgramsListByOrg = trendingProgramsByOrg
@@ -685,7 +686,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.dispatchDataFrame[String]("lhp_trending", trendingCoursesListByOrg, "userOrgID:courses", "trendingCourseList", replace = false)
     show(trendingProgramsListByOrg, "trendingProgramsListByOrg")
     Redis.dispatchDataFrame[String]("lhp_trending", trendingProgramsListByOrg, "userOrgID:programs", "trendingProgramList", replace = false)
-
+//
     print("most enrolled tag :" + mostEnrolledTag)
     Redis.update("lhp_mostEnrolledTag", mostEnrolledTag + "\n")
     Redis.update("dashboard_update_time5.8", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
