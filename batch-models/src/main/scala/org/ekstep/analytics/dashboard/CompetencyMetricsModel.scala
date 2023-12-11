@@ -643,9 +643,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("percentile", percent_rank().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
-      .filter(col("percentile") <= 0.1)
+      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
+      .filter(col("row_num") <= 50)
       .drop("enrollmentCount", "row_num")
+
 
     val trendingCoursesListByOrg = trendingCoursesByOrg
       .groupBy("userOrgID")
@@ -660,8 +661,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Program'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("percentile", percent_rank().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
-      .filter(col("percentile") <= 0.1)
+      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
+      .filter(col("row_num") <= 50)
       .drop("enrollmentCount", "row_num")
 
     val trendingProgramsListByOrg = trendingProgramsByOrg
