@@ -1553,6 +1553,17 @@ object DataUtil extends Serializable {
     df
   }
 
+  def orgDesignationsDF(userOrgDF: DataFrame)(implicit sparkSession: SparkSession, conf: DashboardConfig): DataFrame = {
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
+    val userDesignationListDF = userOrgDF
+      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+      .withColumn("designation", col("professionalDetails.designation"))
+
+    val orgDesignationListDF = userDesignationListDF.groupBy("userOrgID").agg(concat_ws(",", collect_set("designation")).alias("org_designations"))
+    orgDesignationListDF
+  }
+
   def userProfileDetailsDF(orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val userDF = userDataFrame()
 

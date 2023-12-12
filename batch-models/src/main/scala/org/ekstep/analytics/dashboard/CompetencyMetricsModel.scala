@@ -115,6 +115,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // obtain and save user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+
+    val designationsDF = orgDesignationsDF(userOrgDF)
+    Redis.dispatchDataFrame[String]("org_designations", designationsDF, "userOrgID", "org_designations", replace = false)
+
     userDF.drop("userProfileDetails")
     userOrgDF.drop("userProfileDetails")
     // kafkaDispatch(withTimestamp(orgDF, timestamp), conf.orgTopic)
