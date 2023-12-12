@@ -93,6 +93,7 @@ object DataWarehouseTest extends Serializable {
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
       "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
+      "blendedReportPath" -> "standalone-reports/blended-program-report",
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
