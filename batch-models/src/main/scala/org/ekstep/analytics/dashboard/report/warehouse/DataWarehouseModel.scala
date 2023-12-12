@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.warehouse
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
@@ -35,7 +35,6 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     sc.parallelize(Seq())  // return empty rdd
   }
 
-
   /**
    * Reading all the reports and saving it to postgres. Overwriting the data in postgres
    *
@@ -61,9 +60,12 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     cbp_details = cbp_details
       .withColumn("resource_count", col("resource_count").cast("int"))
-      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int")).withColumn("cbp_rating", col("cbp_rating").cast("float"))
-      .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd")).withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
-      .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd")).withColumn("cbp_retired_on", to_date(col("cbp_retired_on"), "yyyy-MM-dd"))
+      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
+      .withColumn("cbp_rating", col("cbp_rating").cast("float"))
+      .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd"))
+      .withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
+      .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd"))
+      .withColumn("cbp_retired_on", to_date(col("cbp_retired_on"), "yyyy-MM-dd"))
 
     cbp_details = cbp_details.dropDuplicates(Seq("cbp_id"))
 
@@ -74,8 +76,10 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
 
     enrollment_details = enrollment_details
-      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float")).withColumn("user_rating", col("user_rating").cast("float"))
-      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int")).withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
+      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float"))
+      .withColumn("user_rating", col("user_rating").cast("float"))
+      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
+      .withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
       .withColumn("certificate_generated_on", to_date(col("certificate_generated_on"), "yyyy-MM-dd"))
       .withColumn("enrolled_on", to_date(col("enrolled_on"), "yyyy-MM-dd"))
       .filter(col("cbp_id").isNotNull)
@@ -106,6 +110,8 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     bp_enrollments = bp_enrollments
       .withColumn("component_progress_percentage", col("component_progress_percentage").cast("float"))
       .withColumn("offline_session_date", to_date(col("offline_session_date"), "yyyy-MM-dd"))
+      .withColumn("component_completed_on", to_date(col("component_completed_on"), "yyyy-MM-dd"))
+      .withColumn("last_accessed_on", to_date(col("last_accessed_on"), "yyyy-MM-dd"))
       .withColumnRenamed("instructor(s)_name", "instructors_name")
       .filter(col("cbp_id").isNotNull)
       .filter(col("user_id").isNotNull)
