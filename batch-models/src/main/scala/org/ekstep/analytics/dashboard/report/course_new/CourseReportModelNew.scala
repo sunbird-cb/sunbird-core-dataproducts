@@ -149,6 +149,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "CBPReport")
 
     val df_warehouse = fullDF
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("courseID").alias("cbp_id"),
         col("courseActualOrgId").alias("cbp_provider_id"),
@@ -167,7 +168,7 @@ object CourseReportModelNew extends IBatchModelTemplate[String, DummyInput, Dumm
         col("courseResourceCount").alias("resource_count"),
         col("totalCertificatesIssued").alias("total_certificates_issued"),
         col("courseReviewStatus").alias("cbp_substatus"),
-        col("Report_Last_Generated_On").alias("data_last_generated_on")
+        col("data_last_generated_on")
       )
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 

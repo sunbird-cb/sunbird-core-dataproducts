@@ -155,7 +155,9 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
     //    df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
 
-    val warehouseDF = df.withColumn("certificate_generated_on", to_date(col("certificateGeneratedOn"), "dd/MM/yyyy")).select(
+    val warehouseDF = df
+      .withColumn("certificate_generated_on", to_date(col("certificateGeneratedOn"), "yyyy-MM-dd"))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a")).select(
       col("userID").alias("user_id"),
       col("batchID").alias("batch_id"),
       col("courseID").alias("cbp_id"),
@@ -167,7 +169,7 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
       col("courseProgress").alias("resource_count_consumed"),
       col("enrolledOn").alias("enrolled_on"),
       col("userCourseCompletionStatus").alias("user_consumption_status"),
-      col("Report_Last_Generated_On").alias("data_last_generated_on")
+      col("data_last_generated_on")
     )
     generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 

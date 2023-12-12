@@ -62,6 +62,7 @@ object UserReportTest extends Serializable{
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraRatingsTable" -> "ratings",
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
+      "cassandraLearnerStatsTable" -> "learner_stats",
 
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",

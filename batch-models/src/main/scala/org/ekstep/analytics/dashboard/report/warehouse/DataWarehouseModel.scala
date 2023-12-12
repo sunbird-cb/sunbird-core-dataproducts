@@ -48,8 +48,9 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
 
-    val user_details = spark.read.option("header", "true")
+    var user_details = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.userReportPath}/${today}-warehouse")
+    user_details = user_details.withColumn("user_registration_date", to_date(col("user_registration_date"), "dd/MM/yyyy"))
 
     truncateWarehouseTable(conf.dwUserTable)
     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
@@ -60,8 +61,9 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     cbp_details = cbp_details
       .withColumn("resource_count", col("resource_count").cast("int"))
-      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
-      .withColumn("cbp_rating", col("cbp_rating").cast("float"))
+      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int")).withColumn("cbp_rating", col("cbp_rating").cast("float"))
+      .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd")).withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
+      .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd")).withColumn("cbp_retired_on", to_date(col("cbp_retired_on"), "yyyy-MM-dd"))
 
     cbp_details = cbp_details.dropDuplicates(Seq("cbp_id"))
 
@@ -72,9 +74,10 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
 
     enrollment_details = enrollment_details
-      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float"))
-      .withColumn("user_rating", col("user_rating").cast("float"))
-      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
+      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float")).withColumn("user_rating", col("user_rating").cast("float"))
+      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int")).withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
+      .withColumn("certificate_generated_on", to_date(col("certificate_generated_on"), "yyyy-MM-dd"))
+      .withColumn("enrolled_on", to_date(col("enrolled_on"), "yyyy-MM-dd"))
       .filter(col("cbp_id").isNotNull)
 
     truncateWarehouseTable(conf.dwEnrollmentsTable)
@@ -90,6 +93,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .withColumn("total_question", col("total_question").cast("int"))
       .withColumn("number_of_incorrect_responses", col("number_of_incorrect_responses").cast("int"))
       .withColumn("number_of_retakes", col("number_of_retakes").cast("int"))
+      .withColumn("completion_date", to_date(col("completion_date"), "dd/MM/yyyy"))
       .filter(col("cbp_id").isNotNull)
 
     truncateWarehouseTable(conf.dwAssessmentTable)
@@ -101,8 +105,8 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     bp_enrollments = bp_enrollments
       .withColumn("component_progress_percentage", col("component_progress_percentage").cast("float"))
+      .withColumn("offline_session_date", to_date(col("offline_session_date"), "yyyy-MM-dd"))
       .withColumnRenamed("instructor(s)_name", "instructors_name")
-
       .filter(col("cbp_id").isNotNull)
       .filter(col("user_id").isNotNull)
       .filter(col("batch_id").isNotNull)
@@ -125,7 +129,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .withColumn("is_cbp_provider",
         when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
-      .withColumn("data_last_generated_on", to_date(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .distinct()
 
     orgDwDf = orgDwDf.drop("orgType")

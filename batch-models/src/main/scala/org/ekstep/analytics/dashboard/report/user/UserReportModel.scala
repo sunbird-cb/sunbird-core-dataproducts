@@ -108,21 +108,21 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     generateAndSyncReports(mdoWiseReportDF, "mdoid", reportPath, "UserReport")
 
     val df_warehouse = userData
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),
         col("fullName").alias("full_name"),
-        col("userCreatedBy").alias("created_by_id"),
         col("professionalDetails.designation").alias("designation"),
         col("personalDetails.primaryEmail").alias("email"),
-        col("personalDetails.mobile").alias("phone"),
-        col("professionalDetails.group").alias("groups"),
+        col("personalDetails.mobile").alias("phone_number"),
+        col("professionalDetails.group").alias("group"),
         col("Tag").alias("tag"),
         from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
         col("role").alias("roles"),
         col("personalDetails.gender").alias("gender"),
         col("personalDetails.category").alias("category"),
+        col("userCreatedBy").alias("created_by_id"),
         col("additionalProperties.externalSystem").alias("external_system"),
         col("additionalProperties.externalSystemId").alias("external_system_id"),
         col("data_last_generated_on")
