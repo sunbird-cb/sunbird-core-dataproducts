@@ -37,8 +37,6 @@ object JobFactory {
         MonitorSummarizer
       case "wfs" =>
         WorkFlowSummarizer
-      case "wfs2" =>
-        WorkFlowSummarizer2
       case "competency-metrics" =>
         CompetencyMetricsJob
       case "assessment-metrics" =>
