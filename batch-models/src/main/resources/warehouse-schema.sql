@@ -12,7 +12,7 @@ CREATE TABLE user_detail(
    designation VARCHAR(255),
    email VARCHAR(255),
    phone_number VARCHAR(255),
-   "group" VARCHAR(255),
+   groups VARCHAR(255),
    tag VARCHAR(255),
    user_registration_date DATE,
    roles VARCHAR(255),
