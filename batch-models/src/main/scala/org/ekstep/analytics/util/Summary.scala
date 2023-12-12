@@ -16,6 +16,7 @@ class Summary(val firstEvent: WFSInputEvent) {
     val interactTypes = List("touch", "drag", "drop", "pinch", "zoom", "shake", "rotate", "speak", "listen", "write", "draw", "start", "end", "choose", "activate", "scroll", "click", "edit", "submit", "search", "dnd", "added", "removed", "selected")
     val sid: String = firstEvent.context.sid.getOrElse("")
     val uid: String = if (firstEvent.actor == null || firstEvent.actor.id == null) "" else firstEvent.actor.id
+    val actor_type: String = if (firstEvent.actor == null || firstEvent.actor.`type` == null) "" else firstEvent.actor.`type`
     val `object`: Option[V3Object] = if (firstEvent.`object`.isDefined) firstEvent.`object` else None;
     val telemetryVersion: String = firstEvent.ver
     val tags: Option[List[AnyRef]] = Option(firstEvent.tags)
@@ -208,7 +209,7 @@ class Summary(val firstEvent: WFSInputEvent) {
                 tempChildEvents ++= summ.summaryEvents
             }
         }
-        if(this.timeSpent > 0) {
+        if(this.timeSpent >= 0) {
             this.summaryEvents ++= tempChildEvents
             this.summaryEvents += this.getSummaryEvent(config)
         };
@@ -218,7 +219,7 @@ class Summary(val firstEvent: WFSInputEvent) {
     def getSummaryEvent(config: Map[String, AnyRef]): MeasuredEvent = {
         val meEventVersion = "1.0"
         val dtRange = DtRange(this.startTime, this.endTime)
-        val mid = CommonUtil.getMessageId("ME_WORKFLOW_SUMMARY", this.uid + this.`type` + this.mode.getOrElse("NA"), "SESSION", dtRange, this.`object`.getOrElse(V3Object("NA", "", None, None)).id, Option(this.pdata.id), Option(this.channel));
+        val mid = CommonUtil.getMessageId("ME_WORKFLOW_SUMMARY", s"${this.actor_type}|${this.uid}|${this.did}|${this.`type`}|${this.mode.getOrElse("NA")}", "SESSION", dtRange, this.`object`.getOrElse(V3Object("NA", "", None, None)).id, Option(this.pdata.id), Option(this.channel));
         val interactEventsPerMin: Double = if (this.interactEventsCount == 0 || this.timeSpent == 0) 0d
         else if (this.timeSpent < 60.0) this.interactEventsCount.toDouble
         else BigDecimal(this.interactEventsCount / (this.timeSpent / 60)).setScale(2, BigDecimal.RoundingMode.HALF_UP).toDouble;
@@ -235,9 +236,14 @@ class Summary(val firstEvent: WFSInputEvent) {
             "env_summary" -> this.envSummary,
             "events_summary" -> eventsSummary,
             "page_summary" -> this.pageSummary);
+
+        if (this.startTime == 0l) {
+            println(s"MID_DEBUG: Offending Event generated mid=${mid}")
+        }
+
         MeasuredEvent("ME_WORKFLOW_SUMMARY", System.currentTimeMillis(), syncts, meEventVersion, mid, this.uid, null, None, None,
             Context(PData(config.getOrElse("producerId", "AnalyticsDataPipeline").asInstanceOf[String], config.getOrElse("modelVersion", "1.0").asInstanceOf[String], Option(config.getOrElse("modelId", "WorkflowSummarizer").asInstanceOf[String])), None, "SESSION", dtRange, None, None, None, this.context_rollup, this.cdata),
-            org.ekstep.analytics.framework.Dimensions(None, Option(this.did), None, None, None, None, Option(PData(this.pdata.id, this.pdata.ver.getOrElse("1.0"), None, this.pdata.pid)), None, None, None, None, None, None, None, None, Option(this.sid), None, None, None, None, None, None, None, None, None, None, Option(this.channel), Option(this.`type`), this.mode),
+            org.ekstep.analytics.framework.Dimensions(Option(this.uid), Option(this.did), None, None, None, None, Option(PData(this.pdata.id, this.pdata.ver.getOrElse("1.0"), None, this.pdata.pid)), None, None, None, None, None, None, None, None, Option(this.sid), None, None, None, None, None, None, None, None, None, None, Option(this.channel), Option(this.`type`), this.mode),
             MEEdata(measures), None, this.tags, this.`object`);
     }
 
