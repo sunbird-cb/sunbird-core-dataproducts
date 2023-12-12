@@ -31,9 +31,9 @@ case class WorkflowOutput(index: WorkflowIndex, summaries: Buffer[MeasuredEvent]
 
 case class WorkflowIndex(did: String, channel: String, pdataId: String)
 
-case class WorkFlowIndexEvent(eid: String, actor: Option[Actor2], context: V3Context)
+case class WorkFlowIndexEvent(eid: String, actor: Option[IndexEventActor], context: V3Context)
 
-case class Actor2(id: Option[String], `type`: Option[String])
+case class IndexEventActor(id: Option[String], `type`: Option[String])
 
 
 object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, MeasuredEvent, MeasuredEvent] with Serializable {
@@ -47,7 +47,7 @@ object WorkFlowSummaryModel extends IBatchModelTemplate[String, WorkflowInput, M
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[WorkflowInput] = {
 
     val defaultPDataId = V3PData(AppConf.getConfig("default.consumption.app.id"), Option("1.0"))
-    val defaultActor = Actor2(Some(""), Some(""))
+    val defaultActor = IndexEventActor(Some(""), Some(""))
     val parallelization = config.getOrElse("parallelization", 20).asInstanceOf[Int];
     val indexedData = data.map { f =>
       try {
