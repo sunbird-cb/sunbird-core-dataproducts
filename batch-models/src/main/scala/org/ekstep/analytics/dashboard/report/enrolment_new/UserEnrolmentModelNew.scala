@@ -157,20 +157,21 @@ object UserEnrolmentModelNew extends IBatchModelTemplate[String, DummyInput, Dum
 
     val warehouseDF = df
       .withColumn("certificate_generated_on", to_date(col("certificateGeneratedOn"), "yyyy-MM-dd"))
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a")).select(
-      col("userID").alias("user_id"),
-      col("batchID").alias("batch_id"),
-      col("courseID").alias("cbp_id"),
-      col("completionPercentage").alias("cbp_progress_percentage"),
-      col("completedOn").alias("completed_on"),
-      col("Certificate_Generated").alias("certificate_generated"),
-      col("certificate_generated_on"),
-      col("userRating").alias("user_rating"),
-      col("courseProgress").alias("resource_count_consumed"),
-      col("enrolledOn").alias("enrolled_on"),
-      col("userCourseCompletionStatus").alias("user_consumption_status"),
-      col("data_last_generated_on")
-    )
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+      .select(
+        col("userID").alias("user_id"),
+        col("batchID").alias("batch_id"),
+        col("courseID").alias("cbp_id"),
+        col("completionPercentage").alias("cbp_progress_percentage"),
+        col("completedOn").alias("completed_on"),
+        col("Certificate_Generated").alias("certificate_generated"),
+        col("certificate_generated_on"),
+        col("userRating").alias("user_rating"),
+        col("courseProgress").alias("resource_count_consumed"),
+        col("enrolledOn").alias("enrolled_on"),
+        col("userCourseCompletionStatus").alias("user_consumption_status"),
+        col("data_last_generated_on")
+      )
     generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()

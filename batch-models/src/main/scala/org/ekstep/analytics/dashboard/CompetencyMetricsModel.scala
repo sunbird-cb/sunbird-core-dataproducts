@@ -158,15 +158,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
-    // do home page data update
-    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
-    val cbpsUnder30minsDf = allCourseProgramDetailsWithRatingDF.where(expr("courseStatus='Live' and courseDuration < 1800") && !col("courseID").endsWith("_rc")).orderBy(desc("ratingAverage"))
-    show(cbpsUnder30minsDf, "cbpsUnder30minsDf")
-    val coursesUnder30mins = cbpsUnder30minsDf
-      .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
-    Redis.updateMapField("lhp_trending", "across:under_30_mins", coursesUnder30mins)
-
-    updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF)
+    updateLearnerHomePageData(orgDF, userOrgDF, userCourseProgramCompletionDF)
     Redis.update("dashboard_update_time6", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
 
     // new redis updates - start
@@ -478,9 +470,21 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
   }
 
-  def updateLearnerHomePageData(allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def updateLearnerHomePageData(orgDF: DataFrame, userOrgDF: DataFrame, userCourseProgramCompletionDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     Redis.update("dashboard_update_time5.0", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF, Seq("Course", "Blended Program", "Curated Program"))
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+
+    // do home page data update
+    Redis.update("dashboard_update_time5", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(System.currentTimeMillis()))
+    val cbpsUnder30minsDf = allCourseProgramDetailsWithRatingDF.where(expr("courseStatus='Live' and courseDuration < 1800") && !col("courseID").endsWith("_rc")).orderBy(desc("ratingAverage"))
+    show(cbpsUnder30minsDf, "cbpsUnder30minsDf")
+    val coursesUnder30mins = cbpsUnder30minsDf
+      .agg(concat_ws(",", collect_list("courseID"))).first().getString(0)
+    Redis.updateMapField("lhp_trending", "across:under_30_mins", coursesUnder30mins)
 
     //We only want the date here as the intent is to run this part of the script only once a day. The competency metrics
     // script may run a second time if we run into issues and this function should be skipped in that case.

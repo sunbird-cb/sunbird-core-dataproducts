@@ -115,6 +115,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
 
     val fullReportDF = df
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
         col("userID").alias("User ID"),
         col("assessID"),
@@ -145,7 +146,8 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("assessIncorrect").alias("No.of Incorrect Responses"),
         col("assessBlank").alias("Unattempted Questions"),
         col("retakes").alias("No. of Retakes"),
-        col("userOrgID").alias("mdoid")
+        col("userOrgID").alias("mdoid"),
+        col("Report_Last_Generated_On")
       )
       .coalesce(1)
     show(fullReportDF, "fullReportDF")
@@ -156,8 +158,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     val mdoReportDF = fullReportDF.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "UserAssessmentReport")
 
-    var warehouseDF = df
-    warehouseDF = warehouseDF
+    val warehouseDF = df
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
