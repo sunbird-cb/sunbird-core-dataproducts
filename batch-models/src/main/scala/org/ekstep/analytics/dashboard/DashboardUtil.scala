@@ -595,7 +595,7 @@ object DashboardUtil extends Serializable {
       blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
 
       // for weekly claps
-      cutoffTime = getConfigModelParam(config, "cutoffTime").toFloat
+      cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat
     )
   }
   /* Config functions end */
