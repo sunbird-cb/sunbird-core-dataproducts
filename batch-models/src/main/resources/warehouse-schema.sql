@@ -6,7 +6,7 @@ CREATE DATABASE warehouse;
 
 -- Table: user_detail
 CREATE TABLE user_detail( 
-   user_id VARCHAR(255) PRIMARY KEY NOT NULL,
+   user_id VARCHAR(255),
    mdo_id  VARCHAR(255),
    full_name VARCHAR(255),
    designation VARCHAR(255),
@@ -18,6 +18,7 @@ CREATE TABLE user_detail(
    roles VARCHAR(255),
    gender VARCHAR(255),
    category VARCHAR(255),
+   created_by_id VARCHAR(255),
    external_system VARCHAR(255),
    external_system_id VARCHAR(255),
    data_last_generated_on VARCHAR(255)
@@ -31,7 +32,7 @@ CREATE TABLE org_hierarchy(
    ministry VARCHAR(255),
    department VARCHAR(255),
    organization VARCHAR(255),
-   data_last_generated_on DATE
+   data_last_generated_on VARCHAR(255)
 );
 
 -- Table: user_enrolment
@@ -56,7 +57,7 @@ CREATE TABLE cbp(
    cbp_id VARCHAR(255) PRIMARY KEY NOT NULL,
    cbp_provider_id VARCHAR(255),
    cbp_provider_name VARCHAR(255),
-   cbp_name VARCHAR(255),
+   cbp_name TEXT,
    cbp_type VARCHAR(255),
    batch_id VARCHAR(255),
    batch_name VARCHAR(255),

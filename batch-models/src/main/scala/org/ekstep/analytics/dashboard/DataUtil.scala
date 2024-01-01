@@ -89,6 +89,14 @@ object DataUtil extends Serializable {
       StructField("competencyID",  StringType, nullable = true),
       StructField("expectedCompetencyLevel",  IntegerType, nullable = true)
     ))
+    val activeUsersSchema: StructType = StructType(Seq(
+      StructField("orgID",  StringType, nullable = true),
+      StructField("activeCount",  LongType, nullable = true)
+    ))
+    val timeSpentSchema: StructType = StructType(Seq(
+      StructField("orgID",  StringType, nullable = true),
+      StructField("timeSpent",  FloatType, nullable = true)
+    ))
     val fracCompetencySchema: StructType = StructType(Seq(
       StructField("competencyID",  StringType, nullable = true),
       StructField("competencyName",  StringType, nullable = true),

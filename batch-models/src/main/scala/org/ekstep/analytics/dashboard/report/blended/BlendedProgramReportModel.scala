@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.report.blended
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtilNew._
@@ -84,27 +84,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     show(bpWithOrgDF, "bpWithOrgDF")
 
     // add BP batch info
-    val batchDF = courseBatchDataFrame()
-    val bpBatchDF = batchDF.select(
-      col("courseID").alias("bpID"),
-      col("batchID").alias("bpBatchID"),
-      col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
-      col("courseBatchName").alias("bpBatchName"),
-      col("courseBatchStartDate").alias("bpBatchStartDate"),
-      col("courseBatchEndDate").alias("bpBatchEndDate"),
-      col("courseBatchAttrs").alias("bpBatchAttrs")
-    )
-      .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
-      .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
-      .withColumn("bpBatchCurrentSize", col("bpBatchAttrs.currentBatchSize"))
-      .withColumn("bpBatchSessionDetails", explode_outer(col("bpBatchAttrs.sessionDetails_v2")))
-      .withColumn("bpBatchSessionType", col("bpBatchSessionDetails.sessionType"))
-      .withColumn("bpBatchSessionFacilators", concat_ws(", ", col("bpBatchSessionDetails.facilatorDetails.name")))
-      .withColumn("bpBatchSessionStartDate", col("bpBatchSessionDetails.startDate"))
-      .withColumn("bpBatchSessionStartTime", col("bpBatchSessionDetails.startTime"))
-      .withColumn("bpBatchSessionEndTime", col("bpBatchSessionDetails.endTime"))
-      .drop("bpBatchAttrs", "bpBatchSessionDetails")
-    show(bpBatchDF, "bpBatchDF")
+    val (bpBatchDF, bpBatchSessionDF) = bpBatchDataFrame()
 
     var bpWithBatchDF = bpWithOrgDF
       .join(bpBatchDF, Seq("bpID"), "left")
@@ -153,44 +133,12 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val hierarchyDF = contentHierarchyDataFrame()
     show(hierarchyDF, "hierarchyDF")
 
-    val bpIDsDF = blendedProgramESDF.select("bpID")
-    show(bpIDsDF, "bpIDsDF")
-
-    // L1 children with modules (course units)
-    val bpChildL1WithModulesDF = addHierarchyColumn(bpIDsDF, hierarchyDF, "bpID", "data", children = true, l2Children = true)
-      .withColumn("bpChild", explode_outer(col("data.children")))
-      .drop("identifier", "data")
-    show(bpChildL1WithModulesDF, "bpChildL1WithModulesDF")
-
-    // L1 children without modules
-    val bpChildL1DF = bpChildL1WithModulesDF.where(expr("bpChild.primaryCategory != 'Course Unit'"))
-      .withColumn("bpChildID", col("bpChild.identifier"))
-      .withColumn("bpChildName", col("bpChild.name"))
-      .withColumn("bpChildCategory", col("bpChild.primaryCategory"))
-      .withColumn("bpChildDuration", col("bpChild.duration"))
-      .withColumn("bpChildResourceCount", col("bpChild.leafNodesCount"))
-      .drop("bpChild")
-    show(bpChildL1DF, "bpChildL1DF")
-
-    // L2 children (i.e. children of the modules)
-    val bpChildL2DF = bpChildL1WithModulesDF.where(expr("bpChild.primaryCategory = 'Course Unit'"))
-      .withColumn("bpModuleChild", explode_outer(col("bpChild.children")))
-      .drop("bpChild")
-      .withColumn("bpChildID", col("bpModuleChild.identifier"))
-      .withColumn("bpChildName", col("bpModuleChild.name"))
-      .withColumn("bpChildCategory", col("bpModuleChild.primaryCategory"))
-      .withColumn("bpChildDuration", col("bpModuleChild.duration"))
-      .withColumn("bpChildResourceCount", col("bpModuleChild.leafNodesCount"))
-      .drop("bpModuleChild")
-    show(bpChildL2DF, "bpChildL2DF")
-
-    // merge L1 and L2 children
-    val bpChildDF = bpChildL1DF.union(bpChildL2DF)
-    show(bpChildDF, "bpChildDF")
+    val bpChildDF = bpChildDataFrame(blendedProgramESDF, hierarchyDF)
 
     // add children info to bpCompletionWithUserDetailsDF
     val bpCompletionWithChildrenDF = bpCompletionWithUserDetailsDF.join(bpChildDF, Seq("bpID"), "left")
       .withColumn("bpChildMode", expr("CASE WHEN LOWER(bpChildCategory) = 'offline session' THEN 'Offline' ELSE '' END"))
+      .join(bpBatchSessionDF, Seq("bpID", "bpBatchID", "bpChildID"), "left")
     show(bpCompletionWithChildrenDF, "bpCompletionWithChildrenDF")
 
     // add children batch info
@@ -201,17 +149,25 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       col("bpBatchStartDate").alias("bpChildBatchStartDate"),
       col("bpBatchEndDate").alias("bpChildBatchEndDate"),
       col("bpBatchLocation").alias("bpChildBatchLocation"),
-      col("bpBatchCurrentSize").alias("bpChildBatchCurrentSize"),
+      col("bpBatchCurrentSize").alias("bpChildBatchCurrentSize")
+    )
+    show(bpChildBatchDF, "bpChildBatchDF")
+
+    val bpChildBatchSessionDF =  bpBatchSessionDF.select(
+      col("bpChildID").alias("bpChildChildID"),
+      col("bpID").alias("bpChildID"),
+      col("bpBatchID").alias("bpChildBatchID"),
       col("bpBatchSessionType").alias("bpChildBatchSessionType"),
       col("bpBatchSessionFacilators").alias("bpChildBatchSessionFacilators"),
       col("bpBatchSessionStartDate").alias("bpChildBatchSessionStartDate"),
       col("bpBatchSessionStartTime").alias("bpChildBatchSessionStartTime"),
       col("bpBatchSessionEndTime").alias("bpChildBatchSessionEndTime")
     )
-    show(bpChildBatchDF, "bpChildBatchDF")
+    show(bpChildBatchSessionDF, "bpChildBatchSessionDF")
 
     val relevantChildBatchInfoDF = bpChildDF.select("bpChildID")
       .join(bpChildBatchDF, Seq("bpChildID"), "left")
+      .join(bpChildBatchSessionDF, Seq("bpChildID", "bpChildBatchID"), "left")
       .select("bpChildID", "bpChildBatchID", "bpChildBatchName", "bpChildBatchStartDate", "bpChildBatchEndDate", "bpChildBatchLocation", "bpChildBatchCurrentSize", "bpChildBatchSessionType", "bpChildBatchSessionFacilators")
     show(relevantChildBatchInfoDF, "relevantChildBatchInfoDF")
 
@@ -377,5 +333,76 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
+  }
+
+  def bpBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame) = {
+    val batchDF = courseBatchDataFrame()
+    var bpBatchDF = batchDF.select(
+      col("courseID").alias("bpID"),
+      col("batchID").alias("bpBatchID"),
+      col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
+      col("courseBatchName").alias("bpBatchName"),
+      col("courseBatchStartDate").alias("bpBatchStartDate"),
+      col("courseBatchEndDate").alias("bpBatchEndDate"),
+      col("courseBatchAttrs").alias("bpBatchAttrs")
+    )
+      .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
+      .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
+      .withColumn("bpBatchCurrentSize", col("bpBatchAttrs.currentBatchSize"))
+    show(bpBatchDF, "bpBatchDF")
+
+    val bpBatchSessionDF = bpBatchDF.select("bpID", "bpBatchID", "bpBatchAttrs")
+      .withColumn("bpBatchSessionDetails", explode_outer(col("bpBatchAttrs.sessionDetails_v2")))
+      .withColumn("bpChildID", col("bpBatchSessionDetails.sessionId")) // sessionId contains the value of bpChildID, for some reason that's the name of the column, instead of calling this childID or something useful
+      .withColumn("bpBatchSessionType", col("bpBatchSessionDetails.sessionType"))
+      .withColumn("bpBatchSessionFacilators", concat_ws(", ", col("bpBatchSessionDetails.facilatorDetails.name")))
+      .withColumn("bpBatchSessionStartDate", col("bpBatchSessionDetails.startDate"))
+      .withColumn("bpBatchSessionStartTime", col("bpBatchSessionDetails.startTime"))
+      .withColumn("bpBatchSessionEndTime", col("bpBatchSessionDetails.endTime"))
+      .drop("bpBatchAttrs", "bpBatchSessionDetails")
+    show(bpBatchSessionDF, "bpBatchSessionDF")
+
+    bpBatchDF = bpBatchDF.drop("bpBatchAttrs")
+
+    (bpBatchDF, bpBatchSessionDF)
+  }
+
+  def bpChildDataFrame(blendedProgramESDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val bpIDsDF = blendedProgramESDF.select("bpID")
+    show(bpIDsDF, "bpIDsDF")
+
+    // L1 children with modules (course units)
+    val bpChildL1WithModulesDF = addHierarchyColumn(bpIDsDF, hierarchyDF, "bpID", "data", children = true, l2Children = true)
+      .withColumn("bpChild", explode_outer(col("data.children")))
+      .drop("identifier", "data")
+    show(bpChildL1WithModulesDF, "bpChildL1WithModulesDF")
+
+    // L1 children without modules
+    val bpChildL1DF = bpChildL1WithModulesDF.where(expr("bpChild.primaryCategory != 'Course Unit'"))
+      .withColumn("bpChildID", col("bpChild.identifier"))
+      .withColumn("bpChildName", col("bpChild.name"))
+      .withColumn("bpChildCategory", col("bpChild.primaryCategory"))
+      .withColumn("bpChildDuration", col("bpChild.duration"))
+      .withColumn("bpChildResourceCount", col("bpChild.leafNodesCount"))
+      .drop("bpChild")
+    show(bpChildL1DF, "bpChildL1DF")
+
+    // L2 children (i.e. children of the modules)
+    val bpChildL2DF = bpChildL1WithModulesDF.where(expr("bpChild.primaryCategory = 'Course Unit'"))
+      .withColumn("bpModuleChild", explode_outer(col("bpChild.children")))
+      .drop("bpChild")
+      .withColumn("bpChildID", col("bpModuleChild.identifier"))
+      .withColumn("bpChildName", col("bpModuleChild.name"))
+      .withColumn("bpChildCategory", col("bpModuleChild.primaryCategory"))
+      .withColumn("bpChildDuration", col("bpModuleChild.duration"))
+      .withColumn("bpChildResourceCount", col("bpModuleChild.leafNodesCount"))
+      .drop("bpModuleChild")
+    show(bpChildL2DF, "bpChildL2DF")
+
+    // merge L1 and L2 children
+    val bpChildDF = bpChildL1DF.union(bpChildL2DF)
+    show(bpChildDF, "bpChildDF")
+
+    bpChildDF
   }
 }
