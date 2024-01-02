@@ -61,7 +61,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val commsConsoleReportPath = s"${conf.commsConsoleReportPath}/${today}"
 
     val orgDF = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.orgReportPath}/${today}-warehouse")
+      .csv(s"/tmp/${conf.orgHierarchyReportPath}/${today}-warehouse")
       .select("mdo_id", "ministry", "department", "organization")
 
     val userDF = spark.read.option("header", "true")

@@ -95,7 +95,7 @@ object CommsReportTest extends Serializable{
       "taggedUsersPath" -> "tagged-users/",
       "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
       "blendedReportPath" -> "standalone-reports/blended-program-report",
-      "orgReportPath" -> "standalone-reports/org-hierarchy-report",
+      "orgHierarchyReportPath" -> "standalone-reports/org-hierarchy-report",
       "commsConsoleReportPath" -> "standalone-reports/comms-console",
       "commsConsolePrarambhEmailSuffix" -> ".kb@karmayogi.in",
       "commsConsoleNumDaysToConsider" -> "15",
