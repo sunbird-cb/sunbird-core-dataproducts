@@ -5,7 +5,7 @@ import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-object UserEnrolmentTest extends Serializable{
+object UserEnrolmentTest extends Serializable {
 
   def main(args: Array[String]): Unit = {
 

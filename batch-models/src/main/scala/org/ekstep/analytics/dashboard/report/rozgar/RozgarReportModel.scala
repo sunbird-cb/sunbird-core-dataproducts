@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.rozgar_new
+package org.ekstep.analytics.dashboard.report.rozgar
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -11,11 +11,11 @@ import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object RozgarReportModelNew extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object RozgarReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.RozgarReportModelNew"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.rozgar.RozgarReportModel"
 
-  override def name() = "RozgarReportModelNew"
+  override def name() = "RozgarReportModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points

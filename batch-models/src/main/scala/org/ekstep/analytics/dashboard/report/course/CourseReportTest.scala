@@ -5,7 +5,7 @@ import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
 import org.ekstep.analytics.framework.FrameworkContext
 
-object CourseReportTest extends Serializable{
+object CourseReportTest extends Serializable {
 
   def main(args: Array[String]): Unit = {
 
@@ -62,13 +62,14 @@ object CourseReportTest extends Serializable{
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraOrgHierarchyTable" -> "org_hierarchy",
       "cassandraCourseBatchTable" -> "course_batch",
+      "cassandraRatingsTable" -> "ratings",
 
       "key" -> "aws_storage_key",
       "secret" -> "aws_storage_secret",
       "store" -> "s3",
       "container" -> "igot",
 
-      "mdoIDs" -> "0135071359030722569,01358993635114188855",
+      "mdoIDs" -> "",
 
       "userReportPath" -> "standalone-reports/user-report",
       "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
@@ -82,5 +83,3 @@ object CourseReportTest extends Serializable{
     modelParams
   }
 }
-
-
