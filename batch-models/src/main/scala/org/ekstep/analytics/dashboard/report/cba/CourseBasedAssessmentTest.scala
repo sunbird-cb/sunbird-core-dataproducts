@@ -71,7 +71,7 @@ object CourseBasedAssessmentTest extends Serializable {
       "secret" -> "aws_storage_secret",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",

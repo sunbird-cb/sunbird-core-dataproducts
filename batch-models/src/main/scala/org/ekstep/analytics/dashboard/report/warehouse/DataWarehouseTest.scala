@@ -88,12 +88,13 @@ object DataWarehouseTest extends Serializable {
       "secret" -> "aws_storage_secret",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
       "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
       "blendedReportPath" -> "standalone-reports/blended-program-report",
+      "orgHierarchyReportPath" -> "standalone-reports/org-hierarchy-report",
 
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 

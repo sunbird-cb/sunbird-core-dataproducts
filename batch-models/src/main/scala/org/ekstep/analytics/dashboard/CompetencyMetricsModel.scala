@@ -349,20 +349,20 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.dispatchDataFrame[Long]("dashboard_courses_completed_at_least_once_by_user_org", liveCourseCompletedAtLeastOnceByMDODF, "userOrgID", "count")
 
     // Users active
-    // SELECT context_channel, COUNT(DISTINCT(actor_id)) as active_count FROM \"telemetry-events-syncts\"
-    // WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '12' MONTH GROUP BY 1
+    // SELECT dimension_channel, COUNT(DISTINCT(uid)) as active_count FROM \"summary-events\"
+    // WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '12' MONTH GROUP BY 1
     val activeUsersLast12MonthsDF = activeUsersLast12MonthsDataFrame()
     Redis.dispatchDataFrame[Long]("dashboard_active_users_last_12_months_by_org", activeUsersLast12MonthsDF, "orgID", "activeCount")
 
     // Daily time spent by users
-    // SELECT dimensions_channel AS orgID, SUM(total_time_spent)/(30 * 3600.0) as timeSpent FROM \"summary-events\"
+    // SELECT dimension_channel AS orgID, SUM(total_time_spent)/(30 * 3600.0) as timeSpent FROM \"summary-events\"
     // WHERE dimensions_type='app' AND __time >= CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 1
     val dailyTimeSpentLast30DaysDF = dailyTimeSpentLast30DaysDataFrame()
     Redis.dispatchDataFrame[Float]("dashboard_time_spent_last_30_days_by_org", dailyTimeSpentLast30DaysDF, "orgID", "timeSpent")
 
     // Daily active users
-    // SELECT context_channel, COUNT(DISTINCT(actor_id)) as active_count FROM \"telemetry-events-syncts\"
-    // WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '24' HOUR GROUP BY 1
+    // SELECT dimension_channel, COUNT(DISTINCT(actor_id)) as active_count FROM \"summary-events\"
+    // WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '24' HOUR GROUP BY 1
     val activeUsersLast24HoursDF = activeUsersLast24HoursDataFrame()
     Redis.dispatchDataFrame[Long]("dashboard_active_users_last_24_hours_by_org", activeUsersLast24HoursDF, "orgID", "activeCount")
 
@@ -371,28 +371,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // FROM \"dashboards-user-course-program-progress\" WHERE __time = (SELECT MAX(__time) FROM \"dashboards-user-course-program-progress\")
     // AND userStatus=1 AND category='Course' AND courseStatus IN ('Live', 'Retired') AND dbCompletionStatus=2 $mdo$ GROUP BY 1, 2, 3 ORDER BY completed_count DESC LIMIT 5
     val top5UsersByCompletionByMdoDF = liveRetiredCourseCompletedDF
+      .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
       .groupBy("userID", "fullName", "maskedEmail", "userOrgID", "userOrgName")
-      .agg(
-        count("courseID").alias("completed_count")
-      )
-      .withColumn("row_num", row_number().over(Window.partitionBy("courseOrgID").orderBy(col("completed_count").desc)))
-      .filter(col("row_num") <= 5)
-      .withColumn("jsonData",
-        columnsToMap("jsonData",
-          col("row_num"),
-          col("userID"),
-          col("fullName"),
-          col("maskedEmail"),
-          col("userOrgID"),
-          col("userOrgName"),
-          col("completed_count")
-        )
-      )
-      .orderBy(col("completed_count").desc)
+      .agg(count("courseID").alias("completedCount"))
+      .groupByLimit("userOrgID", "completedCount", 5, desc = true)
+      .withMapColumn("jsonData", Seq("rowNum", "userID", "fullName", "maskedEmail", "userOrgID", "userOrgName", "completedCount"))
+      .orderBy(col("completedCount").desc)
       .groupBy("userOrgID")
-      .agg(
-        to_json(collect_list("jsonData")).alias("jsonData")
-      )
+      .agg(to_json(collect_list("jsonData")).alias("jsonData"))
+    show(top5UsersByCompletionByMdoDF, "top5UsersByCompletionByMdoDF")
     Redis.dispatchDataFrame[String]("dashboard_top_5_users_by_completion_by_org", top5UsersByCompletionByMdoDF, "userOrgID", "jsonData")
 
     // Top 5 Courses - By completion
@@ -407,30 +394,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val top5CoursesByCompletionByMdoDF = liveRetiredCourseEnrolmentDF
       .groupBy("courseID", "courseName", "courseOrgID", "courseOrgName")
       .agg(
-        count("userID").alias("enrolled_count"),
-        expr("SUM(CASE WHEN dbCompletionStatus=0 THEN 1 ELSE 0 END)").alias("not_started_count"),
-        expr("SUM(CASE WHEN dbCompletionStatus=1 THEN 1 ELSE 0 END)").alias("in_progress_count"),
-        expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completed_count")
+        count("userID").alias("enrolledCount"),
+        expr("SUM(CASE WHEN dbCompletionStatus=0 THEN 1 ELSE 0 END)").alias("notStartedCount"),
+        expr("SUM(CASE WHEN dbCompletionStatus=1 THEN 1 ELSE 0 END)").alias("inProgressCount"),
+        expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount")
       )
-      .withColumn("row_num", row_number().over(Window.partitionBy("courseOrgID").orderBy(col("completed_count").desc)))
-      .filter(col("row_num") <= 5)
-      .withColumn("jsonData",
-        columnsToMap("jsonData",
-          col("row_num"),
-          col("courseID"),
-          col("courseName"),
-          col("courseOrgID"),
-          col("courseOrgName"),
-          col("not_started_count"),
-          col("in_progress_count"),
-          col("completed_count")
-        )
-      )
-      .orderBy(col("completed_count").desc)
+      .groupByLimit("courseOrgID", "completedCount", 5, desc = true)
+      .withMapColumn("jsonData", Seq("rowNum", "courseID", "courseName", "courseOrgID", "courseOrgName", "enrolledCount", "notStartedCount", "inProgressCount", "completedCount"))
+      .orderBy(col("completedCount").desc)
       .groupBy("courseOrgID")
-      .agg(
-        to_json(collect_list("jsonData")).alias("jsonData")
-      )
+      .agg(to_json(collect_list("jsonData")).alias("jsonData"))
+    show(top5CoursesByCompletionByMdoDF, "top5CoursesByCompletionByMdoDF")
     Redis.dispatchDataFrame[String]("dashboard_top_5_courses_by_completion_by_org", top5CoursesByCompletionByMdoDF, "courseOrgID", "jsonData")
 
     // Top 5 Courses - By user ratings
@@ -450,7 +424,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
         round(col("ratingAverage"), 1).alias("ratingAverage"),
         col("ratingCount")
       )
+    show(top5CoursesByRatingDF, "top5CoursesByRatingDF")
     val top5CoursesByRatingJson = top5CoursesByRatingDF.toJSON.collectAsList().toString
+    println(top5CoursesByRatingJson)
     Redis.update("dashboard_top_5_courses_by_rating", top5CoursesByRatingJson)
 
     // Top 5 MDOs - By course completion
@@ -460,17 +436,17 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // GROUP BY 1, 2 ORDER BY completed_count DESC LIMIT 5
     val top5MdoByCompletionDF = liveRetiredCourseCompletedDF
       .groupBy("userOrgID", "userOrgName")
-      .agg(
-        count("courseID").alias("completed_count")
-      )
-      .orderBy(col("completed_count").desc)
+      .agg(count("courseID").alias("completedCount"))
+      .orderBy(col("completedCount").desc)
       .limit(5)
       .select(
         col("userOrgID"),
         col("userOrgName"),
-        col("completed_count")
+        col("completedCount")
       )
+    show(top5MdoByCompletionDF, "top5MdoByCompletionDF")
     val top5MdoByCompletionJson = top5MdoByCompletionDF.toJSON.collectAsList().toString
+    println(top5MdoByCompletionJson)
     Redis.update("dashboard_top_5_mdo_by_completion", top5MdoByCompletionJson)
 
     // Top 5 MDOs - By courses published
@@ -480,29 +456,24 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // GROUP BY 1, 2 ORDER BY published_count DESC LIMIT 5
     val top5MdoByLiveCoursesDF = liveCourseDF
       .groupBy("courseOrgID", "courseOrgName")
-      .agg(
-        count("courseID").alias("published_count")
-      )
-      .orderBy(col("published_count").desc)
+      .agg(count("courseID").alias("publishedCount"))
+      .orderBy(col("publishedCount").desc)
       .limit(5)
       .select(
         col("courseOrgID"),
         col("courseOrgName"),
-        col("published_count")
+        col("publishedCount")
       )
+    show(top5MdoByLiveCoursesDF, "top5MdoByLiveCoursesDF")
     val top5MdoByLiveCoursesJson = top5MdoByLiveCoursesDF.toJSON.collectAsList().toString
+    println(top5MdoByLiveCoursesJson)
     Redis.update("dashboard_top_5_mdo_by_live_courses", top5MdoByLiveCoursesJson)
 
     // new redis updates - end
   }
 
-  def columnsToMap(name: String, columns: Column*): Column = {
-    val columnsWithNames = columns.flatMap(column => Seq(lit(column.toString()), column))
-    functions.map(columnsWithNames:_*).as(name)
-  }
-
   def activeUsersLast12MonthsDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val query = """SELECT context_channel AS orgID, COUNT(DISTINCT(actor_id)) as activeCount FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '12' MONTH GROUP BY 1"""
+    val query = """SELECT dimension_channel AS orgID, COUNT(DISTINCT(uid)) as activeCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '12' MONTH GROUP BY 1"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
     if (df == null) return emptySchemaDataFrame(Schema.activeUsersSchema)
 
@@ -513,7 +484,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
   }
 
   def dailyTimeSpentLast30DaysDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val query = """SELECT dimensions_channel AS orgID, SUM(total_time_spent)/(30 * 3600.0) as timeSpent FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 1"""
+    val query = """SELECT dimension_channel AS orgID, SUM(total_time_spent)/(30 * 3600.0) as timeSpent FROM \"summary-events\" WHERE dimensions_type='app' AND __time >= CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 1"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
     if (df == null) return emptySchemaDataFrame(Schema.timeSpentSchema)
 
@@ -524,7 +495,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
   }
 
   def activeUsersLast24HoursDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val query = """SELECT context_channel AS orgID, COUNT(DISTINCT(actor_id)) as activeCount FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '24' HOUR GROUP BY 1"""
+    val query = """SELECT dimension_channel AS orgID, COUNT(DISTINCT(uid)) as activeCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '24' HOUR GROUP BY 1"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
     if (df == null) return emptySchemaDataFrame(Schema.activeUsersSchema)
 
@@ -692,10 +663,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
-      .filter(col("row_num") <= 50)
-      .drop("enrollmentCount", "row_num")
-
+      .groupByLimit("userOrgID", "enrollmentCount", 50, desc = true)
+      .drop("enrollmentCount", "rowNum")
 
     val trendingCoursesListByOrg = trendingCoursesByOrg
       .groupBy("userOrgID")
@@ -710,9 +679,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category  IN ('Blended Program', 'Curated Program')")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .withColumn("row_num", row_number().over(Window.partitionBy("userOrgID").orderBy(col("enrollmentCount").desc)))
-      .filter(col("row_num") <= 50)
-      .drop("enrollmentCount", "row_num")
+      .groupByLimit("userOrgID", "enrollmentCount", 50, desc = true)
+      .drop("enrollmentCount", "rowNum")
 
     val trendingProgramsListByOrg = trendingProgramsByOrg
       .groupBy("userOrgID")
