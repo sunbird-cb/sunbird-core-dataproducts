@@ -2,16 +2,17 @@ package org.ekstep.analytics.dashboard.report.enrolment
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.SparkSession
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.dashboard.DataUtil.generateWarehouseReport
+import org.ekstep.analytics.dashboard.DataUtilNew._
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.io.Serializable
 
-object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
+object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModel"
 
@@ -34,7 +35,6 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     sc.parallelize(Seq()) // return empty rdd
   }
 
-
   /**
    * Master method, does all the work, fetching, processing and dispatching
    *
@@ -49,66 +49,64 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
     val today = getDate()
 
-    val userEnrolmentDF = userCourseProgramCompletionDataFrame()
-    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    val userDataDF = userProfileDetailsDF(orgDF)
-
-    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF, allCourseProgramDetailsWithRatingDF)=
-      contentDataFrames(orgDF, Seq("Course", "Program", "Blended Program", "Standalone Assessment"))
-
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
-      .select(col("courseID"), col("userID"), col("completionPercentage"))
-
-    // get the mdoids for which the report are requesting
-    val mdoID = conf.mdoIDs
-    val mdoIDDF = mdoIDsDF(mdoID)
-    val mdoData = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
-
-    val userRating = userCourseRatingDataframe()
-    val allCourseData = allCourseProgramDetailsWithRatingDF.join(userEnrolmentDF, Seq("courseID"), "inner")
-    // val courseBatchDF = courseBatchDataFrame()
-
+    //GET ORG DATA
+    val orgDF = orgDataFrame()
     val orgHierarchyData = orgHierarchyDataframe()
-    var df = allCourseData.join(userDataDF, Seq("userID"), "inner").join(mdoData, Seq("userOrgID"), "inner")
-      .join(allCourseProgramCompletionWithDetailsDF, Seq("courseID", "userID"), "inner")
-      //.join(courseBatchDF, Seq("courseID"), "left")
-      .join(userRating, Seq("courseID", "userID"), "left").join(orgHierarchyData, Seq("userOrgName"),"left")
+    var userDataDF = userProfileDetailsDF(orgDF)
+      .withColumnRenamed("orgName", "userOrgName")
+      .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
+    userDataDF = userDataDF
+      .join(orgHierarchyData, Seq("userOrgName"), "left")
+    show(userDataDF, "userDataDF")
 
-    df = df.withColumn("courseCompletionPercentage", round(col("completionPercentage"), 2))
+    //Get course data first
+    val allCourseProgramDetailsDF = contentDataFrames(false, true)
+    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
+      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
+      .withColumnRenamed("orgName", "courseOrgName")
+    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
 
-    df = userCourseCompletionStatus(df)
+    val userEnrolmentDF = userCourseProgramCompletionDataFrame()
+    show(userEnrolmentDF, "userEnrolmentDF")
 
-    df = df.durationFormat("courseDuration", "CBP_Duration")
+    val userRatingDF = userCourseRatingDataframe()
 
-    val caseExpressionBatchStartDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchStartDate END"
-    val caseExpressionBatchEndDate = "CASE WHEN courseBatchEnrolmentType == 'open' THEN 'Null' ELSE courseBatchEndDate END"
+    //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
 
-    df = df.withColumn("Batch_Start_Date", expr(caseExpressionBatchStartDate))
-    df = df.withColumn("Batch_End_Date", expr(caseExpressionBatchEndDate))
+    val courseBatchDF = courseBatchDataFrame()
+    val relevantBatchInfoDF = allCourseProgramDetailsDF.select("courseID", "category")
+      .where(expr("category IN ('Blended Program')"))
+      .join(courseBatchDF, Seq("courseID"), "left")
+      .select("courseID", "batchID", "courseBatchName", "courseBatchStartDate", "courseBatchEndDate")
+    show(relevantBatchInfoDF, "relevantBatchInfoDF")
 
-    val userConsumedcontents = df.select(col("courseID").alias("courseId"), col("userID"), explode_outer(col("courseContentStatus")).alias("userContents"))
+    val allCourseProgramCompletionWithDetailsWithBatchInfoDF = allCourseProgramCompletionWithDetailsDF.join(relevantBatchInfoDF, Seq("courseID", "batchID"), "left")
+    show(allCourseProgramCompletionWithDetailsWithBatchInfoDF, "allCourseProgramCompletionWithDetailsWithBatchInfoDF")
 
-    val liveContents = leafNodesDataframe(allCourseProgramCompletionWithDetailsDF, hierarchyDF).select(
-      col("liveContentCount"), col("identifier").alias("courseID"), explode_outer(col("liveContents")).alias("liveContents")
-    )
+    val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
-    val userConsumedLiveContents = liveContents.join(userConsumedcontents, col("userContents") === col("liveContents") && col("courseID") === col("courseId") , "inner")
-      .groupBy("courseID", "userID")
-      .agg(countDistinct("userContents").alias("currentlyLiveContents"))
-
-    df = df.join(userConsumedLiveContents, Seq("courseID", "userID"), "left")
-
-    val caseExpression = "CASE WHEN userCourseCompletionStatus == 'completed' THEN 100 " +
-      "WHEN userCourseCompletionStatus == 'not-started' THEN 0 WHEN userCourseCompletionStatus == 'in-progress' THEN 100 * currentlyLiveContents / courseResourceCount END"
-    df = df.withColumn("Completion Percentage", round(expr(caseExpression), 2))
-
-    val caseExpressionCertificate = "CASE WHEN issuedCertificates == '[]' THEN 'No' ELSE 'Yes' END"
-    df = df.withColumn("Certificate_Generated", expr(caseExpressionCertificate))
-
-    df = df.withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
-    df = df.distinct().dropDuplicates("userID", "courseID")
+    var df = allCourseProgramCompletionWithDetailsDFWithRating
+      .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
+      .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
+      .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
+      .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
+      .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
+      .withColumn("completionPercentage", round(col("completionPercentage"), 2))
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-      .select(
+      .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("Certificate_Generated", expr("CASE WHEN issuedCertificateCount > 0 THEN 'Yes' ELSE 'No' END"))
+      .withColumn("ArchivedOn", expr("CASE WHEN courseStatus == 'Retired' THEN lastStatusChangedOn ELSE '' END"))
+      .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
+
+    df = df.distinct().dropDuplicates("userID", "courseID")
+
+    val fullReportDF = df.select(
+      col("userID"),
+      col("userOrgID"),
+      col("courseID"),
+      col("courseActualOrgId"),
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
@@ -118,34 +116,65 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("ministry_name").alias("Ministry"),
       col("dept_name").alias("Department"),
       col("userOrgName").alias("Organization"),
-      col("courseOrgName").alias("CBP Provider"),
-      col("courseName").alias("CBP Name"),
-      col("category").alias("CBP Type"),
-      col("CBP_Duration"),
-      col("courseBatchID").alias("Batch_ID"),
+      col("courseOrgName").alias("CBP_Provider"),
+      col("courseName").alias("CBP_Name"),
+      col("category").alias("CBP_Type"),
+      col("courseDuration").alias("CBP_Duration"),
+      col("batchID").alias("Batch_Id"),
       col("courseBatchName").alias("Batch_Name"),
-      col("Batch_Start_Date"),
-      col("Batch_End_Date"),
-      from_unixtime(col("courseLastPublishedOn").cast("long"),"dd/MM/yyyy").alias("Last_Published_On"),
+      col("courseBatchStartDate").alias("Batch_Start_Date"),
+      col("courseBatchEndDate").alias("Batch_End_Date"),
+      col("enrolledOn").alias("Enrolled_On"),
       col("userCourseCompletionStatus").alias("Status"),
-      col("Completion Percentage").alias("CBP_Progress_Percentage"),
-      from_unixtime(col("courseEnrolledTimestamp"),"dd/MM/yyyy").alias("Enrolled_On"),
-      from_unixtime(col("courseCompletedTimestamp"),"dd/MM/yyyy").alias("Completed_On"),
+      col("completionPercentage").alias("CBP_Progress_Percentage"),
+      col("courseLastPublishedOn").alias("Last_Published_On"),
+      col("ArchivedOn").alias("CBP_Retired_On"),
+      col("completedOn").alias("Completed_On"),
       col("Certificate_Generated"),
-      col("userRating").alias("Rating"),
+      col("userRating").alias("User_Rating"),
       col("personalDetails.gender").alias("Gender"),
       col("personalDetails.category").alias("Category"),
-      col("additionalProperties.externalSystem").alias("External System"),
-      col("additionalProperties.externalSystemId").alias("External System Id"),
+      col("additionalProperties.externalSystem").alias("External_System"),
+      col("additionalProperties.externalSystemId").alias("External_System_Id"),
       col("userOrgID").alias("mdoid"),
+      col("issuedCertificateCount"),
+      col("courseStatus"),
+      col("courseResourceCount").alias("resourceCount"),
+      col("courseProgress").alias("resourcesConsumed"),
+      round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
       col("Report_Last_Generated_On")
     )
+      .coalesce(1)
 
-    df = df.coalesce(1)
+    show(df, "df")
+
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
-    generateFullReport(df, reportPath)
-    generateAndSyncReports(df, "mdoid", reportPath, "ConsumptionReport")
+    generateFullReport(fullReportDF, reportPath)
+
+    val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
+    //    df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
+    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
+
+    val warehouseDF = df
+      .withColumn("certificate_generated_on", to_date(col("certificateGeneratedOn"), "yyyy-MM-dd"))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+      .select(
+        col("userID").alias("user_id"),
+        col("batchID").alias("batch_id"),
+        col("courseID").alias("cbp_id"),
+        col("completionPercentage").alias("cbp_progress_percentage"),
+        col("completedOn").alias("completed_on"),
+        col("Certificate_Generated").alias("certificate_generated"),
+        col("certificate_generated_on"),
+        col("userRating").alias("user_rating"),
+        col("courseProgress").alias("resource_count_consumed"),
+        col("enrolledOn").alias("enrolled_on"),
+        col("userCourseCompletionStatus").alias("user_consumption_status"),
+        col("data_last_generated_on")
+      )
+    generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
 
     Redis.closeRedisConnect()
+
   }
 }

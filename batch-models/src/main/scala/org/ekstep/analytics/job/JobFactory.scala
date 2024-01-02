@@ -1,17 +1,13 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
-import org.ekstep.analytics.dashboard.report.rozgar.enrolment.RozgarEnrolmentJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
 import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
-import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
-import org.ekstep.analytics.dashboard.report.course.CourseReportJob
 import org.ekstep.analytics.dashboard.survey.nps.NpsJob
-import org.ekstep.analytics.dashboard.report.course_new.CourseReportJobNew
-import org.ekstep.analytics.dashboard.report.enrolment_new.UserEnrolmentJobNew
-import org.ekstep.analytics.dashboard.report.rozgar.RozgarUserJob
+import org.ekstep.analytics.dashboard.report.course.CourseReportJob
+import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseJob
 import org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsJob
 
@@ -46,9 +42,9 @@ object JobFactory {
       case "user-report" =>
         UserReportJob
       case "user-enrolment-report" =>
-        UserEnrolmentJobNew
+        UserEnrolmentJob
       case "course-report" =>
-        CourseReportJobNew
+        CourseReportJob
       case "course-based-assessment-report" =>
         CourseBasedAssessmentJob
       case "blended-program-report" =>
@@ -57,10 +53,6 @@ object JobFactory {
         DataWarehouseJob
       case "weekly-claps" =>
         WeeklyClapsJob
-      case "rozgar-user-report" =>
-        RozgarUserJob
-      case "rozgar-enrolment-report" =>
-        RozgarEnrolmentJob
       case "video-streaming" =>
         VideoStreamingJob
       case "telemetry-replay" =>
