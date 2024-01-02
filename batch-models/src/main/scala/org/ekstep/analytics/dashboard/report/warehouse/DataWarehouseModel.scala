@@ -142,6 +142,8 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
 
+    val orgReportPath = s"${conf.orgHierarchyReportPath}/${today}"
+    generateWarehouseReport(orgDwDf.coalesce(1), orgReportPath)
     truncateWarehouseTable(conf.dwOrgTable)
 
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)

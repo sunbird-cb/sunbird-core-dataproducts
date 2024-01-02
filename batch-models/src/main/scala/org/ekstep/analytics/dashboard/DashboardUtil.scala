@@ -8,7 +8,8 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Row, SaveMode, SparkSession, functions}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
@@ -111,7 +112,6 @@ case class DashboardConfig (
     taggedUsersPath: String,
     cbaReportPath: String,
     blendedReportPath: String,
-    orgReportPath: String,
     commsConsoleReportPath: String,
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
@@ -119,6 +119,7 @@ case class DashboardConfig (
     commsConsolePrarambhTags: String,
     commsConsolePrarambhNCount: Int,
     commsConsolePrarambhCbpIds: String,
+    orgHierarchyReportPath: String,
     // for weekly claps
     cutoffTime: Float
 ) extends Serializable
@@ -129,7 +130,46 @@ object DashboardUtil extends Serializable {
   implicit var debug: Boolean = false
   implicit var validation: Boolean = false
 
+  /**
+   * Adds more utility functions to spark DataFrame
+   * @param df implicit data frame reference
+   */
   implicit class DataFrameMod(df: DataFrame) extends Serializable {
+
+    /**
+     * for each value in column `groupByKey`, order rows by `orderByKey` and filter top/bottom rows
+     * does not order the final data frame, `rowNumColName` is added
+     *
+     * @param groupByKey col to group by
+     * @param orderByKey col to order by
+     * @param limit number of rows to take from each group
+     * @param desc descending flag for the orderByKey
+     * @param rowNumColName column name for group wise row numbers
+     * @return data frame with the operation applied
+     */
+    def groupByLimit(groupByKey: String, orderByKey: String, limit: Int, desc: Boolean = false,
+                     rowNumColName: String = "rowNum"): DataFrame = {
+      val ordering = if (desc) {
+        df.col(orderByKey).desc
+      } else {
+        df.col(orderByKey).asc
+      }
+      df
+        .withColumn(rowNumColName, row_number().over(Window.partitionBy(groupByKey).orderBy(ordering)))
+        .filter(col(rowNumColName) <= limit)
+    }
+
+    /**
+     * Add a map column including the provided `columns`
+     *
+     * @param newCol new column name
+     * @param columns columns to add to the map
+     * @return data frame with map columns added
+     */
+    def withMapColumn(newCol: String, columns: Seq[String]): DataFrame = {
+      val columnsWithNames = columns.flatMap(column => Seq(lit(column), df.col(column)))
+      df.withColumn(newCol, functions.map(columnsWithNames:_*))
+    }
 
     /**
      * duration format a column
@@ -619,7 +659,6 @@ object DashboardUtil extends Serializable {
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
       cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
       blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
-      orgReportPath = getConfigModelParam(config, "orgReportPath"),
       commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
       commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
@@ -627,6 +666,8 @@ object DashboardUtil extends Serializable {
       commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
       commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
       commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
+      orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
+
       // for weekly claps
       cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat
     )

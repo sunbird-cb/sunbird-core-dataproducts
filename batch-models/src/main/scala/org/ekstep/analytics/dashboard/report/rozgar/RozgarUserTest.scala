@@ -71,7 +71,7 @@ object RozgarUserTest extends Serializable{
       "mdoIDs" -> "0135071359030722569,01358993635114188855",
 
       "userReportPath" -> "standalone-reports/user-report",
-      "userEnrolmentReportPath" -> "standalone-reports/user-enrolment-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
       "courseReportPath" -> "standalone-reports/course-report",
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
