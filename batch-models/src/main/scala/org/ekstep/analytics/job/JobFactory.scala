@@ -5,6 +5,7 @@ import org.ekstep.analytics.dashboard.report.rozgar.enrolment.RozgarEnrolmentJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
 import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
+import org.ekstep.analytics.dashboard.report.commsconsole.CommsReportJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.user.UserReportJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
@@ -57,6 +58,8 @@ object JobFactory {
         DataWarehouseJob
       case "weekly-claps" =>
         WeeklyClapsJob
+      case "comms-console" =>
+        CommsReportJob
       case "rozgar-user-report" =>
         RozgarUserJob
       case "rozgar-enrolment-report" =>
