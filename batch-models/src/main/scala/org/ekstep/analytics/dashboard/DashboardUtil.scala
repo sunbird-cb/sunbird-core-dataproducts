@@ -112,8 +112,14 @@ case class DashboardConfig (
     taggedUsersPath: String,
     cbaReportPath: String,
     blendedReportPath: String,
+    commsConsoleReportPath: String,
+    commsConsolePrarambhEmailSuffix: String,
+    commsConsoleNumDaysToConsider: Int,
+    commsConsoleNumTopLearnersToConsider: Int,
+    commsConsolePrarambhTags: String,
+    commsConsolePrarambhNCount: Int,
+    commsConsolePrarambhCbpIds: String,
     orgHierarchyReportPath: String,
-
     // for weekly claps
     cutoffTime: Float
 ) extends Serializable
@@ -276,7 +282,9 @@ object DashboardUtil extends Serializable {
       ids.foreach(id => {
         val orgReportPath = new File(s"${reportTempPath}/${partitionKey}=${id}/")
         val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
-          orgReportPath.listFiles().filter(f => {f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")}).toList
+          orgReportPath.listFiles().filter(f => {
+            f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
+          }).toList
         } else {
           List[File]()
         }
@@ -287,6 +295,23 @@ object DashboardUtil extends Serializable {
           csvFile.renameTo(customizedPath)
         })
 
+      })
+    }
+
+    def renameCSVWithoutPartitions(reportTempPath: String, fileName: String): Unit = {
+      val orgReportPath = new File(s"${reportTempPath}/")
+      val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
+        orgReportPath.listFiles().filter(f => {
+          f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
+        }).toList
+      } else {
+        List[File]()
+      }
+
+      csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
+        val (csvFile, index) = csvFileWithIndex
+        val customizedPath = new File(s"${reportTempPath}/${fileName}${if (index == 0) "" else index}.csv")
+        csvFile.renameTo(customizedPath)
       })
     }
 
@@ -634,6 +659,13 @@ object DashboardUtil extends Serializable {
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
       cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
       blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
+      commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
+      commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
+      commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
+      commsConsoleNumTopLearnersToConsider = getConfigModelParam(config, "commsConsoleNumTopLearnersToConsider", "60").toInt,
+      commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
+      commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
+      commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
       orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
 
       // for weekly claps

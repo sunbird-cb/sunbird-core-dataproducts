@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
 import DashboardUtil.StorageUtil._
 
-import java.io.Serializable
+import java.io.{File, Serializable}
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
@@ -1715,9 +1715,16 @@ object DataUtil extends Serializable {
 
     // generate partitioned report
     csvWritePartition(df, reportTempPath, partitionKey)
-    removeFile( s"${reportTempPath}/_SUCCESS") // remove success file
+    removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
     renameCSV(ids, reportTempPath, fileName, partitionKey) // rename part-*.csv files to provided name
     println(s"REPORT: Finished Writing mdo wise report to ${reportTempPath}")
+  }
+
+  def generateReportsWithoutPartition(df: DataFrame, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    val reportTempPath = s"/tmp/${reportPath}"
+    csvWrite(df.repartition(1), reportTempPath)
+    removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
+    renameCSVWithoutPartitions(reportTempPath, fileName)
   }
 
   def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
