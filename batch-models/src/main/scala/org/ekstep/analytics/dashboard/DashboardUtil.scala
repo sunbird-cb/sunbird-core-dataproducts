@@ -116,8 +116,9 @@ case class DashboardConfig (
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
     commsConsoleNumTopLearnersToConsider: Int,
-    commsConsoleNumPrarambhTags: String,
-    commsConsoleNumPrarambhCbpIds: String,
+    commsConsolePrarambhTags: String,
+    commsConsolePrarambhNCount: Int,
+    commsConsolePrarambhCbpIds: String,
     // for weekly claps
     cutoffTime: Float
 ) extends Serializable
@@ -623,8 +624,9 @@ object DashboardUtil extends Serializable {
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
       commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
       commsConsoleNumTopLearnersToConsider = getConfigModelParam(config, "commsConsoleNumTopLearnersToConsider", "60").toInt,
-      commsConsoleNumPrarambhTags = getConfigModelParam(config, "commsConsoleNumPrarambhTags", "rojgaar,rozgaar,rozgar"),
-      commsConsoleNumPrarambhCbpIds = getConfigModelParam(config, "commsConsoleNumPrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
+      commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
+      commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
+      commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
       // for weekly claps
       cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat
     )

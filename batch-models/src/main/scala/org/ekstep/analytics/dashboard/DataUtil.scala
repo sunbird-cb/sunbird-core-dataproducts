@@ -1714,7 +1714,7 @@ object DataUtil extends Serializable {
 
   def generateReportsWithoutPartition(df: DataFrame, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val reportTempPath = s"/tmp/${reportPath}"
-    csvWrite(df, reportTempPath)
+    csvWrite(df.repartition(1), reportTempPath)
     removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
     renameCSVWithoutPartitions(reportTempPath, fileName)
   }

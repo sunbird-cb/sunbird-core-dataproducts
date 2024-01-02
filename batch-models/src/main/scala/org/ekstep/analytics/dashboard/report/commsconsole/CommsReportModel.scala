@@ -72,7 +72,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     val rawEnrollmentsDF = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
-      .withColumn("completionDate", to_date(col("Completed_On"), dateFormat2))
+      .withColumn("completionDate", to_date(col("completed_on"), dateFormat2))
     val enrollmentsDF = rawEnrollmentsDF
       .join(userDF, Seq("user_id"), "left")
 
@@ -85,7 +85,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       .agg(
         count("*").alias("completionCount")
       )
-    val mdoAdminDF = userDF.filter(col("Roles").contains("MDO_LEADER") || col("Roles").contains("MDO_ADMIN"))
+    val mdoAdminDF = userDF.filter(col("roles").contains("MDO_LEADER") || col("roles").contains("MDO_ADMIN"))
     val mdoCompletionRateDF = mdoCBPCompletionsDF.join(mdoUserCountsDF, Seq("mdo_id"), "left")
       .withColumn("completionPerUser", col("completionCount") / col("userCount"))
     val mdoCompletionRateWithAdminDetailsDF = mdoCompletionRateDF.join(mdoAdminDF, Seq("mdo_id"), "left")
@@ -158,11 +158,14 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       )
     generateReportsWithoutPartition(topXCompletionsInNDays, s"${commsConsoleReportPath}/topNRecentCompletions", "topNRecentCompletions")
 
-    val prarambhCourses = conf.commsConsoleNumPrarambhCbpIds.split(",").map(_.trim).toList
-    val rozgarTags =  conf.commsConsoleNumPrarambhTags.split(",").map(_.trim).toList
+    val prarambhCourses = conf.commsConsolePrarambhCbpIds.split(",").map(_.trim).toList
+    val rozgarTags =  conf.commsConsolePrarambhTags.split(",").map(_.trim).toList
     val checkForRozgarTag = rozgarTags.map(value => expr(s"lower(tag) like '%$value%'")).reduce(_ or _)
     val checkForKBEmail = expr(s"email LIKE '%$bkEmailSuffix'")
     val rozgarUsersDF = userDF.filter(checkForKBEmail || checkForRozgarTag)
+    val prarambhCourseCount = prarambhCourses.size
+    val prarambhCompletionCount = conf.commsConsolePrarambhNCount
+
     val prarambhEnrollments = rawEnrollmentsDF
       .filter(col("user_consumption_status") === "completed" && col("cbp_id").isin(prarambhCourses: _*))
     val prarambEnrollmentsByRozgarUsersDF = rozgarUsersDF.join(prarambhEnrollments, Seq("user_id"), "left")
@@ -181,9 +184,9 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("Last_Updated_On"),
         col("prarambhCompletionCount")
       )
-    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === 6).drop("prarambhCompletionCount")
+    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCompletionCount).drop("prarambhCompletionCount")
       , s"${commsConsoleReportPath}/prarambhUsers6Completions", "prarambhUsers6Completions")
-    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === 8).drop("prarambhCompletionCount")
+    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
       , s"${commsConsoleReportPath}/prarambhUsersAllCompletions", "prarambhUsersAllCompletions")
 
     syncReports(s"/tmp/${commsConsoleReportPath}", commsConsoleReportPath)
