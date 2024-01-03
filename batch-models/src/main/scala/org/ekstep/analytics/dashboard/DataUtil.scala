@@ -1613,6 +1613,15 @@ object DataUtil extends Serializable {
     df
   }
 
+  /**
+   * Reading user_karma_points data
+   */
+  def userKarmaPointsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+    show(df, "Karma Points data")
+    df
+  }
+
   /* telemetry data frames */
 
   def loggedInMobileUserDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {

@@ -1,6 +1,7 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
+import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
 import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
@@ -56,6 +57,8 @@ object JobFactory {
         WeeklyClapsJob
       case "comms-console" =>
         CommsReportJob
+      case "hall-of-fame" =>
+        HallOfFameJob
       case "video-streaming" =>
         VideoStreamingJob
       case "telemetry-replay" =>
