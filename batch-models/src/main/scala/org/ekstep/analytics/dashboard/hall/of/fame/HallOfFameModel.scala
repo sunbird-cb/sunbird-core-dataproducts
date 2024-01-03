@@ -38,19 +38,8 @@ object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 
     // get month start and end dates
-
-//    df.withColumn("last_day_prev_month", date_trunc("MONTH", add_months(current_date(), -1)))
-//    val monthStart = date_format(date_trunc("MONTH", current_date()), "yyyy-MM-dd").expr(concat(" "))
-//    val monthEnd = date_format(last_day(current_date()), "yyyy-MM-dd")
     val monthStart = date_format(date_trunc("MONTH", add_months(current_date(), -1)), "yyyy-MM-dd HH:mm:ss")
     val monthEnd = date_format(last_day(add_months(current_date(), -1)), "yyyy-MM-dd 23:59:59")
-
-//    val convertTimeUUIDToDateStringUDF = udf((timeUUID: String) => {
-//      val timestamp = (UUID.fromString(timeUUID).timestamp() - 0x01b21dd213814000L) / 10000
-//      val date = new Date(timestamp)
-//      val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-//      dateFormat.format(date)
-//    })
 
     // get karma points data
     val karmaPointsData = userKarmaPointsDataFrame().filter(col("credit_date").between(monthStart, monthEnd))
@@ -60,11 +49,11 @@ object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val userOrgData = userProfileDetailsDF(orgDF).select(col("userID"), col("userOrgID").alias("org_id"), col("userOrgName").alias("org_name"))
 
     var df = karmaPointsData.join(userOrgData, karmaPointsData.col("userid").equalTo(userOrgData.col("userID")), "full")
-      .select(col("userID"),col("points"), col("org_id"), col("org_name"))
+      .select(col("userID"),col("points"), col("org_id"), col("org_name"), col("credit_date"))
 
     // calculate average karma points - MDO wise
-    df = df.groupBy(col("org_id"), col("org_name")).agg(sum(col("points")).alias("total_kp"), countDistinct(col("userID")).alias("total_users"))
-    // add ranking
+    df = df.groupBy(col("org_id"), col("org_name"))
+      .agg(sum(col("points")).alias("total_kp"), countDistinct(col("userID")).alias("total_users"), max(col("credit_date")).alias("latest_credit_date"))
     df = df.withColumn("average_kp", col("total_kp") / col("total_users"))
 
     // store Hall of Fame data in cassandra
