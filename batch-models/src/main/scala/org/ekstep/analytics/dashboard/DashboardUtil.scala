@@ -70,6 +70,8 @@ case class DashboardConfig (
     cassandraUserFeedTable: String,
     cassandraCourseBatchTable: String,
     cassandraLearnerStatsTable: String,
+    cassandraKarmaPointsTable: String,
+    cassandraHallOfFameTable: String,
 
     //warehouse tables;
     appPostgresHost: String,
@@ -626,6 +628,8 @@ object DashboardUtil extends Serializable {
       cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
       cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
       cassandraLearnerStatsTable = getConfigModelParam(config, "cassandraLearnerStatsTable"),
+      cassandraKarmaPointsTable = getConfigModelParam(config, "cassandraKarmaPointsTable"),
+      cassandraHallOfFameTable = getConfigModelParam(config, "cassandraHallOfFameTable"),
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
       redisTotalOfficerCountKey = "mdo_total_officer_count",
