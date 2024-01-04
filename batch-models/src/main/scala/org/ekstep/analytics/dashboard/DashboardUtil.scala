@@ -24,11 +24,12 @@ import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.params.ScanParams
 
-import java.io.{File, Serializable}
+import java.io.{File, FileWriter, Serializable}
 import java.util
 import scala.util.Try
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
+import scala.reflect.io.Directory
 
 case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are multiple sources to query
 case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
@@ -272,12 +273,27 @@ object DashboardUtil extends Serializable {
 
 
     def removeFile(path: String)(implicit spark: SparkSession): Unit = {
-      val successFile = new Path(path)
+      val rmFile = new Path(path)
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-      if (fs.exists(successFile)) {
-        fs.delete(successFile, true)
+      if (fs.exists(rmFile)) {
+        fs.delete(rmFile, true)
       }
+    }
 
+    def simulateSparkOverwrite(path: String, fileName: String, content: String): Unit = {
+      val file = new File(s"${path}/${fileName}")
+      // clear parent directory
+      if (file.getParentFile.exists()) {
+        val directory = new Directory(file.getParentFile)
+        directory.deleteRecursively()
+      }
+      file.getParentFile.mkdirs()
+      // create the file
+      if (!file.exists()) file.createNewFile()
+      // write content
+      val fileWriter = new FileWriter(file)
+      fileWriter.write(content)
+      fileWriter.close()
     }
 
     def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String, partitionKey: String): Unit = {
@@ -352,7 +368,12 @@ object DashboardUtil extends Serializable {
 
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
+    // spark 2.4.x has a bug where the csv does not get written with header row if the data frame is empty, this is a workaround
+    if (df.isEmpty) {
+      StorageUtil.simulateSparkOverwrite(path, "part-0000-XXX.csv", df.columns.mkString(",") + "\n")
+    } else {
+      df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
+    }
   }
 
   def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {

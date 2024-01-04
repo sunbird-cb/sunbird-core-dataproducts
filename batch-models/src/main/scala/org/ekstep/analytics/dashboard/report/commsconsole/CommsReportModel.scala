@@ -184,12 +184,20 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("Last_Updated_On"),
         col("prarambhCompletionCount")
       )
+
     generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCompletionCount).drop("prarambhCompletionCount")
       , s"${commsConsoleReportPath}/prarambhUsers6Completions", "prarambhUsers6Completions")
     generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
       , s"${commsConsoleReportPath}/prarambhUsersAllCompletions", "prarambhUsersAllCompletions")
 
     syncReports(s"/tmp/${commsConsoleReportPath}", commsConsoleReportPath)
+//    syncReports(s"/tmp/${commsConsoleReportPath}/prarambhUsers6Completions", s"${commsConsoleReportPath}/prarambhUsers6Completions")
+//    syncReports(s"/tmp/${commsConsoleReportPath}/prarambhUsersAllCompletions", s"${commsConsoleReportPath}/prarambhUsersAllCompletions")
+//    syncReports(s"/tmp/${commsConsoleReportPath}/recentUsersWithoutEnrollments", s"${commsConsoleReportPath}/recentUsersWithoutEnrollments")
+//    syncReports(s"/tmp/${commsConsoleReportPath}/topMdoCompletionRatio", s"${commsConsoleReportPath}/topMdoCompletionRatio")
+//    syncReports(s"/tmp/${commsConsoleReportPath}/topNRecentCompletions", s"${commsConsoleReportPath}/topNRecentCompletions")
+//    syncReports(s"/tmp/${commsConsoleReportPath}/usersWithoutEnrollments", s"${commsConsoleReportPath}/usersWithoutEnrollments")
+
     Redis.closeRedisConnect()
 
   }
