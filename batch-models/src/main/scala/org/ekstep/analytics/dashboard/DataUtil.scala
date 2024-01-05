@@ -998,8 +998,9 @@ object DataUtil extends Serializable {
   }
 
   def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable).select(
-      col("activityid").alias("courseID"), col("userid").alias("userID"), col("rating").alias("userRating")
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable).select(
+      col("activityid").alias("courseID"), col("userid").alias("userID"), col("rating").alias("userRating"),
+      col("activitytype").alias("cbpType"), col("createdon").alias("createdOn")
     )
     show(df, "Rating given by user")
     df
@@ -1620,6 +1621,15 @@ object DataUtil extends Serializable {
     val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
     show(df, "Karma Points data")
     df
+  }
+
+  def updateKarmaPoints(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession, conf: DashboardConfig) = {
+    writeToCassandra(data, keyspace, table)
+    val df = data.select(col("userid"), col("context_type"), col("context_id"), col("operation_type"), col("credit_date"))
+      .withColumn("user_karma_points_key", concat(col("userid"), lit("|"), col("context_type"), lit("|"), col("context_id")))
+      .drop("userid", "context_type", "context_id")
+    writeToCassandra(df, keyspace, conf.cassandraKarmaPointsLookupTable)
+    show(df, "Karma points update in look up")
   }
 
   /* telemetry data frames */
