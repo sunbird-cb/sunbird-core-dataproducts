@@ -54,9 +54,10 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if(conf.validation == "true") validation = true
 
-    val dateFormatWithTime = "yyyy-MM-dd 23:59:59"
+    val dateFormatWithTime = "yyyy-MM-dd HH:mm:ss"
     val monthStart = date_format(date_trunc("MONTH", add_months(current_date(), -1)), dateFormatWithTime)
-    val monthEnd = date_format(last_day(add_months(current_date(), -1)), dateFormatWithTime)
+    val monthEnd = date_format(last_day(add_months(current_date(), -1)), "yyyy-MM-dd 23:59:59")
+
 
     val convertTimeUUIDToDateStringUDF = udf((timeUUID: String) => {
       val timestamp = (UUID.fromString(timeUUID).timestamp() - 0x01b21dd213814000L) / 10000
@@ -83,21 +84,11 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     updateKarmaPoints(ratingDF, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
 
-    /**
-     * time - 1st dec to 31st dec
-     * pick first 4 course completions in december  - assign 5 points for each completion (max - 20)
-     * check the existence of assessments under those 4 courses - additional 5 if assessments are present
-     */
-
-
-
-//    val windowSpec = Window.partitionBy(col("userID")).orderBy(col("courseCompletedTimestamp"))
-    //    var df = userCourseCompletionDF.withColumn("rw", row_number().over(windowSpec)).filter(col("rw") <= 4).drop("rw")
-
     val userCBPCompletionDF = userCourseProgramCompletionDataFrame().where(col("dbCompletionStatus").equalTo(2))
-      .filter(col("courseCompletedTimestamp").between(unix_timestamp(monthStart, dateFormatWithTime), unix_timestamp(monthEnd, dateFormatWithTime)))
+      .withColumn("formattedCompletionDate", date_format(from_unixtime(col("courseCompletedTimestamp")), dateFormatWithTime))
+      .filter(col("formattedCompletionDate").between(monthStart, monthEnd))
     val userCourseCompletionDF = userCBPCompletionDF.join(cbpDetails, Seq("courseID"), "left").where(col("category").equalTo("Course"))
-    val firstCompletionDataDF = userCourseCompletionDF.groupByLimit("userID", "courseCompletedTimestamp", 4).drop("rowNum")
+    val firstCompletionDataDF = userCourseCompletionDF.groupByLimit("userID", "formattedCompletionDate", 4).drop("rowNum")
     val userAssessmentDF = userAssessmentDataFrame().select(col("assessChildID"), col("courseID"))
     var karmaPointsFromCourseCompletion = firstCompletionDataDF.join(userAssessmentDF, Seq("courseID"), "left")
       .withColumn("operation_type", lit("COURSE_COMPLETION"))
@@ -118,10 +109,9 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("userID").alias("userid"),
         col("courseID").alias("context_id"),
         col("category").alias("context_type"),
-        col("courseCompletedTimestamp").alias("credit_date"),
+        col("formattedCompletionDate").alias("credit_date"),
         col("addinfo"),col("points"),col("operation_type")
       )
     updateKarmaPoints(karmaPointsFromCourseCompletion, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
-//    df.coalesce(1).write.mode(SaveMode.Overwrite).format("csv").option("header", true).save("/tmp/kpoints")
   }
 }
