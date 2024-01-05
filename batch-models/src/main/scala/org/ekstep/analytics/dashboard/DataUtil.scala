@@ -1751,8 +1751,9 @@ object DataUtil extends Serializable {
     generateReports(df, partitionKey, reportTempPath, fileName)
     syncReports(reportTempPath, reportPath)
   }
+
   def acbpDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
       .select("*")
       .where(col("status") === "Live")
       .na.drop(Seq("status"))
@@ -1760,95 +1761,7 @@ object DataUtil extends Serializable {
     df
 
   }
-  def getUserDetailsForCustomUser(userDataDF: DataFrame, explodedAcbDataDF: DataFrame): DataFrame = {
-    val joinedDF = explodedAcbDataDF.join(userDataDF, Seq("userID"), "left_outer")
-      .select(
-        col("userID"),
-        col("fullName").as("Name"),
-        col("maskedEmail").as("Masked Email"),
-        col("maskedPhone").as("Masked Phone"),
-        coalesce(col("professionalDetails.designation"), lit("")).as("Designation"),
-        coalesce(col("professionalDetails.group"), lit("")).as("Group"),
-        col("userOrgName").as("MDO Name"),
-        col("enddate").as("Due Date of Completion"),
-        col("id").as("ACBCourseId"),
-        col("publishedat").as("Allocated On"),
-        col("contentlist").as("Name of the ACBP Allocated Courses"),
-        lit("").as("Current Progress"),
-        lit("").as("Actual Date of Completion")
-      )
-    show(joinedDF, "CustomeUserDetails")
-    joinedDF
-  }
 
-  def getUserDetailsForDesignation(userDataDF: DataFrame, explodedAcbDataDF:DataFrame): DataFrame = {
-    val joinedDF = explodedAcbDataDF.join(userDataDF, col("orgID") === col("userOrgID") && col("designation") === col("professionalDetails.designation"), "inner")
-      .select(
-        col("userID"),
-        col("fullName").as("Name"),
-        col("maskedEmail").as("Masked Email"),
-        col("maskedPhone").as("Masked Phone"),
-        coalesce(col("professionalDetails.designation"), lit("")).as("Designation"),
-        coalesce(col("professionalDetails.group"), lit("")).as("Group"),
-        col("userOrgName").as("MDO Name"),
-        col("enddate").as("Due Date of Completion"),
-        col("id").as("ACBCourseId"),
-        col("publishedat").as("Allocated On"),
-        col("contentlist").as("Name of the ACBP Allocated Courses"),
-        lit("").as("Current Progress"),
-        lit("").as("Actual Date of Completion")
-      )
-    show(joinedDF, "DesignationDetails")
-    joinedDF
-  }
 
-  def getUserDetailsForAllUser(userDataDF: DataFrame, acbpDataDF: DataFrame): DataFrame = {
-    //filtering this just for preprod testing as preprod has a lot of junk data
-    val filteredAcbpDataDF = acbpDataDF
-      .filter(col("orgid").startsWith("0"))
-    val joinedDF = filteredAcbpDataDF
-      .join(userDataDF, filteredAcbpDataDF("orgid") === userDataDF("userOrgID"), "inner")
-      .select(
-        col("userID"),
-        col("fullName").as("Name"),
-        col("maskedEmail").as("Masked Email"),
-        col("maskedPhone").as("Masked Phone"),
-        coalesce(col("professionalDetails.designation"), lit("")).as("Designation"),
-        coalesce(col("professionalDetails.group"), lit("")).as("Group"),
-        col("userOrgName").as("MDO Name"),
-        col("enddate").as("Due Date of Completion"),
-        col("id").as("ACBCourseId"),
-        col("publishedat").as("Allocated On"),
-        col("contentlist").as("Name of the ACBP Allocated Courses"),
-        lit("").as("Current Progress"),
-        lit("").as("Actual Date of Completion")
-      )
-    val joinedDFWithoutDuplicates = joinedDF.dropDuplicates("userID")
-    show(joinedDFWithoutDuplicates, "AlluserDetails")
-    joinedDFWithoutDuplicates
-  }
-
-  def replaceCourseIdsWithNames(explodedJoinedDF: DataFrame, allCourseProgramDetailsDF:DataFrame): DataFrame = {
-    // Join with allCourseProgramDF to get course names
-    val finalJoinedDF = explodedJoinedDF
-      .join(allCourseProgramDetailsDF, explodedJoinedDF("courseID") === allCourseProgramDetailsDF("courseID"), "left_outer")
-      .groupBy(
-        col("userID"),
-        col("Name"),
-        col("Masked Email"),
-        col("Masked Phone"),
-        col("Designation"),
-        col("Group"),
-        col("MDO Name"),
-        col("Due Date of Completion"),
-        col("Allocated On")
-      )
-      .agg(
-        collect_list("courseName").as("Name of the ACBP Allocated Courses"),
-        lit("").as("Current Progress"),
-        lit("").as("Actual Date of Completion")
-      )
-    finalJoinedDF
-  }
 
 }

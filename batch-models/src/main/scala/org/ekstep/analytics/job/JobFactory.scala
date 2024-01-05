@@ -2,6 +2,7 @@ package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.CompetencyMetricsJob
 import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
+import org.ekstep.analytics.dashboard.report.acbp.UserACBPReportJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
 import org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentJob
@@ -11,6 +12,7 @@ import org.ekstep.analytics.dashboard.survey.nps.NpsJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseJob
+import org.ekstep.analytics.dashboard.telemetry.SummaryRedisSyncJob
 import org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsJob
 
 import scala.reflect.runtime.universe
@@ -41,6 +43,8 @@ object JobFactory {
         CompetencyMetricsJob
       case "assessment-metrics" =>
         UserAssessmentJob
+      case "summary-redis-sync" =>
+        SummaryRedisSyncJob
       case "user-report" =>
         UserReportJob
       case "user-enrolment-report" =>
@@ -59,6 +63,8 @@ object JobFactory {
         CommsReportJob
       case "hall-of-fame" =>
         HallOfFameJob
+      case "acbp-report" =>
+        UserACBPReportJob
       case "video-streaming" =>
         VideoStreamingJob
       case "telemetry-replay" =>
