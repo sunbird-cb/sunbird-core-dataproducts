@@ -3,6 +3,7 @@ package org.ekstep.analytics.dashboard.report.acbp
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
@@ -193,11 +194,12 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     show(enrollmentReportDF, "enrollmentReportDF")
 
     val userSummaryDataDF = finalResultDF
+      .withColumn("completionDueDate", col("completionDueDate").cast(LongType))
       .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName")
       .agg(
         count("courseID").alias("allocatedCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
-        expr("SUM(CASE WHEN dbCompletionStatus=2 AND completionDate<=completionDueDate THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
+        expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestamp<=completionDueDate THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
       )
 
     val userSummaryReportDF = userSummaryDataDF
