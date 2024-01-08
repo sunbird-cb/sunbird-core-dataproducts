@@ -75,10 +75,17 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val karmaPointsFromRating = courseRatingKarmaPointsDF.join(cbpDetails, Seq("courseID"), "left")
     val ratingDF = karmaPointsFromRating
       .withColumn("operation_type", lit("RATING"))
-      .withColumn("addinfo", to_json(map(lit("COURSENAME"), col("courseName"))))
+      .withColumn("COURSENAME", col("courseName"))
+      .withColumn("addinfo", to_json(struct("COURSENAME")))
       .withColumn("points", lit(2).cast("int"))
-      .select(col("courseID").alias("context_id"), col("userID").alias("userid"),
-        col("category").alias("context_type"), col("credit_date"), col("operation_type"), col("addinfo"), col("points")
+      .select(
+        col("courseID").alias("context_id"),
+        col("userID").alias("userid"),
+        col("category").alias("context_type"),
+        col("credit_date"),
+        col("operation_type"),
+        col("addinfo"),
+        col("points")
       )
 
     updateKarmaPoints(ratingDF, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
@@ -96,12 +103,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       .withColumn("COURSENAME", col("courseName"))
       .withColumn("ACBP", lit(false))
       .withColumn("ASSESSMENT", col("hasAssessment"))
-      .withMapColumn("additionalInfo", Seq("COURSE_COMPLETION", "COURSENAME", "ACBP", "ASSESSMENT"))
-
-    show(karmaPointsFromCourseCompletion, "after map column")
-      karmaPointsFromCourseCompletion = karmaPointsFromCourseCompletion
-      .withColumn("addinfo", to_json(col("additionalInfo")))
-//      .withColumn("addInfo", to_json(map(lit("COURSE_COMPLETION"), lit(true), lit("COURSENAME"), col("courseName"), lit("ACBP"), lit("false"), lit("ASSESSMENT"), col("hasAssessment"))))
+      .withColumn("addinfo", to_json(struct("COURSE_COMPLETION", "COURSENAME", "ACBP", "ASSESSMENT")))
       .withColumn("points", when(col("hasAssessment"), lit(10)).otherwise(lit(5)))
 
       karmaPointsFromCourseCompletion = karmaPointsFromCourseCompletion.select(
