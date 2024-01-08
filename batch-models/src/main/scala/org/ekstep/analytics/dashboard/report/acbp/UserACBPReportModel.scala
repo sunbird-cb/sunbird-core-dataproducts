@@ -31,7 +31,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
   override def algorithm(events: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
     val timestamp = events.first().timestamp // extract timestamp from input
     implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processData(config)
+    processData(timestamp, config)
     sc.parallelize(Seq()) // return empty rdd
   }
 
@@ -45,7 +45,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     sc.parallelize(Seq())
   }
 
-  def processData(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+  def processData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
@@ -61,7 +61,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .select("userID", "fullName", "maskedEmail", "maskedPhone", "userOrgID", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
-    // get course details and cource enrollment data frames
+    // get course details and course enrolment data frames
     val hierarchyDF = contentHierarchyDataFrame()
     val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program"))
     val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
@@ -98,20 +98,21 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     show(acbpAllotmentDF, "acbpAllotmentDF")
 
     // replace content list with names of the courses instead of ids
-    val acbpAllEnrollmentDF = acbpAllotmentDF
+    val acbpAllEnrolmentDF = acbpAllotmentDF
       .withColumn("courseID", explode(col("acbpCourseIDList")))
       .join(allCourseProgramDetailsDF, Seq("courseID"), "left")
       .join(userCourseProgramEnrolmentDF, Seq("courseID", "userID"), "left")
       .na.drop(Seq("userID", "courseID"))
-    show(acbpAllEnrollmentDF, "acbpAllEnrollmentDF")
+    show(acbpAllEnrolmentDF, "acbpAllEnrolmentDF")
 
     // for particular userID and course ID, choose allotment entries based on priority rules
-    val acbpEnrollmentDF = acbpAllEnrollmentDF
+    val acbpEnrolmentDF = acbpAllEnrolmentDF
       .orderBy(col("userID"), col("courseID"), col("priority"), col("allocatedOn").desc)
       .dropDuplicates("userID", "courseID")
+    kafkaDispatch(withTimestamp(acbpEnrolmentDF, timestamp), conf.acbpEnrolmentTopic)
 
-    // for enrollment report
-    val enrollmentDataDF = acbpEnrollmentDF
+    // for enrolment report
+    val enrolmentReportDataDF = acbpEnrolmentDF
       .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName", "completionDueDate", "allocatedOn")
       .agg(
         collect_list("courseName").alias("acbpCourseNameList"),
@@ -123,9 +124,9 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .withColumn("currentProgress", expr("CASE WHEN allocatedCount=completedCount THEN 'Completed' WHEN maxStatus=0 THEN 'Not Started' WHEN maxStatus>0 THEN 'In Progress' ELSE 'Not Enrolled' END"))
       .withColumn("completionDate", expr("CASE WHEN allocatedCount=completedCount THEN maxCourseCompletedTimestamp END"))
       .na.fill("")
-    show(enrollmentDataDF, "enrollmentDataDF")
+    show(enrolmentReportDataDF, "enrolmentReportDataDF")
 
-    val enrollmentReportDF = enrollmentDataDF
+    val enrolmentReportDF = enrolmentReportDataDF
       .select(
         col("fullName").alias("Name"),
         col("maskedEmail").alias("Masked Email"),
@@ -140,10 +141,10 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("completionDate").alias("Actual Date of Completion"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
-    show(enrollmentReportDF, "enrollmentReportDF")
+    show(enrolmentReportDF, "enrolmentReportDF")
 
     // for user summary report
-    val userSummaryDataDF = acbpEnrollmentDF
+    val userSummaryDataDF = acbpEnrolmentDF
       .withColumn("completionDueDate", col("completionDueDate").cast(LongType))
       .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName")
       .agg(
@@ -167,15 +168,13 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       )
     show(userSummaryReportDF, "userSummaryReportDF")
 
-    //val reportPath = s"${conf.userReportPath}/${today}"
-    val enrollmentReportPath = s"standalone-reports/acbp-enrollment-exhaust/${today}"
-    generateReportsWithoutPartition(enrollmentReportDF, enrollmentReportPath, "ACBPEnrollmentReport")
+    val enrolmentReportPath = s"${conf.acbpEnrolmentReportPath}/${today}"
+    generateReportsWithoutPartition(enrolmentReportDF, enrolmentReportPath, "ACBPEnrollmentReport")
 
-    //val reportPath = s"${conf.userReportPath}/${today}"
-    val userReportPath = s"standalone-reports/acbp-user-summary-exhaust/${today}"
+    val userReportPath = s"${conf.acbpUserSummaryReportPath}/${today}"
     generateReportsWithoutPartition(userSummaryReportDF, userReportPath, "ACBPUserSummaryReport")
 
-    syncReports(s"/tmp/${enrollmentReportPath}", enrollmentReportPath)
+    syncReports(s"/tmp/${enrolmentReportPath}", enrolmentReportPath)
     syncReports(s"/tmp/${userReportPath}", userReportPath)
 
     Redis.closeRedisConnect()

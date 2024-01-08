@@ -58,7 +58,7 @@ case class DashboardConfig (
     allCourseTopic: String, userCourseProgramProgressTopic: String,
     fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
     declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
-    userAssessmentTopic: String, assessmentTopic: String,
+    userAssessmentTopic: String, assessmentTopic: String, acbpEnrolmentTopic: String,
     // cassandra key spaces
     cassandraUserKeyspace: String,
     cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
@@ -116,14 +116,17 @@ case class DashboardConfig (
     taggedUsersPath: String,
     cbaReportPath: String,
     blendedReportPath: String,
+    orgHierarchyReportPath: String,
     commsConsoleReportPath: String,
+    acbpEnrolmentReportPath: String,
+    acbpUserSummaryReportPath: String,
+
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
     commsConsoleNumTopLearnersToConsider: Int,
     commsConsolePrarambhTags: String,
     commsConsolePrarambhNCount: Int,
     commsConsolePrarambhCbpIds: String,
-    orgHierarchyReportPath: String,
     // for weekly claps
     cutoffTime: Float
 ) extends Serializable
@@ -602,6 +605,7 @@ object DashboardUtil extends Serializable {
       orgTopic = getConfigSideTopic(config, "org"),
       userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
       assessmentTopic = getConfigSideTopic(config, "assessment"),
+      acbpEnrolmentTopic = getConfigSideTopic(config, "acbpEnrolment"),
 
       //Newly added for the datawarehouse job
       appPostgresHost = getConfigModelParam(config, "appPostgresHost"),
@@ -676,14 +680,18 @@ object DashboardUtil extends Serializable {
       taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
       cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
       blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
+      orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
       commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
+      acbpEnrolmentReportPath = getConfigModelParam(config, "acbpEnrolmentReportPath"),
+      acbpUserSummaryReportPath = getConfigModelParam(config, "acbpUserSummaryReportPath"),
+
+      // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
       commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
       commsConsoleNumTopLearnersToConsider = getConfigModelParam(config, "commsConsoleNumTopLearnersToConsider", "60").toInt,
       commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
       commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
       commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
-      orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
 
       // for weekly claps
       cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat

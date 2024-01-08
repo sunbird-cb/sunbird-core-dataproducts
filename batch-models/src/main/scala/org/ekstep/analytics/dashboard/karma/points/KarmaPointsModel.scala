@@ -2,18 +2,18 @@ package org.ekstep.analytics.dashboard.karma.points
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
+import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
 import java.text.SimpleDateFormat
 import java.util.{Date, UUID}
 
 object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-  implicit val className: String = "org.ekstep.analytics.dashboard.KarmaPointsModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.karma.points.KarmaPointsModel"
   implicit var debug: Boolean = false
   /**
    * Pre processing steps before running the algorithm. Few pre-process steps are
@@ -114,5 +114,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("addinfo"),col("points"),col("operation_type")
       )
     updateKarmaPoints(karmaPointsFromCourseCompletion, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+
+    Redis.closeRedisConnect()
   }
 }
