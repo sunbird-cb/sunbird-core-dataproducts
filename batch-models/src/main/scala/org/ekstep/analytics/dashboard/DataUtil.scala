@@ -1764,9 +1764,16 @@ object DataUtil extends Serializable {
 
   def acbpDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
-      .select("*")
       .where(col("status") === "Live")
-      .na.drop(Seq("status"))
+      .select(
+        col("id").alias("acbpID"),
+        col("orgid").alias("userOrgID"),
+        col("assignmenttype").alias("assignmentType"),
+        col("assignmenttypeinfo").alias("assignmentTypeInfo"),
+        col("enddate").alias("completionDueDate"),
+        col("publishedat").alias("allocatedOn"),
+        col("contentlist").alias("acbpCourseIDList")
+      )
     show(df, "acbpDetails")
     df
 

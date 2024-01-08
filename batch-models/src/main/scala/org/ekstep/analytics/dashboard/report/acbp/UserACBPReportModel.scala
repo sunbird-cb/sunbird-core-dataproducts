@@ -31,7 +31,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
   override def algorithm(events: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
     val timestamp = events.first().timestamp // extract timestamp from input
     implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processUserACBPReportModel(timestamp, config)
+    processData(config)
     sc.parallelize(Seq()) // return empty rdd
   }
 
@@ -60,7 +60,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF)
   }
 
-  def processUserACBPReportModel(timestamp: Long, config: Map[String, AnyRef]) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+  def processData(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
@@ -68,112 +68,67 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
     val today = getDate()
 
-    val acbpDataDF = acbpDetailsDF().withColumn("userOrgID", col("orgid"))
     val orgDF = orgDataFrame()
     val userDataDF = userProfileDetailsDF(orgDF)
       .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
       .withColumn("group", coalesce(col("professionalDetails.group"), lit("")))
-    val userCourseProgramEnrolmentDF = userCourseProgramCompletionDataFrame()
-    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF) = contentDataFrames2(orgDF)
-
+      .select("userID", "fullName", "maskedEmail", "maskedPhone", "userOrgID", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
-   // CustomUser
-    val customUserDF = acbpDataDF.filter(col("assignmenttype") === "CustomUser")
-    val explodedAcbDataUserDF = customUserDF.select(col("*"), explode(col("assignmenttypeinfo")).alias("userID"))
-    show(explodedAcbDataUserDF, "explodedAcbDataUserDF")
+    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF) = contentDataFrames2(orgDF)
+    val userCourseProgramEnrolmentDF = userCourseProgramCompletionDataFrame()
 
-    val resultCustomUser = explodedAcbDataUserDF.join(userDataDF, Seq("userID", "userOrgID"), "left")
-      .select(
-        col("userID"),
-        col("fullName"),
-        col("maskedEmail"),
-        col("maskedPhone"),
-        col("userOrgID"),
-        col("userOrgName"),
-        col("designation"),
-        col("group"),
-        col("enddate").alias("completionDueDate"),
-        col("id").alias("ACBCourseID"),
-        col("publishedat").alias("allocatedOn"),
-        col("contentlist").alias("ACBCourseIDList")
-      )
-    show(resultCustomUser, "resultCustomUser")
+    val acbpDF = acbpDetailsDF()
+
+    /*
+    * TODO:
+    *  - explode vs explode_outer
+    *  - primary categories
+    *  - report generated on
+    * */
+   // CustomUser
+    val acbpCustomUserDF = acbpDF
+      .filter(col("assignmentType") === "CustomUser")
+      .withColumn("userID", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userID", "userOrgID"), "left")
+    show(acbpCustomUserDF, "acbpCustomUserDF")
 
     // Designation
-    val designationDF = acbpDataDF.filter(col("assignmenttype") === "Designation")
-    val explodedAcbDataDesignationDF = designationDF.select(col("*"), explode(col("assignmenttypeinfo")).alias("designation"))
-    show(explodedAcbDataDesignationDF, "explodedAcbDataDesignationDF")
-
-    val resultDesignation = explodedAcbDataDesignationDF.join(userDataDF, Seq("userOrgID", "designation"), "inner")
-      .select(
-        col("userID"),
-        col("fullName"),
-        col("maskedEmail"),
-        col("maskedPhone"),
-        col("userOrgID"),
-        col("userOrgName"),
-        col("designation"),
-        col("group"),
-        col("enddate").alias("completionDueDate"),
-        col("id").alias("ACBCourseID"),
-        col("publishedat").alias("allocatedOn"),
-        col("contentlist").alias("ACBCourseIDList")
-      )
-    show(resultDesignation, "resultDesignation")
+    val acbpDesignationDF = acbpDF
+      .filter(col("assignmentType") === "Designation")
+      .withColumn("designation", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userOrgID", "designation"), "inner")
+    show(acbpDesignationDF, "acbpDesignationDF")
 
     // All User
-    val allUserDF = acbpDataDF.filter(col("assignmenttype") === "AllUser")
-    show(allUserDF, "allUserDF")
-    val resultAllUser = allUserDF.join(userDataDF, Seq("userOrgID"), "inner").dropDuplicates("userID")
-      .select(
-        col("userID"),
-        col("fullName"),
-        col("maskedEmail"),
-        col("maskedPhone"),
-        col("userOrgID"),
-        col("userOrgName"),
-        col("designation"),
-        col("group"),
-        col("enddate").alias("completionDueDate"),
-        col("id").alias("ACBCourseID"),
-        col("publishedat").alias("allocatedOn"),
-        col("contentlist").alias("ACBCourseIDList")
-      )
-    show(resultAllUser, "resultAllUser")
+    val acbpAllUserDF = acbpDF
+      .filter(col("assignmentType") === "AllUser")
+      .join(userDataDF, Seq("userOrgID"), "inner")
+      .dropDuplicates("userID") // TODO dropDuplicates
+    show(acbpAllUserDF, "acbpAllUserDF")
 
     // union of all the response dfs
-    val joinedDF = resultCustomUser.union(resultDesignation).union(resultAllUser)
-    show(joinedDF, "joinedDF")
+    val acbpJoinedDF = acbpCustomUserDF.union(acbpDesignationDF).union(acbpAllUserDF)
+    show(acbpJoinedDF, "acbpJoinedDF")
 
     // replace content list with names of the courses instead of ids
-    val explodedJoinedDF = joinedDF.withColumn("courseID", explode(col("ACBCourseIDList")))
-    val resultDF = explodedJoinedDF.join(allCourseProgramDetailsDF, Seq("courseID"), "left")
-    show(resultDF, "resultDF")
-
-    val finalResultDF = resultDF.join(userCourseProgramEnrolmentDF, Seq("courseID", "userID"), "left")
+    val finalResultDF = acbpJoinedDF
+      .withColumn("courseID", explode(col("acbpCourseIDList")))
+      .join(allCourseProgramDetailsDF, Seq("courseID"), "left")
+      .join(userCourseProgramEnrolmentDF, Seq("courseID", "userID"), "left")
     show(finalResultDF, "finalResultDF")
 
-    val enrollmentDataDF = finalResultDF
-      .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID",
-        "userOrgName", "completionDueDate", "allocatedOn")
+    // for enrollment report
+    val enrollmentDataDF = finalResultDF  // TODO completionDueDate
+      .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName", "completionDueDate", "allocatedOn")
       .agg(
-        collect_list("courseName").alias("ACBCourseNameList"),
-        countDistinct(userCourseProgramEnrolmentDF("dbCompletionStatus")).as("distinctStatusCount"),
-        max(userCourseProgramEnrolmentDF("dbCompletionStatus")).as("maxStatus"),
-        max(userCourseProgramEnrolmentDF("courseCompletedTimestamp")).as("maxCourseCompletedTimestamp")
+        collect_list("courseName").alias("acbpCourseNameList"),
+        countDistinct("dbCompletionStatus").alias("distinctStatusCount"),
+        max("dbCompletionStatus").alias("maxStatus"),
+        max("courseCompletedTimestamp").alias("maxCourseCompletedTimestamp")
       )
-      .withColumn("currentProgress",
-        when(col("distinctStatusCount") === 1 && col("maxStatus") === 2, "Completed")
-          .when(col("distinctStatusCount") === 1 && col("maxStatus") === 1, "In Progress")
-          .when(col("distinctStatusCount") === 1 && col("maxStatus") === 0, "Not Started")
-          .when(col("distinctStatusCount") > 1, "In Progress")
-          .otherwise("Not Enrolled")
-      )
-      .withColumn("completionDate",
-        when(col("distinctStatusCount") === 1 && col("maxStatus") === 2, col("maxCourseCompletedTimestamp"))
-          .otherwise(lit(""))
-      )
+      .withColumn("currentProgress", expr("CASE WHEN distinctStatusCount=1 AND maxStatus=2 THEN 'Completed' WHEN distinctStatusCount=1 AND maxStatus=1 THEN 'In Progress' WHEN distinctStatusCount=1 AND maxStatus=0 THEN 'Not Started' WHEN distinctStatusCount>1 THEN 'In Progress' ELSE 'Not Enrolled' END"))
+      .withColumn("completionDate", expr("CASE WHEN distinctStatusCount=1 AND maxStatus=2 THEN maxCourseCompletedTimestamp END"))
       .na.fill("")
     show(enrollmentDataDF, "enrollmentDataDF")
 
@@ -185,7 +140,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("userOrgName").alias("MDO Name"),
         col("group").alias("Group"),
         col("designation").alias("Designation"),
-        concat_ws(",", col("ACBCourseNameList")).alias("Name of the ACBP Allocated Courses"),
+        concat_ws(",", col("acbpCourseNameList")).alias("Name of the ACBP Allocated Courses"),
         col("allocatedOn").alias("Allocated On"),
         col("currentProgress").alias("Current Progress"),
         col("completionDueDate").alias("Due Date of Completion"),
@@ -193,6 +148,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       )
     show(enrollmentReportDF, "enrollmentReportDF")
 
+    // for user summary report
     val userSummaryDataDF = finalResultDF
       .withColumn("completionDueDate", col("completionDueDate").cast(LongType))
       .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName")
