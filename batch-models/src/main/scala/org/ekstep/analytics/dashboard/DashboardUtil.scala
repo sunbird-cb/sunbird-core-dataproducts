@@ -164,18 +164,6 @@ object DashboardUtil extends Serializable {
     }
 
     /**
-     * Add a map column including the provided `columns`
-     *
-     * @param newCol new column name
-     * @param columns columns to add to the map
-     * @return data frame with map columns added
-     */
-    def withMapColumn(newCol: String, columns: Seq[String]): DataFrame = {
-      val columnsWithNames = columns.flatMap(column => Seq(lit(column), df.col(column)))
-      df.withColumn(newCol, functions.map(columnsWithNames:_*))
-    }
-
-    /**
      * duration format a column
      *
      * @param inCol input column name
