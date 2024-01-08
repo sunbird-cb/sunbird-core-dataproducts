@@ -46,8 +46,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     sc.parallelize(Seq())
   }
 
-  def processKarmaPoints(timestamp: Long, config: Map[String, AnyRef]) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit =
-  {
+  def processKarmaPoints(timestamp: Long, config: Map[String, AnyRef]) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
     implicit val conf: DashboardConfig = parseConfig(config)
@@ -67,7 +66,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     })
 
     // get cbp details like course name and category
-    val categories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Curated Program")
+    val categories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")
     val cbpDetails = allCourseProgramESDataFrame(categories).select(col("courseID"), col("courseName"), col("category"))
 
     // Assign 2 karma points for each rating

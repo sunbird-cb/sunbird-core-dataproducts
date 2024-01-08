@@ -17,7 +17,7 @@ object UserACBPReportTest extends Serializable{
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    UserACBPReportModel.processUserACBPReportModel(System.currentTimeMillis(), config)
+    UserACBPReportModel.processData(config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {
