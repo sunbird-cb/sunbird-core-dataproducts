@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.LongType
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 import org.ekstep.analytics.dashboard.DashboardUtil._
@@ -45,21 +45,6 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     sc.parallelize(Seq())
   }
 
-  def contentDataFrames2(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course", "Program"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame) = {
-    val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Curated Program")
-    val notAllowed = primaryCategories.toSet.diff(allowedCategories.toSet)
-    if (notAllowed.nonEmpty) {
-      throw new Exception(s"Category not allowed: ${notAllowed.mkString(", ")}")
-    }
-
-    val hierarchyDF = contentHierarchyDataFrame()
-    val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
-    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
-    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
-
-    (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF)
-  }
-
   def processData(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
@@ -75,7 +60,11 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .select("userID", "fullName", "maskedEmail", "maskedPhone", "userOrgID", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
-    val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF) = contentDataFrames2(orgDF)
+    val primaryCategories = Seq("Course", "Program")
+    val hierarchyDF = contentHierarchyDataFrame()
+    val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
+    val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
+    val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
     val userCourseProgramEnrolmentDF = userCourseProgramCompletionDataFrame()
 
     val acbpDF = acbpDetailsDF()
