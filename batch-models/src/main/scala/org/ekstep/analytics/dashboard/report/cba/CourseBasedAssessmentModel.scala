@@ -75,7 +75,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       .agg(countDistinct("assessStartTime").alias("retakes"))
     show(retakesDF, "retakesDF")
 
-    val userAssessChildDataLatestDF = userAssessChildrenDetailsDF
+    val userAssessChildDataLatestDF = userAssessChildDataDF
       .groupByLimit(Seq("assessChildID", "userID"), "assessEndTimestamp", 1, desc = true)
       .drop("rowNum")
       .join(retakesDF, Seq("assessChildID", "userID"), "left")
