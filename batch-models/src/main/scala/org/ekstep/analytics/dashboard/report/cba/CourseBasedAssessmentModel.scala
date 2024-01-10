@@ -13,8 +13,8 @@ import java.io.Serializable
 
 object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModelNew"
-  override def name() = "CourseBasedAssessmentModelNew"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModel"
+  override def name() = "CourseBasedAssessmentModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points

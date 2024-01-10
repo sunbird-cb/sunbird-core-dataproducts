@@ -70,8 +70,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // get ACBP details data frame
     val acbpDF = acbpDetailsDF()
-      .withColumn("priority",
-        expr("CASE WHEN assignmentType='CustomUser' THEN 1 WHEN assignmentType='Designation' THEN 2 assignmentType='AllUser' THEN 3 END"))
+    //  .withColumn("priority",
+    //    expr("CASE WHEN assignmentType='CustomUser' THEN 1 WHEN assignmentType='Designation' THEN 2 assignmentType='AllUser' THEN 3 END"))
 
    // CustomUser
     val acbpCustomUserAllotmentDF = acbpDF
@@ -107,7 +107,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // for particular userID and course ID, choose allotment entries based on priority rules
     val acbpEnrolmentDF = acbpAllEnrolmentDF
-      .orderBy(col("userID"), col("courseID"), col("priority"), col("allocatedOn").desc)
+       // .orderBy(col("userID"), col("courseID"), col("priority"), col("allocatedOn").desc)
+      .orderBy(col("completionDueDate").desc)
       .dropDuplicates("userID", "courseID")
     kafkaDispatch(withTimestamp(acbpEnrolmentDF, timestamp), conf.acbpEnrolmentTopic)
 
