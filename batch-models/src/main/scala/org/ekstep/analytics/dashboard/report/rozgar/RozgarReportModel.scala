@@ -4,8 +4,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, round, to_date}
-import org.ekstep.analytics.dashboard.DashboardUtil.{debug, getDate, parseConfig, validation}
-import org.ekstep.analytics.dashboard.DataUtilNew._
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
@@ -49,29 +49,20 @@ object RozgarReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val today = getDate()
     val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
 
-    //GET ORG DATA
-    val orgDF = orgDataFrame()
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
-    //Get course data first
-    val allCourseProgramDetailsDF = contentDataFrames(false, true)
-    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF.join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "courseOrgName")
-    //add alias for orgName col to avoid conflict with userDF orgName col
-
-    //allCourseProgramDetailsDFWithOrgName.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save( reportPath + "/allCourseProgramDetailsDF" )
-
-    //GET ORG DATW
-    val userDataDF = userProfileDetailsDF(orgDF)
+    // Get course data first
+    val allCourseProgramDetailsDF = contentWithOrgDetailsDataFrame(orgDF, Seq("Course", "Program", "Blended Program", "CuratedCollections", "Curated Program"))
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
 
     val userRatingDF = userCourseRatingDataframe()
 
-    //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userOrgDF)
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
     allCourseProgramCompletionWithDetailsDFWithRating
+      .durationFormat("courseDuration")
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("completionPercentage", round(col("completionPercentage"), 2))
@@ -80,7 +71,7 @@ object RozgarReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
         col("fullName"),
         col("personalDetails.primaryEmail").alias("email"),
         col("professionalDetails.designation").alias("designation"),
-        col("orgName"),
+        col("userOrgName"),
         col("courseName"),
         col("courseDuration").alias("duration"),
         col("courseOrgName"),

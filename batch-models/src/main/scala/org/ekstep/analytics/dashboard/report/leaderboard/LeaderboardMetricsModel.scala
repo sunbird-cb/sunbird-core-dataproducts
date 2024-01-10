@@ -54,7 +54,7 @@ object LeaderboardMetricsModel extends IBatchModelTemplate[String, DummyInput, D
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     var allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
 
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
