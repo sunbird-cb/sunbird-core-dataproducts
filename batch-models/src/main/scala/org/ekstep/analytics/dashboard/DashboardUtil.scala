@@ -147,22 +147,24 @@ object DashboardUtil extends Serializable {
      * for each value in column `groupByKey`, order rows by `orderByKey` and filter top/bottom rows
      * does not order the final data frame, `rowNumColName` is added
      *
-     * @param groupByKey col to group by
+     * @param groupByKey cols to group by
      * @param orderByKey col to order by
      * @param limit number of rows to take from each group
      * @param desc descending flag for the orderByKey
      * @param rowNumColName column name for group wise row numbers
      * @return data frame with the operation applied
      */
-    def groupByLimit(groupByKey: String, orderByKey: String, limit: Int, desc: Boolean = false,
+    def groupByLimit(groupByKey: Seq[String], orderByKey: String, limit: Int, desc: Boolean = false,
                      rowNumColName: String = "rowNum"): DataFrame = {
+      if (groupByKey.isEmpty) throw new Exception("groupByLimit error: groupByKey is empty")
+
       val ordering = if (desc) {
         df.col(orderByKey).desc
       } else {
         df.col(orderByKey).asc
       }
       df
-        .withColumn(rowNumColName, row_number().over(Window.partitionBy(groupByKey).orderBy(ordering)))
+        .withColumn(rowNumColName, row_number().over(Window.partitionBy(groupByKey.head, groupByKey.tail:_*).orderBy(ordering)))
         .filter(col(rowNumColName) <= limit)
     }
 

@@ -5,8 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil.generateWarehouseReport
-import org.ekstep.analytics.dashboard.DataUtilNew._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
@@ -50,21 +49,14 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val today = getDate()
 
     //GET ORG DATA
-    val orgDF = orgDataFrame()
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
-    var userDataDF = userProfileDetailsDF(orgDF)
-      .withColumnRenamed("orgName", "userOrgName")
-      .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
-    userDataDF = userDataDF
+    val userDataDF = userOrgDF
       .join(orgHierarchyData, Seq("userOrgName"), "left")
     show(userDataDF, "userDataDF")
 
-    //Get course data first
-    val allCourseProgramDetailsDF = contentDataFrames(false, true)
-    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
-      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "courseOrgName")
-    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+    // Get course data first
+    val allCourseProgramDetailsDF = contentWithOrgDetailsDataFrame(orgDF, Seq("Course", "Program", "Blended Program", "CuratedCollections", "Curated Program"))
 
     val userEnrolmentDF = userCourseProgramCompletionDataFrame()
     show(userEnrolmentDF, "userEnrolmentDF")
@@ -72,7 +64,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val userRatingDF = userCourseRatingDataframe()
 
     //use allCourseProgramDetailsDFWithOrgName below instead of allCourseProgramDetailsDF after adding orgname alias above
-    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDFWithOrgName, userDataDF)
+    val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userEnrolmentDF, allCourseProgramDetailsDF, userDataDF)
     show(allCourseProgramCompletionWithDetailsDF, "allCourseProgramCompletionWithDetailsDF")
 
     val courseBatchDF = courseBatchDataFrame()
@@ -88,6 +80,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val allCourseProgramCompletionWithDetailsDFWithRating = allCourseProgramCompletionWithDetailsWithBatchInfoDF.join(userRatingDF, Seq("courseID", "userID"), "left")
 
     var df = allCourseProgramCompletionWithDetailsDFWithRating
+      .durationFormat("courseDuration")
       .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
       .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
@@ -106,7 +99,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
       col("userID"),
       col("userOrgID"),
       col("courseID"),
-      col("courseActualOrgId"),
+      col("courseOrgID"),
       col("fullName").alias("Full_Name"),
       col("professionalDetails.designation").alias("Designation"),
       col("personalDetails.primaryEmail").alias("Email"),
@@ -151,8 +144,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
     generateFullReport(fullReportDF, reportPath)
 
-    val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
-    //    df = df.drop("userID", "userOrgID", "courseID", "courseActualOrgId", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
+    val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseOrgID", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
 
     val warehouseDF = df

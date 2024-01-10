@@ -318,36 +318,6 @@ object DataUtil extends Serializable {
     Some(df)
   }
 
-  /**
-   * completionPercentage   completionStatus    IDI status
-   * NULL                   not-enrolled        not-started
-   * 0.0                    enrolled            not-started
-   * 0.0 < % < 10.0         started             enrolled
-   * 10.0 <= % < 100.0      in-progress         in-progress
-   * 100.0                  completed           completed
-   * @param df data frame with completionPercentage column
-   * @return df with completionStatus column
-   */
-  def withCompletionStatusColumn(df: DataFrame): DataFrame = {
-    val caseExpression = "CASE WHEN ISNULL(completionPercentage) THEN 'not-enrolled' WHEN completionPercentage == 0.0 THEN 'enrolled' WHEN completionPercentage < 10.0 THEN 'started' WHEN completionPercentage < 100.0 THEN 'in-progress' ELSE 'completed' END"
-    df.withColumn("completionStatus", expr(caseExpression))
-  }
-
-  /**
-   * dbCompletionStatus     userCourseCompletionStatus
-   * NULL                   not-enrolled
-   * 0                      not-started
-   * 1                      in-progress
-   * 2                      completed
-   *
-   * @param df data frame with dbCompletionStatus column
-   * @return df with userCourseCompletionStatus column
-   */
-  def userCourseCompletionStatus(df: DataFrame): DataFrame = {
-    val caseExpression = "CASE WHEN ISNULL(dbCompletionStatus) THEN 'not-enrolled' WHEN dbCompletionStatus == 0 THEN 'not-started' WHEN dbCompletionStatus == 1 THEN 'in-progress' ELSE 'completed' END"
-    df.withColumn("userCourseCompletionStatus", expr(caseExpression))
-  }
-
   def timestampStringToLong(df: DataFrame, cols: Seq[String], format: String = "yyyy-MM-dd HH:mm:ss:SSSZ"): DataFrame = {
     var resDF = df
     cols.foreach(c => {
@@ -385,7 +355,7 @@ object DataUtil extends Serializable {
    *         userVerified, userMandatoryFieldsExists, userPhoneVerified)
    */
   def userDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val profileDetailsSchema = Schema.makeProfileDetailsSchema()
+    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
     var userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
       .select(
         col("id").alias("userID"),
@@ -402,12 +372,22 @@ object DataUtil extends Serializable {
       )
       .na.fill("", Seq("userOrgID", "firstName", "lastName"))
       .na.fill("{}", Seq("userProfileDetails"))
-      .withColumn("verificationDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-      .withColumn("userVerified", col("verificationDetails.verifiedKarmayogi"))
-      .withColumn("userMandatoryFieldsExists", col("verificationDetails.mandatoryFieldsExists"))
-      .withColumn("userPhoneVerified", expr("LOWER(verificationDetails.personalDetails.phoneVerified) = 'true'"))
+      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
+      .withColumn("personalDetails", col("profileDetails.personalDetails"))
+      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
+      .withColumn("userVerified", col("profileDetails.verifiedKarmayogi"))
+      .withColumn("userMandatoryFieldsExists", col("profileDetails.mandatoryFieldsExists"))
+      .withColumn("userPhoneVerified", expr("LOWER(personalDetails.phoneVerified) = 'true'"))
       .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
-      .drop("verificationDetails")
+
+    userDF = userDF
+      .withColumn("additionalProperties",
+        if (userDF.columns.contains("profileDetails.additionalPropertis")) {
+          col("profileDetails.additionalPropertis")
+        } else {
+          col("profileDetails.additionalProperties")
+        })
+      .drop("profileDetails", "userProfileDetails")
 
     userDF = timestampStringToLong(userDF, Seq("userCreatedTimestamp", "userUpdatedTimestamp"))
     show(userDF, "userDataFrame")
@@ -637,37 +617,6 @@ object DataUtil extends Serializable {
     df
   }
 
-  def allAssessmentESDataFrame(isAllAssess: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-
-    val primaryCategories = if (isAllAssess) {
-      Seq("Course", "Standalone Assessment", "Blended Program","Curated Program")
-    } else {
-      Seq("Standalone Assessment")
-    }
-    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
-
-    // now that error handling is done, proceed with business as usual
-    df = df
-      .withColumn("cbpOrgID", explode_outer(col("createdFor")))
-      .select(
-        col("identifier").alias("cbpID"),
-        col("primaryCategory").alias("cbpCategory"),
-        col("name").alias("cbpName"),
-        col("status").alias("cbpStatus"),
-        col("reviewStatus").alias("cbpReviewStatus"),
-        col("channel").alias("cbpChannel"),
-        col("duration").cast(FloatType).alias("cbpDuration"),
-        col("leafNodesCount").alias("cbpChildCount"),
-        col("cbpOrgID")
-      )
-
-    df = df.dropDuplicates("cbpID", "cbpCategory")
-    df = df.na.fill(0.0, Seq("cbpDuration")).na.fill(0, Seq("cbpChildCount"))
-
-    show(df, "allAssessmentESDataFrame")
-    df
-  }
-
   /**
    * All Stand-alone Assessments from elastic search api
    * @return DataFrame(assessID, assessCategory, assessName, assessStatus, assessReviewStatus, assessOrgID, assessDuration,
@@ -729,30 +678,17 @@ object DataUtil extends Serializable {
     df = addAssessOrgDetails(df, orgDF)
 
     df = df
-      .select(
-        col("assessID"),
-        col("assessCategory"),
-        col("assessName"),
-        col("assessStatus"),
-        col("assessReviewStatus"),
-        col("assessDuration"),
-        col("assessChildCount"),
-        col("assessOrgID"),
-        col("assessOrgName"),
-        col("assessStatus"),
-        col("assessLastPublishedOn"),
-
-        col("data.children").alias("children"),
-        col("data.publish_type").alias("assessPublishType"),
-        col("data.isExternal").cast(IntegerType).alias("assessIsExternal"),
-        col("data.contentType").alias("assessContentType"),
-        col("data.objectType").alias("assessObjectType"),
-        col("data.userConsent").alias("assessUserConsent"),
-        col("data.visibility").alias("assessVisibility"),
-        col("data.createdOn").alias("assessCreatedOn"),
-        col("data.lastUpdatedOn").alias("assessLastUpdatedOn"),
-        col("data.lastSubmittedOn").alias("assessLastSubmittedOn")
-      )
+      .withColumn("children", col("data.children"))
+      .withColumn("assessPublishType", col("data.publish_type"))
+      .withColumn("assessIsExternal", col("data.isExternal"))
+      .withColumn("assessContentType", col("data.contentType"))
+      .withColumn("assessObjectType", col("data.objectType"))
+      .withColumn("assessUserConsent", col("data.userConsent"))
+      .withColumn("assessVisibility", col("data.visibility"))
+      .withColumn("assessCreatedOn", col("data.createdOn"))
+      .withColumn("assessLastUpdatedOn", col("data.lastUpdatedOn"))
+      .withColumn("assessLastSubmittedOn", col("data.lastSubmittedOn"))
+      .drop("data")
 
     df = timestampStringToLong(df,
       Seq("assessCreatedOn", "assessLastUpdatedOn", "assessLastPublishedOn", "assessLastSubmittedOn"),
@@ -868,12 +804,32 @@ object DataUtil extends Serializable {
     (orgDF, userDF, userOrgDF)
   }
 
-  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course", "Program"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def validatePrimaryCategories(primaryCategories: Seq[String]): Unit = {
     val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Curated Program")
     val notAllowed = primaryCategories.toSet.diff(allowedCategories.toSet)
     if (notAllowed.nonEmpty) {
       throw new Exception(s"Category not allowed: ${notAllowed.mkString(", ")}")
     }
+  }
+
+  def contentWithOrgDetailsDataFrame(orgDF: DataFrame, primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    validatePrimaryCategories(primaryCategories)
+
+    val allCourseProgramDetailsDF = allCourseProgramESDataFrame(primaryCategories)
+    val courseOrgDF = orgDF.select(
+      col("orgID").alias("courseOrgID"),
+      col("orgName").alias("courseOrgName"),
+      col("orgStatus").alias("courseOrgStatus")
+    )
+    val df = allCourseProgramDetailsDF
+      .join(courseOrgDF, Seq("courseOrgID"), "left")
+
+    show(df)
+    df
+  }
+
+  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course", "Program"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+    validatePrimaryCategories(primaryCategories)
 
     val hierarchyDF = contentHierarchyDataFrame()
     val allCourseProgramESDF = allCourseProgramESDataFrame(primaryCategories)
@@ -1045,27 +1001,26 @@ object DataUtil extends Serializable {
     show(df)
     df
   }
-//
-//  /**
-//   * Batch details for all kind of CBPs
-//   *
-//   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
-//   *         courseBatchStatus, courseBatchUpdatedDate)
-//   */
-//  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-//      col("courseid").alias("courseID"),
-//      col("batchid").alias("courseBatchID"),
-//      col("enrollmenttype").alias("courseBatchEnrolmentType"),
-//      col("name").alias("courseBatchName"),
-//      col("start_date").alias("courseBatchStartDate"),
-//      col("enddate").alias("courseBatchEndDate"),
-//      col("status").alias("courseBatchStatus"),
-//      col("updated_date").alias("courseBatchUpdatedDate")
-//    )
-//    show(df, "Course Batch Data")
-//    df
-//  }
+
+  /**
+   * Batch details for all kind of CBPs
+   *
+   * @return col(courseID, courseBatchID, courseBatchEnrolmentType, courseBatchName, courseBatchStartDate, courseBatchEndDate,
+   *         courseBatchStatus, courseBatchUpdatedDate)
+   */
+  def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
+      col("courseid").alias("courseID"),
+      col("batchid").alias("batchID"),
+      col("name").alias("courseBatchName"),
+      col("createdby").alias("courseBatchCreatedBy"),
+      col("start_date").alias("courseBatchStartDate"),
+      col("end_date").alias("courseBatchEndDate"),
+      col("batch_attributes").alias("courseBatchAttrs")
+    ).na.fill("{}", Seq("courseBatchAttrs"))
+    show(df, "Course Batch Data")
+    df
+  }
 
 
   /**
@@ -1074,25 +1029,34 @@ object DataUtil extends Serializable {
    *
    * @return DataFrame(userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus)
    */
-  def userCourseProgramCompletionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
+  def userCourseProgramCompletionDataFrame(extraCols: Seq[String] = Seq(), datesAsLong: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+
+    val selectCols = Seq("userID", "courseID", "batchID", "courseProgress", "dbCompletionStatus", "courseCompletedTimestamp",
+      "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount", "certificateGeneratedOn") ++ extraCols
+
+    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
       .where(expr("active=true"))
-      .withColumn("courseCompletedTimestamp", col("completedon").cast("long"))
-      .withColumn("courseEnrolledTimestamp", col("enrolled_date").cast("long"))
-      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime").cast("long"))
+      .withColumn("courseCompletedTimestamp", col("completedon"))
+      .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
+      .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
-      .select(
-        col("userid").alias("userID"),
-        col("courseid").alias("courseID"),
-        col("batchid").alias("batchID"),
-        col("progress").alias("courseProgress"),
-        col("status").alias("dbCompletionStatus"),
-        col("courseCompletedTimestamp"),
-        col("courseEnrolledTimestamp"),
-        col("lastContentAccessTimestamp"),
-        col("issuedCertificateCount")
-      )
+      .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
+      .withColumnRenamed("userid", "userID")
+      .withColumnRenamed("courseid", "courseID")
+      .withColumnRenamed("batchid", "batchID")
+      .withColumnRenamed("progress", "courseProgress")
+      .withColumnRenamed("status", "dbCompletionStatus")
+      .withColumnRenamed("contentstatus", "courseContentStatus")
       .na.fill(0, Seq("courseProgress", "issuedCertificateCount"))
+      .na.fill("", Seq("certificateGeneratedOn"))
+      .select(selectCols.head, selectCols.tail: _*)
+
+    if (datesAsLong) {
+      df = df
+        .withColumn("courseCompletedTimestamp", col("courseCompletedTimestamp").cast("long"))
+        .withColumn("courseEnrolledTimestamp", col("courseEnrolledTimestamp").cast("long"))
+        .withColumn("lastContentAccessTimestamp", col("lastContentAccessTimestamp").cast("long"))
+    }
 
     show(df)
     df
@@ -1138,20 +1102,41 @@ object DataUtil extends Serializable {
     df
   }
 
-//  def userConsumptionDurationDataFrame(userContentConsumptionDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    var df = addHierarchyColumn(userContentConsumptionDF, hierarchyDF, "contentID", "data")
-//      .withColumn("contentDuration", col("data.duration"))
-//      .na.fill(0.0, Seq("contentDuration"))
-//      .withColumn("contentDurationCompleted", expr("contentCompletionPercentage * contentDuration / 100.0"))
-//
-//    show(df)
-//
-//    df = df.groupBy("userID", "courseID", "batchID")
-//      .agg(expr("SUM(contentDurationCompleted)").alias("courseDurationCompleted"))
-//
-//    show(df)
-//    df
-//  }
+  def withCompletionPercentageColumn(df: DataFrame): DataFrame = {
+    df
+      .withColumn("completionPercentage", expr("CASE WHEN courseResourceCount=0 OR courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
+      .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0  ELSE completionPercentage END"))
+  }
+
+  /**
+   * completionPercentage   completionStatus    IDI status
+   * NULL                   not-enrolled        not-started
+   * 0.0                    enrolled            not-started
+   * 0.0 < % < 10.0         started             enrolled
+   * 10.0 <= % < 100.0      in-progress         in-progress
+   * 100.0                  completed           completed
+   * @param df data frame with completionPercentage column
+   * @return df with completionStatus column
+   */
+  def withOldCompletionStatusColumn(df: DataFrame): DataFrame = {
+    val caseExpression = "CASE WHEN ISNULL(completionPercentage) THEN 'not-enrolled' WHEN completionPercentage == 0.0 THEN 'enrolled' WHEN completionPercentage < 10.0 THEN 'started' WHEN completionPercentage < 100.0 THEN 'in-progress' ELSE 'completed' END"
+    df.withColumn("completionStatus", expr(caseExpression))
+  }
+
+  /**
+   * dbCompletionStatus     userCourseCompletionStatus
+   * NULL                   not-enrolled
+   * 0                      not-started
+   * 1                      in-progress
+   * 2                      completed
+   *
+   * @param df data frame with dbCompletionStatus column
+   * @return df with userCourseCompletionStatus column
+   */
+  def withUserCourseCompletionStatusColumn(df: DataFrame): DataFrame = {
+    val caseExpression = "CASE WHEN ISNULL(dbCompletionStatus) THEN 'not-enrolled' WHEN dbCompletionStatus == 0 THEN 'not-started' WHEN dbCompletionStatus == 1 THEN 'in-progress' ELSE 'completed' END"
+    df.withColumn("userCourseCompletionStatus", expr(caseExpression))
+  }
 
   /**
    * get course completion data with details attached
@@ -1176,34 +1161,23 @@ object DataUtil extends Serializable {
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
-      .select("userID", "courseID", "batchID", "courseCompletedTimestamp", "courseEnrolledTimestamp",
-        "lastContentAccessTimestamp", "courseProgress", "dbCompletionStatus", "category", "courseName",
-        "courseStatus", "courseReviewStatus", "courseOrgID", "courseOrgName", "courseOrgStatus", "courseDuration",
-        "courseResourceCount", "firstName", "lastName", "maskedEmail", "maskedPhone", "userStatus", "userOrgID", "userOrgName", "userOrgStatus", "courseLastPublishedOn")
-
-    // The below snippet is different in DataUtilNew. if the completionPercentage is between 0 and 100, taking that as the value.
-    // This is the reason why completation percentage is null in druid as well and so this should fix druid and the computation for learner hours
-    df = df
-      .withColumn("completionPercentage", expr("CASE WHEN courseResourceCount=0 OR courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
-      .withColumn("completionPercentage", expr("CASE WHEN completionPercentage > 100.0 THEN 100.0 WHEN completionPercentage < 0.0 THEN 0.0  ELSE completionPercentage END"))
-    df = withCompletionStatusColumn(df)
+    df = withCompletionPercentageColumn(df)
+    df = withOldCompletionStatusColumn(df)
+    df = withUserCourseCompletionStatusColumn(df)
 
     show(df, "allCourseProgramCompletionWithDetailsDataFrame")
 
     df
   }
 
-//  def addCourseDurationCompletedColumns(allCourseProgramCompletionWithDetailsDF: DataFrame, hierarchyDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    val userContentConsumptionDF = userContentConsumptionDataFrame()
-//    val userConsumptionDurationDF = userConsumptionDurationDataFrame(userContentConsumptionDF, hierarchyDF)
-//
-//    val df = allCourseProgramCompletionWithDetailsDF.join(userConsumptionDurationDF, Seq("userID", "courseID", "batchID"), "left")
-//      .na.fill(0.0, Seq("courseDurationCompleted"))
-//      .withColumn("courseDurationCompletedPercentage", expr("CASE WHEN courseDuration=0.0 THEN 0.0 ELSE 100.0 * courseDurationCompleted / courseDuration END"))
-//
-//    show(df, "addCourseDurationCompletedColumns")
-//    df
-//  }
+  def calculateCourseProgress(userCourseProgramCompletionDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    // userID, courseID, batchID, courseCompletedTimestamp, courseEnrolledTimestamp, lastContentAccessTimestamp, courseProgress, dbCompletionStatus, category, courseName, courseStatus, courseReviewStatus, courseOrgID, courseOrgName, courseOrgStatus, courseDuration, courseResourceCount
+    var df = withCompletionPercentageColumn(userCourseProgramCompletionDF)
+    df = withUserCourseCompletionStatusColumn(df)
+
+    show(df, "allCourseProgramCompletionWithDetailsDataFrame")
+    df
+  }
 
   /**
    *
@@ -1424,7 +1398,7 @@ object DataUtil extends Serializable {
 
     var df = competencyGapDF.join(gapCourseUserStatus, Seq("userID", "competencyID", "orgID", "workOrderID"), "left")
 
-    df = withCompletionStatusColumn(df)
+    df = withOldCompletionStatusColumn(df)
 
     show(df)
     df
@@ -1480,6 +1454,7 @@ object DataUtil extends Serializable {
       col("readResponse.maxAssessmentRetakeAttempts").alias("assessMaxRetakeAttempts"),
       col("readResponse.status").alias("assessReadStatus"),
       col("readResponse.primaryCategory").alias("assessPrimaryCategory"),
+
       col("submitRequest.batchId").alias("assessBatchID"),
       col("submitRequest.courseId").alias("courseID"),
       col("submitRequest.isAssessment").cast(IntegerType).alias("assessIsAssessment"),
@@ -1583,12 +1558,7 @@ object DataUtil extends Serializable {
   }
 
   def orgDesignationsDF(userOrgDF: DataFrame)(implicit sparkSession: SparkSession, conf: DashboardConfig): DataFrame = {
-    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    val userDesignationListDF = userOrgDF
-      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
-      .withColumn("designation", col("professionalDetails.designation"))
-
+    val userDesignationListDF = userOrgDF.withColumn("designation", col("professionalDetails.designation"))
     val orgDesignationListDF = userDesignationListDF.groupBy("userOrgID").agg(concat_ws(",", collect_set("designation")).alias("org_designations"))
     orgDesignationListDF
   }
@@ -1685,7 +1655,6 @@ object DataUtil extends Serializable {
     df = df.na.drop(Seq("userid"))
     df
   }
-  
 
   def npsTriggerC2DataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = """(SELECT DISTINCT(userID) as userid FROM \"dashboards-user-course-program-progress\" WHERE __time = (SELECT MAX(__time) FROM \"dashboards-user-course-program-progress\") AND courseCompletedTimestamp >= TIMESTAMP_TO_MILLIS(__time + INTERVAL '5:30' HOUR TO MINUTE - INTERVAL '3' MONTH) / 1000.0 AND category IN ('Course','Program') AND courseStatus IN ('Live', 'Retired') AND dbCompletionStatus = 2) UNION ALL (SELECT uid as userid FROM (SELECT SUM(total_time_spent) AS totalTime, uid FROM \"summary-events\" WHERE __time >= CURRENT_TIMESTAMP - INTERVAL '3' MONTH AND dimensions_type='app' GROUP BY 2) WHERE totalTime >= 7200)"""

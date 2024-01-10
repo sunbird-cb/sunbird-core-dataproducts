@@ -109,7 +109,7 @@ object CourseMetricsModel extends IBatchModelTemplate[String, DummyInput, DummyO
     csvWrite(clickByCompetencyDF.coalesce(1), s"${loc}clicks-by-comp.csv")
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
 

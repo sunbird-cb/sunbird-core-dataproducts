@@ -54,7 +54,7 @@ object ValidateDashboardModel extends IBatchModelTemplate[String, DummyInput, Du
     val userOrgRoleDF = userOrgRoleDataFrame(userOrgDF, roleDF)
 
     // get all rows from user_enrolments table, only filtering out active=false
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
 
     // get the content hierarchy table
     val hierarchyDF = contentHierarchyDataFrame()
