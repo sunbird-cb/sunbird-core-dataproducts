@@ -54,8 +54,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val today = getDate()
 
     // get user and org data frames
-    val orgDF = orgDataFrame()
-    val userDataDF = userProfileDetailsDF(orgDF)
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userDataDF = userOrgDF
       .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
       .withColumn("group", coalesce(col("professionalDetails.group"), lit("")))
       .select("userID", "fullName", "maskedEmail", "maskedPhone", "userOrgID", "userOrgName", "designation", "group")

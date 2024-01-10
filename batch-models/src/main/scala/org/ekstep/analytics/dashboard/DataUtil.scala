@@ -395,26 +395,6 @@ object DataUtil extends Serializable {
     userDF
   }
 
-  def userProfileDetailsDF(orgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val userDF = userDataFrame()
-
-    val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    var df = userDF
-      .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
-      .withColumn("personalDetails", col("profileDetails.personalDetails"))
-      .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
-
-    df = df.withColumn("additionalProperties",
-      if (df.columns.contains("profileDetails.additionalPropertis")) {
-        col("profileDetails.additionalPropertis")
-      } else col("profileDetails.additionalProperties"))
-
-    val userDFWithOrg = df.join(orgDF, df.col("userOrgID").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "userOrgName")
-      .withColumnRenamed("orgStatus", "userOrgStatus")
-    userDFWithOrg
-  }
-
   /**
    * de-normalize user data with org data
    *
