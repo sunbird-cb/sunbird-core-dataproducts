@@ -90,13 +90,16 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     updateKarmaPoints(ratingDF, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
 
-    val userCBPCompletionDF = userCourseProgramCompletionDataFrame().where(col("dbCompletionStatus").equalTo(2))
+    val userCBPCompletionDF = userCourseProgramCompletionDataFrame()
+      .where(col("dbCompletionStatus").equalTo(2))
       .withColumn("formattedCompletionDate", date_format(from_unixtime(col("courseCompletedTimestamp")), dateFormatWithTime))
       .filter(col("formattedCompletionDate").between(monthStart, monthEnd))
-    val userCourseCompletionDF = userCBPCompletionDF.join(cbpDetails, Seq("courseID"), "left").where(col("category").equalTo("Course"))
+    val courseDetails = cbpDetails.where(col("category").equalTo("Course"))
+    val userCourseCompletionDF = userCBPCompletionDF.join(courseDetails, Seq("courseID"), "inner")
     val firstCompletionDataDF = userCourseCompletionDF.groupByLimit("userID", "formattedCompletionDate", 4).drop("rowNum")
     val userAssessmentDF = userAssessmentDataFrame().select(col("assessChildID"), col("courseID"))
     var karmaPointsFromCourseCompletion = firstCompletionDataDF.join(userAssessmentDF, Seq("courseID"), "left")
+    karmaPointsFromCourseCompletion = karmaPointsFromCourseCompletion
       .withColumn("operation_type", lit("COURSE_COMPLETION"))
       .withColumn("hasAssessment", when(col("assessChildID").isNotNull, true).otherwise(false))
       .withColumn("COURSE_COMPLETION", lit(true))
