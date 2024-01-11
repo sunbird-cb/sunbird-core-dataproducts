@@ -63,7 +63,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // get course details and course enrolment data frames
     val hierarchyDF = contentHierarchyDataFrame()
-    val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program"))
+    val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program", "Blended Program", "Curated Program", "Standalone Assessment"))
     val allCourseProgramDetailsWithCompDF = allCourseProgramDetailsWithCompetenciesJsonDataFrame(allCourseProgramESDF, hierarchyDF, orgDF)
     val allCourseProgramDetailsDF = allCourseProgramDetailsDataFrame(allCourseProgramDetailsWithCompDF)
     val userCourseProgramEnrolmentDF = userCourseProgramCompletionDataFrame()
@@ -103,6 +103,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .join(allCourseProgramDetailsDF, Seq("courseID"), "left")
       .join(userCourseProgramEnrolmentDF, Seq("courseID", "userID"), "left")
       .na.drop(Seq("userID", "courseID"))
+      .drop("acbpCourseIDList")
     show(acbpAllEnrolmentDF, "acbpAllEnrolmentDF")
 
     // for particular userID and course ID, choose allotment entries based on priority rules
@@ -175,6 +176,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     show(userSummaryReportDF, "userSummaryReportDF")
 
     val reportPath = s"${conf.acbpReportPath}/${today}"
+    generateFullReport(acbpAllEnrolmentDF.coalesce(1), reportPath)
+
     generateReportsWithoutPartition(enrolmentReportDF.drop("mdoid"), s"${reportPath}/ACBPEnrollmentReport", "ACBPEnrollmentReport")
     generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/ACBPUserSummaryReport", "ACBPUserSummaryReport")
     syncReports(s"/tmp/${reportPath}", reportPath)
