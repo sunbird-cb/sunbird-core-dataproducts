@@ -92,7 +92,9 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     show(acbpAllUserAllotmentDF, "acbpAllUserAllotmentDF")
 
     // union of all the response dfs
-    val acbpAllotmentDF = acbpCustomUserAllotmentDF.union(acbpDesignationAllotmentDF).union(acbpAllUserAllotmentDF)
+    val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
+      df.select("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName", "acbpID", "assignmentType", "completionDueDate", "allocatedOn", "acbpCourseIDList")
+    }).reduce((a, b) => a.union(b))
     show(acbpAllotmentDF, "acbpAllotmentDF")
 
     // replace content list with names of the courses instead of ids
@@ -114,12 +116,15 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
       .agg(
         collect_list("courseName").alias("acbpCourseNameList"),
         count("courseID").alias("allocatedCount"),
-        sum("CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END").alias("completedCount"),
+        expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
         max("dbCompletionStatus").alias("maxStatus"),
         max("courseCompletedTimestamp").alias("maxCourseCompletedTimestamp")
       )
       .withColumn("currentProgress", expr("CASE WHEN allocatedCount=completedCount THEN 'Completed' WHEN maxStatus=0 THEN 'Not Started' WHEN maxStatus>0 THEN 'In Progress' ELSE 'Not Enrolled' END"))
       .withColumn("completionDate", expr("CASE WHEN allocatedCount=completedCount THEN maxCourseCompletedTimestamp END"))
+      .withColumn("completionDate", to_date(col("completionDate"), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("allocatedOn", to_date(col("allocatedOn"), "dd/MM/yyyy"))
+      .withColumn("completionDueDate", to_date(col("completionDueDate"), "dd/MM/yyyy"))
       .na.fill("")
     show(enrolmentReportDataDF, "enrolmentReportDataDF")
 
@@ -136,19 +141,22 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("currentProgress").alias("Current Progress"),
         col("completionDueDate").alias("Due Date of Completion"),
         col("completionDate").alias("Actual Date of Completion"),
+        col("userOrgID").alias("mdoid"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
     show(enrolmentReportDF, "enrolmentReportDF")
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
-      .withColumn("completionDueDate", col("completionDueDate").cast(LongType))
+      .withColumn("completionDueDateLong", col("completionDueDate").cast(LongType))
+      .withColumn("courseCompletedTimestampLong", col("courseCompletedTimestamp").cast(LongType))
       .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName")
       .agg(
         count("courseID").alias("allocatedCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
-        expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestamp<=completionDueDate THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
+        expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestampLong<=completionDueDateLong THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
       )
+    show(userSummaryDataDF, "userSummaryDataDF")
 
     val userSummaryReportDF = userSummaryDataDF
       .select(
@@ -161,18 +169,18 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("allocatedCount").alias("Number of ACBP Courses Allocated"),
         col("completedCount").alias("Number of ACBP Courses Completed"),
         col("completedBeforeDueDateCount").alias("Number of ACBP Courses Completed within due date"),
+        col("userOrgID").alias("mdoid"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
     show(userSummaryReportDF, "userSummaryReportDF")
 
-    val enrolmentReportPath = s"${conf.acbpEnrolmentReportPath}/${today}"
-    generateReportsWithoutPartition(enrolmentReportDF, enrolmentReportPath, "ACBPEnrollmentReport")
+    val reportPath = s"${conf.acbpReportPath}/${today}"
+    generateReportsWithoutPartition(enrolmentReportDF.drop("mdoid"), s"${reportPath}/ACBPEnrollmentReport", "ACBPEnrollmentReport")
+    generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/ACBPUserSummaryReport", "ACBPUserSummaryReport")
+    syncReports(s"/tmp/${reportPath}", reportPath)
 
-    val userReportPath = s"${conf.acbpUserSummaryReportPath}/${today}"
-    generateReportsWithoutPartition(userSummaryReportDF, userReportPath, "ACBPUserSummaryReport")
-
-    syncReports(s"/tmp/${enrolmentReportPath}", enrolmentReportPath)
-    syncReports(s"/tmp/${userReportPath}", userReportPath)
+    generateAndSyncReports(enrolmentReportDF, "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "ACBPEnrollmentReport")
+    generateAndSyncReports(userSummaryReportDF, "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "ACBPUserSummaryReport")
 
     Redis.closeRedisConnect()
 

@@ -118,8 +118,9 @@ case class DashboardConfig (
     blendedReportPath: String,
     orgHierarchyReportPath: String,
     commsConsoleReportPath: String,
-    acbpEnrolmentReportPath: String,
-    acbpUserSummaryReportPath: String,
+    acbpReportPath: String,
+    acbpMdoEnrolmentReportPath: String,
+    acbpMdoSummaryReportPath: String,
 
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
@@ -684,8 +685,9 @@ object DashboardUtil extends Serializable {
       blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
       orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
       commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
-      acbpEnrolmentReportPath = getConfigModelParam(config, "acbpEnrolmentReportPath"),
-      acbpUserSummaryReportPath = getConfigModelParam(config, "acbpUserSummaryReportPath"),
+      acbpReportPath = getConfigModelParam(config, "acbpReportPath"),
+      acbpMdoEnrolmentReportPath = getConfigModelParam(config, "acbpMdoEnrolmentReportPath"),
+      acbpMdoSummaryReportPath = getConfigModelParam(config, "acbpMdoSummaryReportPath"),
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
