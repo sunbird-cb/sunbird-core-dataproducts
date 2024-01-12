@@ -55,8 +55,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     // get user roles data
     val userRolesDF = roleDataFrame().groupBy("userID").agg(concat_ws(", ", collect_list("role")).alias("role")) // return - userID, role
 
-    val orgDF = orgDataFrame()
-    val userDataDF = userProfileDetailsDF(orgDF)
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val orgHierarchyData = orgHierarchyDataframe()
 
@@ -66,8 +65,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
-    val userData = userDataDF
-      // .join(userDataDF, Seq("userOrgID"), "inner")
+    val userData = userOrgDF
       .join(userRolesDF, Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgName"), "left")
       .dropDuplicates("userID")

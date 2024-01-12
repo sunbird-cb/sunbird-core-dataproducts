@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtilNew._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
@@ -49,14 +49,11 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val today = getDate()
 
     // get user and user org data
-    val orgDF = orgDataFrame()
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe().select("userOrgName", "ministry_name", "dept_name").distinct()
     show(orgHierarchyData, "orgHierarchyData")
 
-    var userDataDF = userProfileDetailsDF(orgDF)
-      .withColumnRenamed("orgName", "userOrgName")
-      .withColumnRenamed("orgCreatedDate", "userOrgCreatedDate")
-      .drop("profileDetails")
+    var userDataDF = userOrgDF
       .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
       .withColumn("userMobile", col("personalDetails.mobile"))
       .withColumn("userGender", col("personalDetails.gender"))

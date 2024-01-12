@@ -94,8 +94,10 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       .where(col("dbCompletionStatus").equalTo(2))
       .withColumn("formattedCompletionDate", date_format(from_unixtime(col("courseCompletedTimestamp")), dateFormatWithTime))
       .filter(col("formattedCompletionDate").between(monthStart, monthEnd))
+
     val courseDetails = cbpDetails.where(col("category").equalTo("Course"))
     val userCourseCompletionDF = userCBPCompletionDF.join(courseDetails, Seq("courseID"), "inner")
+
     val firstCompletionDataDF = userCourseCompletionDF.groupByLimit(Seq("userID"), "formattedCompletionDate", 4).drop("rowNum")
     val userAssessmentDF = userAssessmentDataFrame().select(col("assessChildID"), col("courseID"))
     var karmaPointsFromCourseCompletion = firstCompletionDataDF.join(userAssessmentDF, Seq("courseID"), "left")

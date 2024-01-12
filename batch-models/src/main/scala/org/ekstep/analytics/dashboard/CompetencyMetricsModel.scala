@@ -112,13 +112,11 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     println(spark.conf.getAll)
 
     // obtain and save user org data
-    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val designationsDF = orgDesignationsDF(userOrgDF)
     Redis.dispatchDataFrame[String]("org_designations", designationsDF, "userOrgID", "org_designations", replace = false)
 
-    userDF = userDF.drop("userProfileDetails")
-    userOrgDF = userOrgDF.drop("userProfileDetails")
     // kafkaDispatch(withTimestamp(orgDF, timestamp), conf.orgTopic)
     kafkaDispatch(withTimestamp(userOrgDF, timestamp), conf.userOrgTopic)
 
@@ -149,7 +147,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
-    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame()
+    val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
@@ -352,10 +350,9 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // FROM \"dashboards-user-course-program-progress\" WHERE __time = (SELECT MAX(__time) FROM \"dashboards-user-course-program-progress\")
     // AND userStatus=1 AND category='Course' AND courseStatus IN ('Live', 'Retired') AND dbCompletionStatus=2 $mdo$ GROUP BY 1, 2, 3 ORDER BY completed_count DESC LIMIT 5
     val top5UsersByCompletionByMdoDF = liveRetiredCourseCompletedDF
-      .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
       .groupBy("userID", "fullName", "maskedEmail", "userOrgID", "userOrgName")
       .agg(count("courseID").alias("completedCount"))
-      .groupByLimit("userOrgID", "completedCount", 5, desc = true)
+      .groupByLimit(Seq("userOrgID"), "completedCount", 5, desc = true)
       .withColumn("jsonData", struct("rowNum", "userID", "fullName", "maskedEmail", "userOrgID", "userOrgName", "completedCount"))
       .orderBy(col("completedCount").desc)
       .groupBy("userOrgID")
@@ -380,7 +377,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
         expr("SUM(CASE WHEN dbCompletionStatus=1 THEN 1 ELSE 0 END)").alias("inProgressCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount")
       )
-      .groupByLimit("courseOrgID", "completedCount", 5, desc = true)
+      .groupByLimit(Seq("courseOrgID"), "completedCount", 5, desc = true)
       .withColumn("jsonData", struct("rowNum", "courseID", "courseName", "courseOrgID", "courseOrgName", "enrolledCount", "notStartedCount", "inProgressCount", "completedCount"))
       .orderBy(col("completedCount").desc)
       .groupBy("courseOrgID")
@@ -610,7 +607,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category = 'Course'")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .groupByLimit("userOrgID", "enrollmentCount", 50, desc = true)
+      .groupByLimit(Seq("userOrgID"), "enrollmentCount", 50, desc = true)
       .drop("enrollmentCount", "rowNum")
 
     val trendingCoursesListByOrg = trendingCoursesByOrg
@@ -626,7 +623,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       .filter("dbCompletionStatus IN (0, 1, 2) AND courseStatus = 'Live' AND category  IN ('Blended Program', 'Curated Program')")
       .groupBy("userOrgID", "courseID")
       .agg(count("*").alias("enrollmentCount"))
-      .groupByLimit("userOrgID", "enrollmentCount", 50, desc = true)
+      .groupByLimit(Seq("userOrgID"), "enrollmentCount", 50, desc = true)
       .drop("enrollmentCount", "rowNum")
 
     val trendingProgramsListByOrg = trendingProgramsByOrg

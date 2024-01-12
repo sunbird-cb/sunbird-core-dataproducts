@@ -13,8 +13,8 @@ import java.io.Serializable
 
 object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModelNew"
-  override def name() = "CourseBasedAssessmentModelNew"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.cba.CourseBasedAssessmentModel"
+  override def name() = "CourseBasedAssessmentModel"
 
   override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
     // we want this call to happen only once, so that timestamp is consistent for all data points
@@ -59,47 +59,32 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     val assessWithDetailsDF = assessWithHierarchyDF.drop("children")
 
     val assessChildrenDF = assessmentChildrenDataFrame(assessWithHierarchyDF)
-    val userAssessmentDF = userAssessmentDataFrame()
+    val userAssessmentDF = userAssessmentDataFrame().filter(col("assessUserStatus") === "SUBMITTED")
     val userAssessChildrenDF = userAssessmentChildrenDataFrame(userAssessmentDF, assessChildrenDF)
     val userAssessChildrenDetailsDF = userAssessmentChildrenDetailsDataFrame(userAssessChildrenDF, assessWithDetailsDF,
       allCourseProgramDetailsWithRatingDF, userOrgDF)
 
     val orgHierarchyData = orgHierarchyDataframe()
 
-    val userProfileDetails = userProfileDetailsDF(orgDF).select(
-      col("profileDetails"), col("additionalProperties"), col("personalDetails"), col("professionalDetails"), col("userID"))
-
-    var df = userAssessChildrenDetailsDF
-      .join(userProfileDetails, Seq("userID"), "inner")
+    val userAssessChildDataDF = userAssessChildrenDetailsDF
       .join(orgHierarchyData, Seq("userOrgName"), "left")
+    show(userAssessChildDataDF, "userAssessChildDataDF")
 
-    df = df.withColumn("userAssessmentDuration", (unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp"))))
-    show(df, "df 0")
+    val retakesDF = userAssessChildDataDF
+      .groupBy("assessChildID", "userID")
+      .agg(countDistinct("assessStartTime").alias("retakes"))
+    show(retakesDF, "retakesDF")
 
-    val assessSubmitted = df.filter(col("assessUserStatus") === "SUBMITTED")
+    val userAssessChildDataLatestDF = userAssessChildDataDF
+      .groupByLimit(Seq("assessChildID", "userID"), "assessEndTimestamp", 1, desc = true)
+      .drop("rowNum")
+      .join(retakesDF, Seq("assessChildID", "userID"), "left")
+    show(userAssessChildDataLatestDF, "userAssessChildDataLatestDF")
 
-    val latest = assessSubmitted
-      .groupBy(col("assessChildID"), col("userID"))
-      .agg(
-        max("assessEndTimestamp").alias("assessEndTimestamp"),
-        countDistinct("assessStartTime").alias("retakes")
-      )
-    show(latest, "latest")
-
-    df = df.join(latest, Seq("assessChildID", "userID", "assessEndTimestamp"), "inner")
-    show(df, "df 1")
-
-    //    df = df.durationFormat("userAssessmentDuration", "actualDuration")
-    //    show(df, "df 2")
-
-    df = df.durationFormat("assessExpectedDuration", "totalAssessmentDuration")
-    show(df, "df 3")
-
-    val caseExpression = "CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"
-    df = df.withColumn("Pass", expr(caseExpression))
-    show(df, "df 4")
-
-    df = df
+    val finalDF = userAssessChildDataLatestDF
+      .withColumn("userAssessmentDuration", unix_timestamp(col("assessEndTimestamp")) - unix_timestamp(col("assessStartTimestamp")))
+      .withColumn("Pass", expr("CASE WHEN assessPass == 1 THEN 'Yes' ELSE 'No' END"))
+      .durationFormat("assessExpectedDuration", "totalAssessmentDuration")
       .withColumn("assessPercentage", when(col("assessPassPercentage").isNotNull, col("assessPassPercentage"))
         .otherwise(lit("Need to pass in all sections")))
       .withColumn("assessment_type", when(col("assessCategory") === "Standalone Assessment", col("assessCategory"))
@@ -110,11 +95,10 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       .withColumn("Total_Score_Calculated", when(col("assessMaxQuestions").isNotNull, col("assessMaxQuestions") * 1))
       .withColumn("course_id", when(col("assessCategory") === "Standalone Assessment", lit(""))
         .otherwise(col("assessID")))
-
-    df = df.dropDuplicates("userID", "assessChildID")
       .withColumn("Tags", concat_ws(", ", col("additionalProperties.tag")))
+    show(finalDF, "finalDF")
 
-    val fullReportDF = df
+    val fullReportDF = finalDF
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
         col("userID").alias("User ID"),
@@ -158,7 +142,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     val mdoReportDF = fullReportDF.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "UserAssessmentReport")
 
-    val warehouseDF = df
+    val warehouseDF = finalDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),

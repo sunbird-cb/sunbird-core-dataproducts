@@ -5,8 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil.generateWarehouseReport
-import org.ekstep.analytics.dashboard.DataUtilNew._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
 import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
@@ -56,17 +55,13 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     val orgDF = orgDataFrame()
 
-    //Get course data first
-    val allCourseProgramDetailsDF = contentDataFrames(false, true)
-    val allCourseProgramDetailsDFWithOrgName = allCourseProgramDetailsDF
-      .join(orgDF, allCourseProgramDetailsDF.col("courseActualOrgId").equalTo(orgDF.col("orgID")), "left")
-      .withColumnRenamed("orgName", "courseOrgName")
-    show(allCourseProgramDetailsDFWithOrgName, "allCourseProgramDetailsDFWithOrgName")
+    // Get course data first
+    val allCourseProgramDetailsDF = contentWithOrgDetailsDataFrame(orgDF, Seq("Course", "Program", "Blended Program", "CuratedCollections", "Curated Program"))
 
     val userRatingDF = userCourseRatingDataframe().groupBy("courseID").agg(
       avg(col("userRating")).alias("rating")
     )
-    val cbpDetailsDF = allCourseProgramDetailsDFWithOrgName.join(userRatingDF, Seq("courseID"), "left")
+    val cbpDetailsDF = allCourseProgramDetailsDF.join(userRatingDF, Seq("courseID"), "left")
     show(cbpDetailsDF, "cbpDetailsDataFrame")
 
     val courseResCountDF = allCourseProgramDetailsDF.select("courseID", "courseResourceCount")
@@ -106,6 +101,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
 
     val fullDF = curatedCourseDataDFWithBatchInfo
       .where(expr("courseStatus IN ('Live', 'Draft', 'Retired', 'Review')"))
+      .durationFormat("courseDuration")
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
@@ -116,7 +112,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val fullReportDF = fullDF
       .select(
         col("courseID"),
-        col("courseActualOrgId"),
+        col("courseOrgID"),
         col("courseStatus").alias("CBP_Status"),
         col("courseOrgName").alias("CBP_Provider"),
         col("courseName").alias("CBP_Name"),
@@ -136,7 +132,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
         col("lastCompletedOn").alias("Last_Completed_On"),
         col("ArchivedOn").alias("CBP_Retired_On"),
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
-        col("courseActualOrgId").alias("mdoid"),
+        col("courseOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
       )
       .coalesce(1)
@@ -145,14 +141,14 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val reportPath = s"${conf.courseReportPath}/${today}"
     // generateFullReport(fullReportDF, s"${conf.courseReportPath}-test/${today}")
     generateFullReport(fullReportDF, reportPath)
-    val mdoReportDF = fullReportDF.drop("courseID", "courseActualOrgId")
+    val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "CBPReport")
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("courseID").alias("cbp_id"),
-        col("courseActualOrgId").alias("cbp_provider_id"),
+        col("courseOrgID").alias("cbp_provider_id"),
         col("courseOrgName").alias("cbp_provider_name"),
         col("courseName").alias("cbp_name"),
         col("category").alias("cbp_type"),

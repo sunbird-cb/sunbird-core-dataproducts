@@ -45,8 +45,8 @@ object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val karmaPointsData = userKarmaPointsDataFrame().filter(col("credit_date").between(monthStart, monthEnd))
 
     // get user-org data
-    val orgDF = orgDataFrame()
-    val userOrgData = userProfileDetailsDF(orgDF).select(col("userID"), col("userOrgID").alias("org_id"), col("userOrgName").alias("org_name"))
+    var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
+    val userOrgData = userOrgDF.select(col("userID"), col("userOrgID").alias("org_id"), col("userOrgName").alias("org_name"))
 
     var df = karmaPointsData.join(userOrgData, karmaPointsData.col("userid").equalTo(userOrgData.col("userID")), "full")
       .select(col("userID"),col("points"), col("org_id"), col("org_name"), col("credit_date"))
