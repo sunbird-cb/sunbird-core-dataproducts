@@ -57,7 +57,6 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val monthStart = date_format(date_trunc("MONTH", add_months(current_date(), -1)), dateFormatWithTime)
     val monthEnd = date_format(last_day(add_months(current_date(), -1)), "yyyy-MM-dd 23:59:59")
 
-
     val convertTimeUUIDToDateStringUDF = udf((timeUUID: String) => {
       val timestamp = (UUID.fromString(timeUUID).timestamp() - 0x01b21dd213814000L) / 10000
       val date = new Date(timestamp)
@@ -100,12 +99,22 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       .withColumn("formattedCompletionDate", date_format(from_unixtime(col("courseCompletedTimestamp")), dateFormatWithTime))
       .filter(col("formattedCompletionDate").between(monthStart, monthEnd))
 
-    val courseDetails = cbpDetails.where(col("category").equalTo("Course"))
-    val userCourseCompletionDF = userCBPCompletionDF.join(courseDetails, Seq("courseID"), "inner")
+    val courseDetails = cbpDetails
+      .where(col("category").equalTo("Course"))
 
-    val firstCompletionDataDF = userCourseCompletionDF.groupByLimit(Seq("userID"), "formattedCompletionDate", 4).drop("rowNum")
-    val userAssessmentDF = userAssessmentDataFrame().select(col("assessChildID"), col("courseID"))
-    var karmaPointsFromCourseCompletion = firstCompletionDataDF.join(userAssessmentDF, Seq("courseID"), "left")
+    val userCourseCompletionDF = userCBPCompletionDF
+      .join(courseDetails, Seq("courseID"), "inner")
+
+    val firstCompletionDataDF = userCourseCompletionDF
+      .groupByLimit(Seq("userID"), "formattedCompletionDate", 4)
+      .drop("rowNum")
+
+    val userAssessmentDF = userAssessmentDataFrame()
+      .select(col("assessChildID"), col("courseID"))
+
+    var karmaPointsFromCourseCompletion = firstCompletionDataDF
+      .join(userAssessmentDF, Seq("courseID"), "left")
+
     karmaPointsFromCourseCompletion = karmaPointsFromCourseCompletion
       .withColumn("operation_type", lit("COURSE_COMPLETION"))
       .withColumn("hasAssessment", when(col("assessChildID").isNotNull, true).otherwise(false))
@@ -147,14 +156,21 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     val existingSummaryData = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsSummaryTable)
       .select(col("userid"), col("total_points").alias("existing_total_points"))
+
     var summaryDataDF = data.select(col("userid"), col("points"), col("context_id"))
-    summaryDataDF = summaryDataDF.groupBy(col("userid")).agg(sum(col("points")).alias("points"))
-    summaryDataDF = summaryDataDF.join(existingSummaryData, Seq("userid"), "full").withColumn("total_points", col("existing_total_points") + col("points"))
+      .groupBy(col("userid"))
+      .agg(sum(col("points")).alias("points"))
+
+    summaryDataDF = summaryDataDF
+      .join(existingSummaryData, Seq("userid"), "full")
+      .withColumn("total_points", col("existing_total_points") + col("points"))
       //      .withColumn("currentMonth", lit("2023|12"))
       //      .withColumn("nonACBPCourseKarmaQuotaClaimed", count(col("context_id")))
       //      .withColumn("addinfo", to_json(struct("currentMonth", "nonACBPCourseKarmaQuotaClaimed")))
       .select(col("userid"), col("total_points"))
+
     writeToCassandra(summaryDataDF, keyspace, conf.cassandraKarmaPointsSummaryTable)
+
     show(summaryDataDF, "Karma Points updated in summary")
   }
 

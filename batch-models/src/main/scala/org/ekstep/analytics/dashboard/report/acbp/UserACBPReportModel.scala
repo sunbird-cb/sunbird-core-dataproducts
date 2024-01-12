@@ -113,17 +113,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // for enrolment report
     val enrolmentReportDataDF = acbpEnrolmentDF
-      .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName", "completionDueDate", "allocatedOn")
-      .agg(
-        collect_list("courseName").alias("acbpCourseNameList"),
-        count("courseID").alias("allocatedCount"),
-        expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
-        max("dbCompletionStatus").alias("maxStatus"),
-        max("courseCompletedTimestamp").alias("maxCourseCompletedTimestamp")
-      )
-      .withColumn("currentProgress", expr("CASE WHEN allocatedCount=completedCount THEN 'Completed' WHEN maxStatus=0 THEN 'Not Started' WHEN maxStatus>0 THEN 'In Progress' ELSE 'Not Enrolled' END"))
-      .withColumn("completionDate", expr("CASE WHEN allocatedCount=completedCount THEN maxCourseCompletedTimestamp END"))
-      .withColumn("completionDate", to_date(col("completionDate"), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("currentProgress", expr("CASE WHEN dbCompletionStatus=2 THEN 'Completed' WHEN dbCompletionStatus=1 THEN 'In Progress' WHEN dbCompletionStatus=0 THEN 'Not Started' ELSE 'Not Enrolled' END"))
+      .withColumn("courseCompletedTimestamp", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("allocatedOn", to_date(col("allocatedOn"), "dd/MM/yyyy"))
       .withColumn("completionDueDate", to_date(col("completionDueDate"), "dd/MM/yyyy"))
       .na.fill("")
@@ -137,11 +128,11 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("userOrgName").alias("MDO Name"),
         col("group").alias("Group"),
         col("designation").alias("Designation"),
-        concat_ws(",", col("acbpCourseNameList")).alias("Name of the ACBP Allocated Courses"),
+        col("courseName").alias("Name of the ACBP Allocated Course"),
         col("allocatedOn").alias("Allocated On"),
         col("currentProgress").alias("Current Progress"),
         col("completionDueDate").alias("Due Date of Completion"),
-        col("completionDate").alias("Actual Date of Completion"),
+        col("courseCompletedTimestamp").alias("Actual Date of Completion"),
         col("userOrgID").alias("mdoid"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
