@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.TimestampType
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
@@ -53,15 +54,18 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     if(conf.validation == "true") validation = true
 
     val currentDate = DateTime.now()
-    val monthStart = currentDate.minusMonths(1).withDayOfMonth(1).getMillis / 1000
-    val monthEnd = currentDate.withDayOfMonth(1).getMillis / 1000
+    val monthStartMills = currentDate.minusMonths(1).withDayOfMonth(1).getMillis
+    val monthEndMills = currentDate.withDayOfMonth(1).getMillis
+    val monthStartSeconds = monthStartMills / 1000
+    val monthEndSeconds = monthEndMills / 1000
 
-    val timeUUIDToTimestamp = udf((timeUUID: String) => (UUID.fromString(timeUUID).timestamp() - 0x01b21dd213814000L) / 10000)
+    val timeUUIDToTimestampMills = udf((timeUUID: String) => (UUID.fromString(timeUUID).timestamp() - 0x01b21dd213814000L) / 10000)
 
     // filter only previous month's ratings
     val courseRatingKarmaPointsDF = userCourseRatingDataframe()
-      .withColumn("credit_date", timeUUIDToTimestamp(col("createdOn")))
-      .where(s"credit_date >= '${monthStart}' AND credit_date < '${monthEnd}'")
+      .withColumn("credit_date", timeUUIDToTimestampMills(col("createdOn")))
+      .where(s"credit_date >= '${monthStartMills}' AND credit_date < '${monthEndMills}'")
+      .withColumn("credit_date", col("credit_date") / 1000)
     show(courseRatingKarmaPointsDF, "courseRatingKarmaPointsDF")
 
     // get cbp details like course name and category
@@ -89,7 +93,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     show(karmaPointsFromRatingDF, "karmaPointsFromRatingDF")
 
     val userCourseCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
-      .where(s"dbCompletionStatus=2 AND courseCompletedTimestamp >= '${monthStart}' AND courseCompletedTimestamp < '${monthEnd}'")
+      .where(s"dbCompletionStatus=2 AND courseCompletedTimestamp >= '${monthStartSeconds}' AND courseCompletedTimestamp < '${monthEndSeconds}'")
       .join(courseDetails, Seq("courseID"), "inner")
     show(userCourseCompletionDF, "userCourseCompletionDF")
 
@@ -128,6 +132,7 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     // union both karma points dataframes, and write to cassandra
     val allKarmaPointsDF = karmaPointsFromRatingDF.union(karmaPointsFromCourseCompletionDF)
+      .withColumn("credit_date", col("credit_date").cast(TimestampType))
     show(allKarmaPointsDF, "allKarmaPointsDF")
     writeToCassandra(allKarmaPointsDF, conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
 
