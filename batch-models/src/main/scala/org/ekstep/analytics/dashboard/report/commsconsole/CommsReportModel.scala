@@ -62,12 +62,14 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     val orgDF = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.orgHierarchyReportPath}/${today}-warehouse")
+      .withColumn("department", when(col("ministry").isNotNull && col("department").isNull, col("mdo_name")).otherwise(col("department")))
+      .withColumn("ministry", when(col("ministry").isNull && col("department").isNull, col("mdo_name")).otherwise(col("ministry")))
       .select("mdo_id", "ministry", "department", "organization")
 
     val userDF = spark.read.option("header", "true")
       .csv(s"/tmp/${conf.userReportPath}/${today}-warehouse")
       .withColumn("registrationDate", to_date(col("user_registration_date"), dateFormat1))
-      .select("user_id", "mdo_id", "full_name", "email", "phone_number", "roles", "registrationDate", "tag")
+      .select("user_id", "mdo_id", "full_name", "email", "phone_number", "roles", "registrationDate", "tag", "user_registration_date")
       .join(orgDF, Seq("mdo_id"), "left")
 
     val rawEnrollmentsDF = spark.read.option("header", "true")
@@ -99,10 +101,10 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("department").alias("Department"),
         col("organization").alias("Organization"),
         col("roles").alias("Role"),
-        col("Last_Updated_On"),
-        col("completionCount"),
-        col("userCount"),
-        col("completionPerUser")
+        col("userCount").alias("Total_Users"),
+        col("completionCount").alias("Total_Content_Completion"),
+        col("completionPerUser").alias("Content_Completion_Per_User"),
+        col("Last_Updated_On")
       )
     generateReportsWithoutPartition(mdoCompletionRateWithAdminDetailsDF, s"${commsConsoleReportPath}/topMdoCompletionRatio", "topMdoCompletionRatio")
 
@@ -118,6 +120,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("ministry").alias("Ministry"),
         col("department").alias("Department"),
         col("organization").alias("Organization"),
+        col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
     generateReportsWithoutPartition(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/usersWithoutEnrollments", "usersWithoutEnrollments")
@@ -134,6 +137,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("ministry").alias("Ministry"),
         col("department").alias("Department"),
         col("organization").alias("Organization"),
+        col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
     generateReportsWithoutPartition(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/recentUsersWithoutEnrollments", "recentUsersWithoutEnrollments")
@@ -154,6 +158,8 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("ministry").alias("Ministry"),
         col("department").alias("Department"),
         col("organization").alias("Organization"),
+        col("user_registration_date").alias("User_Registration_Date"),
+        col("completionCount").alias("Content_Completion"),
         col("Last_Updated_On")
       )
     generateReportsWithoutPartition(topXCompletionsInNDays, s"${commsConsoleReportPath}/topNRecentCompletions", "topNRecentCompletions")
@@ -170,7 +176,8 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       .filter(col("user_consumption_status") === "completed" && col("cbp_id").isin(prarambhCourses: _*))
     val prarambEnrollmentsByRozgarUsersDF = rozgarUsersDF.join(prarambhEnrollments, Seq("user_id"), "left")
     val prarambhCompletionCountsDF = prarambEnrollmentsByRozgarUsersDF.groupBy("user_id").agg(
-      count("*").alias("prarambhCompletionCount")
+      count("*").alias("prarambhCompletionCount"),
+      max("completionDate").alias("Completed_On")
     )
     val prarambhUserDataWithCompletionCountsDF = prarambhCompletionCountsDF.join(rozgarUsersDF, Seq("user_id"), "inner")
       .withColumn("Last_Updated_On", lastUpdatedOn)
@@ -181,6 +188,8 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("ministry").alias("Ministry"),
         col("department").alias("Department"),
         col("organization").alias("Organization"),
+        col("user_registration_date").alias("User_Registration_Date"),
+        col("Completed_On"),
         col("Last_Updated_On"),
         col("prarambhCompletionCount")
       )
@@ -191,12 +200,6 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       , s"${commsConsoleReportPath}/prarambhUsersAllCompletions", "prarambhUsersAllCompletions")
 
     syncReports(s"/tmp/${commsConsoleReportPath}", commsConsoleReportPath)
-//    syncReports(s"/tmp/${commsConsoleReportPath}/prarambhUsers6Completions", s"${commsConsoleReportPath}/prarambhUsers6Completions")
-//    syncReports(s"/tmp/${commsConsoleReportPath}/prarambhUsersAllCompletions", s"${commsConsoleReportPath}/prarambhUsersAllCompletions")
-//    syncReports(s"/tmp/${commsConsoleReportPath}/recentUsersWithoutEnrollments", s"${commsConsoleReportPath}/recentUsersWithoutEnrollments")
-//    syncReports(s"/tmp/${commsConsoleReportPath}/topMdoCompletionRatio", s"${commsConsoleReportPath}/topMdoCompletionRatio")
-//    syncReports(s"/tmp/${commsConsoleReportPath}/topNRecentCompletions", s"${commsConsoleReportPath}/topNRecentCompletions")
-//    syncReports(s"/tmp/${commsConsoleReportPath}/usersWithoutEnrollments", s"${commsConsoleReportPath}/usersWithoutEnrollments")
 
     Redis.closeRedisConnect()
 
