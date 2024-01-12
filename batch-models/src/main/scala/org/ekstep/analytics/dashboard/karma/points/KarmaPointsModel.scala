@@ -67,12 +67,17 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     // get cbp details like course name and category
     val categories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")
-    val cbpDetails = allCourseProgramESDataFrame(categories).select(col("courseID"), col("courseName"), col("category"))
+    val cbpDetails = allCourseProgramESDataFrame(categories)
+      .select("courseID", "courseName", "category")
 
     // Assign 2 karma points for each rating
     val courseRatingKarmaPointsDF = userCourseRatingDataframe()
-      .withColumn("credit_date", convertTimeUUIDToDateStringUDF(col("createdOn"))).filter(col("credit_date").between(monthStart, monthEnd))
-    val karmaPointsFromRating = courseRatingKarmaPointsDF.join(cbpDetails, Seq("courseID"), "left")
+      .withColumn("credit_date", convertTimeUUIDToDateStringUDF(col("createdOn")))
+      .filter(col("credit_date").between(monthStart, monthEnd))
+
+    val karmaPointsFromRating = courseRatingKarmaPointsDF
+      .join(cbpDetails, Seq("courseID"), "left")
+
     val ratingDF = karmaPointsFromRating
       .withColumn("operation_type", lit("RATING"))
       .withColumn("COURSENAME", col("courseName"))
@@ -122,4 +127,35 @@ object KarmaPointsModel extends IBatchModelTemplate[String, DummyInput, DummyOut
 
     Redis.closeRedisConnect()
   }
+
+  def updateKarmaPoints(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession, conf: DashboardConfig) = {
+    writeToCassandra(data, keyspace, table)
+    show(data, "Karma Points updated")
+
+    val lookupDataDF = data.select(
+      col("userid"),
+      col("context_type"),
+      col("context_id"),
+      col("operation_type"),
+      col("credit_date")
+    )
+      .withColumn("user_karma_points_key", concat(col("userid"), lit("|"), col("context_type"), lit("|"), col("context_id")))
+      .drop("userid", "context_type", "context_id")
+
+    writeToCassandra(lookupDataDF, keyspace, conf.cassandraKarmaPointsLookupTable)
+    show(lookupDataDF, "Karma points updated in look up")
+
+    val existingSummaryData = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsSummaryTable)
+      .select(col("userid"), col("total_points").alias("existing_total_points"))
+    var summaryDataDF = data.select(col("userid"), col("points"), col("context_id"))
+    summaryDataDF = summaryDataDF.groupBy(col("userid")).agg(sum(col("points")).alias("points"))
+    summaryDataDF = summaryDataDF.join(existingSummaryData, Seq("userid"), "full").withColumn("total_points", col("existing_total_points") + col("points"))
+      //      .withColumn("currentMonth", lit("2023|12"))
+      //      .withColumn("nonACBPCourseKarmaQuotaClaimed", count(col("context_id")))
+      //      .withColumn("addinfo", to_json(struct("currentMonth", "nonACBPCourseKarmaQuotaClaimed")))
+      .select(col("userid"), col("total_points"))
+    writeToCassandra(summaryDataDF, keyspace, conf.cassandraKarmaPointsSummaryTable)
+    show(summaryDataDF, "Karma Points updated in summary")
+  }
+
 }

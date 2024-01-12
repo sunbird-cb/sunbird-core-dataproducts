@@ -189,3 +189,4 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
   }
 }
+

@@ -954,9 +954,13 @@ object DataUtil extends Serializable {
   }
 
   def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable).select(
-      col("activityid").alias("courseID"), col("userid").alias("userID"), col("rating").alias("userRating"),
-      col("activitytype").alias("cbpType"), col("createdon").alias("createdOn")
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable)
+      .select(
+        col("activityid").alias("courseID"),
+        col("userid").alias("userID"),
+        col("rating").alias("userRating"),
+        col("activitytype").alias("cbpType"),
+        col("createdon").alias("createdOn")
     )
     show(df, "Rating given by user")
     df
@@ -1571,29 +1575,6 @@ object DataUtil extends Serializable {
     val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
     show(df, "Karma Points data")
     df
-  }
-
-  def updateKarmaPoints(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession, conf: DashboardConfig) = {
-    writeToCassandra(data, keyspace, table)
-    show(data, "Karma Points updated")
-
-    val lookupDataDF = data.select(col("userid"), col("context_type"), col("context_id"), col("operation_type"), col("credit_date"))
-      .withColumn("user_karma_points_key", concat(col("userid"), lit("|"), col("context_type"), lit("|"), col("context_id")))
-      .drop("userid", "context_type", "context_id")
-    writeToCassandra(lookupDataDF, keyspace, conf.cassandraKarmaPointsLookupTable)
-    show(lookupDataDF, "Karma points updated in look up")
-
-    val existingSummaryData = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsSummaryTable)
-      .select(col("userid"), col("total_points").alias("existing_total_points"))
-    var summaryDataDF = data.select(col("userid"), col("points"), col("context_id"))
-    summaryDataDF = summaryDataDF.groupBy(col("userid")).agg(sum(col("points")).alias("points"))
-    summaryDataDF = summaryDataDF.join(existingSummaryData, Seq("userid"), "full").withColumn("total_points", col("existing_total_points") + col("points"))
-//      .withColumn("currentMonth", lit("2023|12"))
-//      .withColumn("nonACBPCourseKarmaQuotaClaimed", count(col("context_id")))
-//      .withColumn("addinfo", to_json(struct("currentMonth", "nonACBPCourseKarmaQuotaClaimed")))
-      .select(col("userid"), col("total_points"))
-    writeToCassandra(summaryDataDF, keyspace, conf.cassandraKarmaPointsSummaryTable)
-    show(summaryDataDF, "Karma Points updated in summary")
   }
 
   /* telemetry data frames */
