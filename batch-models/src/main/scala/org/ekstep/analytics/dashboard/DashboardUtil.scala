@@ -74,6 +74,7 @@ case class DashboardConfig (
     cassandraKarmaPointsTable: String,
     cassandraHallOfFameTable: String,
     cassandraKarmaPointsLookupTable: String,
+    cassandraKarmaPointsSummaryTable: String,
 
     //warehouse tables;
     appPostgresHost: String,
@@ -649,6 +650,7 @@ object DashboardUtil extends Serializable {
       cassandraAcbpTable = getConfigModelParam(config, "cassandraAcbpTable"),
       cassandraHallOfFameTable = getConfigModelParam(config, "cassandraHallOfFameTable"),
       cassandraKarmaPointsLookupTable = getConfigModelParam(config, "cassandraKarmaPointsLookupTable"),
+      cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
 
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",

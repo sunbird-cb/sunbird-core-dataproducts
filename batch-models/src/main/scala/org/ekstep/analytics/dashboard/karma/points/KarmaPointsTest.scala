@@ -64,6 +64,7 @@ object KarmaPointsTest extends Serializable {
       "cassandraUserAssessmentTable" -> "user_assessment_data",
       "cassandraKarmaPointsLookupTable" -> "user_karma_points_credit_lookup",
       "cassandraKarmaPointsTable" -> "user_karma_points",
+      "cassandraKarmaPointsSummaryTable" -> "user_karma_points_summary",
 
       "cutoffTime" -> "60.0",
 
