@@ -62,6 +62,7 @@ object UserACBPReportTest extends Serializable{
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
       "cassandraUserRatingTable" -> "ratings",
+      "cassandraOrgHierarchyTable" -> "org_hierarchy",
       "cassandraUserAssessmentTable" -> "user_assessment_data",
       "cassandraAcbpTable" -> "cb_plan",
 
