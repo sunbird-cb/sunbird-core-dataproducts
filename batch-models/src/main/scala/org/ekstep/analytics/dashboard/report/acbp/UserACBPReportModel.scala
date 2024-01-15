@@ -142,13 +142,13 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
-      .withColumn("completionDueDateLong", col("completionDueDate").cast(LongType))
+      .withColumn("completionDueDateLong", expr("completionDueDate + INTERVAL 24 HOURS").cast(LongType))
       .withColumn("courseCompletedTimestampLong", col("courseCompletedTimestamp").cast(LongType))
       .groupBy("userID", "fullName", "userPrimaryEmail", "userMobile", "designation", "group", "userOrgID", "userOrgName")
       .agg(
         count("courseID").alias("allocatedCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
-        expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestampLong<=completionDueDateLong THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
+        expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestampLong<completionDueDateLong THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
       )
     show(userSummaryDataDF, "userSummaryDataDF")
 
