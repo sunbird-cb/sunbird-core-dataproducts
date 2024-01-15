@@ -173,8 +173,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/ACBPUserSummaryReport", "ACBPUserSummaryReport")
     syncReports(s"/tmp/${reportPath}", reportPath)
 
-    generateAndSyncReports(enrolmentReportDF, "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "ACBPEnrollmentReport")
-    generateAndSyncReports(userSummaryReportDF, "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "ACBPUserSummaryReport")
+    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "ACBPEnrollmentReport")
+    generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "ACBPUserSummaryReport")
 
     Redis.closeRedisConnect()
 
