@@ -58,7 +58,9 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val userDataDF = userOrgDF
       .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
       .withColumn("group", coalesce(col("professionalDetails.group"), lit("")))
-      .select("userID", "fullName", "maskedEmail", "maskedPhone", "userOrgID", "userOrgName", "designation", "group")
+      .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
+      .withColumn("userMobile", col("personalDetails.mobile"))
+      .select("userID", "fullName", "userPrimaryEmail", "userMobile", "userOrgID", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
     // get course details and course enrolment data frames
@@ -93,7 +95,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
 
     // union of all the response dfs
     val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
-      df.select("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName", "acbpID", "assignmentType", "completionDueDate", "allocatedOn", "acbpCourseIDList")
+      df.select("userID", "fullName", "userPrimaryEmail", "userMobile", "designation", "group", "userOrgID", "userOrgName", "acbpID", "assignmentType", "completionDueDate", "allocatedOn", "acbpCourseIDList")
     }).reduce((a, b) => a.union(b))
     show(acbpAllotmentDF, "acbpAllotmentDF")
 
@@ -123,12 +125,12 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val enrolmentReportDF = enrolmentReportDataDF
       .select(
         col("fullName").alias("Name"),
-        col("maskedEmail").alias("Masked Email"),
-        col("maskedPhone").alias("Masked Phone"),
+        col("userPrimaryEmail").alias("Email"),
+        col("userMobile").alias("Phone"),
         col("userOrgName").alias("MDO Name"),
         col("group").alias("Group"),
         col("designation").alias("Designation"),
-        col("courseName").alias("Name of the ACBP Allocated Course"),
+        col("courseName").alias("Name of CBP Allocated Course"),
         col("allocatedOn").alias("Allocated On"),
         col("currentProgress").alias("Current Progress"),
         col("completionDueDate").alias("Due Date of Completion"),
@@ -142,7 +144,7 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val userSummaryDataDF = acbpEnrolmentDF
       .withColumn("completionDueDateLong", col("completionDueDate").cast(LongType))
       .withColumn("courseCompletedTimestampLong", col("courseCompletedTimestamp").cast(LongType))
-      .groupBy("userID", "fullName", "maskedEmail", "maskedPhone", "designation", "group", "userOrgID", "userOrgName")
+      .groupBy("userID", "fullName", "userPrimaryEmail", "userMobile", "designation", "group", "userOrgID", "userOrgName")
       .agg(
         count("courseID").alias("allocatedCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount"),
@@ -153,8 +155,8 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val userSummaryReportDF = userSummaryDataDF
       .select(
         col("fullName").alias("Name"),
-        col("maskedEmail").alias("Masked Email"),
-        col("maskedPhone").alias("Masked Phone"),
+        col("userPrimaryEmail").alias("Email"),
+        col("userMobile").alias("Phone"),
         col("userOrgName").alias("MDO Name"),
         col("group").alias("Group"),
         col("designation").alias("Designation"),
