@@ -42,7 +42,7 @@ object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
     val monthEnd = date_format(last_day(add_months(current_date(), -1)), "yyyy-MM-dd 23:59:59")
 
     // get karma points data
-    val karmaPointsData = userKarmaPointsDataFrame().filter(col("credit_date").between(monthStart, monthEnd))
+    val karmaPointsData = userKarmaPointsDataFrame().filter(col("credit_date") >= monthStart && col("credit_date") <= monthEnd)
 
     // get user-org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
@@ -50,6 +50,7 @@ object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
 
     var df = karmaPointsData.join(userOrgData, karmaPointsData.col("userid").equalTo(userOrgData.col("userID")), "full")
       .select(col("userID"),col("points"), col("org_id"), col("org_name"), col("credit_date"))
+      .filter(col("org_id") =!= "")
 
     // calculate average karma points - MDO wise
     df = df.groupBy(col("org_id"), col("org_name"))
