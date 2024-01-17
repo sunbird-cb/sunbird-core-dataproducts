@@ -35,7 +35,7 @@ object UserACBPReportTest extends Serializable{
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
         "userOrg" -> "dev.dashboards.user.org",
-        "acbpEnrolmentTopic" -> "dev.dashboards.acbp.enrolment"
+        "acbpEnrolment" -> "dev.dashboards.acbp.enrolment"
       )
     )
     val modelParams = Map(
