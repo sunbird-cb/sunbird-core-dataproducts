@@ -82,13 +82,14 @@ object UserACBPReportTest extends Serializable{
       "cbaReportPath" -> "standalone-reports/cba-report",
       "taggedUsersPath" -> "tagged-users/",
       "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
-      "acbpReportPath" -> "standalone-reports/acbp-report",
-      "acbpMdoEnrolmentReportPath" -> "standalone-reports/acbp-report-mdo-enrolment",
-      "acbpMdoSummaryReportPath" -> "standalone-reports/acbp-report-mdo-summary",
+      "acbpReportPath" -> "standalone-reports/cbp-report",
+      "acbpMdoEnrolmentReportPath" -> "standalone-reports/cbp-report-mdo-enrolment",
+      "acbpMdoSummaryReportPath" -> "standalone-reports/cbp-report-mdo-summary",
 
       "sideOutput" -> sideOutput
     )
     modelParams
   }
 }
+
 

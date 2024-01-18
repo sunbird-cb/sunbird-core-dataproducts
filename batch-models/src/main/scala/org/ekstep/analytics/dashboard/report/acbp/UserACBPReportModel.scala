@@ -168,9 +168,9 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
         col("userOrgName").alias("Organization"),
         col("group").alias("Group"),
         col("designation").alias("Designation"),
-        col("allocatedCount").alias("Number of ACBP Courses Allocated"),
-        col("completedCount").alias("Number of ACBP Courses Completed"),
-        col("completedBeforeDueDateCount").alias("Number of ACBP Courses Completed within due date"),
+        col("allocatedCount").alias("Number of CBP Courses Allocated"),
+        col("completedCount").alias("Number of CBP Courses Completed"),
+        col("completedBeforeDueDateCount").alias("Number of CBP Courses Completed within due date"),
         col("userOrgID").alias("mdoid"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
@@ -179,12 +179,12 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     val reportPath = s"${conf.acbpReportPath}/${today}"
     generateFullReport(acbpAllEnrolmentDF.coalesce(1), reportPath)
 
-    generateReportsWithoutPartition(enrolmentReportDF.drop("mdoid"), s"${reportPath}/ACBPEnrollmentReport", "ACBPEnrollmentReport")
-    generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/ACBPUserSummaryReport", "ACBPUserSummaryReport")
+    generateReportsWithoutPartition(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", "CBPEnrollmentReport")
+    generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", "CBPUserSummaryReport")
     syncReports(s"/tmp/${reportPath}", reportPath)
 
-    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "ACBPEnrollmentReport")
-    generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "ACBPUserSummaryReport")
+    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
+    generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "CBPUserSummaryReport")
 
     Redis.closeRedisConnect()
 
