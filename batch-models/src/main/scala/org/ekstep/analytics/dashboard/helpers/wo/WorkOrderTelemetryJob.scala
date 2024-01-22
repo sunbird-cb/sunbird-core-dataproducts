@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.wo
+package org.ekstep.analytics.dashboard.helpers.wo
 
 import org.apache.spark.SparkContext
 import org.ekstep.analytics.framework.util.JobLogger

@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.rating
+package org.ekstep.analytics.dashboard.helpers.rating
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil

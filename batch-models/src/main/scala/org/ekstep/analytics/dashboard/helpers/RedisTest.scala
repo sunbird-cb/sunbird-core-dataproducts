@@ -1,10 +1,12 @@
-package org.ekstep.analytics.dashboard
+package org.ekstep.analytics.dashboard.helpers
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
+import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil, Redis}
+import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 import redis.clients.jedis.Jedis
-import DashboardUtil._
+
 import java.text.SimpleDateFormat
 
 case class RedisData(x: String, y: String) extends Serializable
