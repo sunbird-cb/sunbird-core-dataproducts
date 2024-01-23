@@ -47,7 +47,7 @@ object RozgarReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
     val today = getDate()
-    val reportPath = s"/tmp/${conf.userEnrolmentReportPath}/${today}/"
+    val reportPath = s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}/"
 
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 

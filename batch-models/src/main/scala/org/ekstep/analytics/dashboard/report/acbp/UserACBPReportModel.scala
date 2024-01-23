@@ -177,11 +177,11 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     show(userSummaryReportDF, "userSummaryReportDF")
 
     val reportPath = s"${conf.acbpReportPath}/${today}"
-    generateFullReport(acbpAllEnrolmentDF.coalesce(1), reportPath)
+    generateFullReport(acbpAllEnrolmentDF.coalesce(1), reportPath, conf.localReportDir)
 
     generateReportsWithoutPartition(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", "CBPEnrollmentReport")
     generateReportsWithoutPartition(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", "CBPUserSummaryReport")
-    syncReports(s"/tmp/${reportPath}", reportPath)
+    syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 
     generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
     generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "CBPUserSummaryReport")

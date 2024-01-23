@@ -110,6 +110,7 @@ case class DashboardConfig (
 
     // for reports
     mdoIDs: String,
+    localReportDir: String,
     standaloneAssessmentReportPath: String,
     userReportPath: String,
     userEnrolmentReportPath: String,
@@ -714,6 +715,7 @@ object DashboardUtil extends Serializable {
 
       // for reports
       mdoIDs = getConfigModelParam(config, "mdoIDs"),
+      localReportDir = getConfigModelParam(config, "localReportDir", "/mount/data/analytics/reports"),
       standaloneAssessmentReportPath = getConfigModelParam(config, "standaloneAssessmentReportPath"),
       userReportPath = getConfigModelParam(config, "userReportPath"),
       userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),

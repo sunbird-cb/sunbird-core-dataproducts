@@ -1656,15 +1656,15 @@ object DataUtil extends Serializable {
   }
 
   /* report generation stuff */
-  def generateFullReport(df: DataFrame, reportPath: String): Unit = {
-    val fullReportPath = s"/tmp/${reportPath}-full"
+  def generateFullReport(df: DataFrame, reportPath: String, localReportDir: String): Unit = {
+    val fullReportPath = s"${localReportDir}/${reportPath}-full"
     println(s"REPORT: Writing full report to ${fullReportPath} ...")
     csvWrite(df, fullReportPath)
     println(s"REPORT: Finished Writing full report to ${fullReportPath}")
   }
 
-  def generateWarehouseReport(df: DataFrame, reportPath: String): Unit = {
-    val warehouseReportPath = s"/tmp/${reportPath}-warehouse"
+  def generateWarehouseReport(df: DataFrame, reportPath: String, localReportDir: String): Unit = {
+    val warehouseReportPath = s"${localReportDir}/${reportPath}-warehouse"
     println(s"REPORT: Writing warehouse report to ${warehouseReportPath} ...")
     csvWrite(df, warehouseReportPath)
     println(s"REPORT: Finished Writing warehouse report to ${warehouseReportPath}")
@@ -1684,7 +1684,7 @@ object DataUtil extends Serializable {
   }
 
   def generateReportsWithoutPartition(df: DataFrame, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"/tmp/${reportPath}"
+    val reportTempPath = s"${conf.localReportDir}/${reportPath}"
     csvWrite(df.coalesce(1), reportTempPath)
     removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
     renameCSVWithoutPartitions(reportTempPath, fileName)
@@ -1701,7 +1701,7 @@ object DataUtil extends Serializable {
   }
 
   def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"/tmp/${reportPath}"
+    val reportTempPath = s"${conf.localReportDir}/${reportPath}"
     generateReports(df, partitionKey, reportTempPath, fileName)
     syncReports(reportTempPath, reportPath)
   }

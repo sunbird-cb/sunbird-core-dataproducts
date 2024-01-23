@@ -61,19 +61,19 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val commsConsoleReportPath = s"${conf.commsConsoleReportPath}/${today}"
 
     val orgDF = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.orgHierarchyReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.orgHierarchyReportPath}/${today}-warehouse")
       .withColumn("department", when(col("ministry").isNotNull && col("department").isNull, col("mdo_name")).otherwise(col("department")))
       .withColumn("ministry", when(col("ministry").isNull && col("department").isNull, col("mdo_name")).otherwise(col("ministry")))
       .select("mdo_id", "ministry", "department", "organization")
 
     val userDF = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.userReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
       .withColumn("registrationDate", to_date(col("user_registration_date"), dateFormat1))
       .select("user_id", "mdo_id", "full_name", "email", "phone_number", "roles", "registrationDate", "tag", "user_registration_date")
       .join(orgDF, Seq("mdo_id"), "left")
 
     val rawEnrollmentsDF = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
       .withColumn("completionDate", to_date(col("completed_on"), dateFormat2))
     val enrollmentsDF = rawEnrollmentsDF
       .join(userDF, Seq("user_id"), "left")
@@ -199,7 +199,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
       , s"${commsConsoleReportPath}/prarambhUsersAllCompletions", "prarambhUsersAllCompletions")
 
-    syncReports(s"/tmp/${commsConsoleReportPath}", commsConsoleReportPath)
+    syncReports(s"${conf.localReportDir}/${commsConsoleReportPath}", commsConsoleReportPath)
 
     Redis.closeRedisConnect()
 
