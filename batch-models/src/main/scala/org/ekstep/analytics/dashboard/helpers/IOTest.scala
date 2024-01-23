@@ -43,38 +43,54 @@ object IOTest extends Serializable {
     println(spark.conf.getAll)
 
     println(s"startTimestamp=${startTimestamp}")
+    implicit val testCsv: Boolean = true
 
     val writeStats = args.map(filename => testWrite(filename))
     val ioStats  = writeStats.map(writeInfo => writeInfo ++ testRead(writeInfo))
     ioStats.foreach(s => println(s))
   }
 
-  def testWrite(filename: String)(implicit spark: SparkSession): Map[String, Any] = {
+  def testWrite(filename: String)(implicit spark: SparkSession, testCsv: Boolean): Map[String, Any] = {
     // following 2 lines should force spark to read all of the json data in memory and avoid any lazy loading
     println(s"Loading ${filename}")
     val df = spark.read.json(s"${rootPath}/${filename}").coalesce(1).persist(StorageLevel.MEMORY_ONLY)
     val count = df.rdd.count()
+    df.printSchema()
+    df.show()
+    println(s"Loading ${filename}: DONE rows=${count}")
 
     // test parquet write
+    println(s"Testing parquet write:")
     val parquetOutPath = s"${rootPath}/out/parquet/${filename}"
     val parquetStart = System.currentTimeMillis()
     df.write.mode(SaveMode.Overwrite).parquet(parquetOutPath)
     val parquetDurationMills = System.currentTimeMillis() - parquetStart
+    println(s"Testing parquet write: DONE in ${parquetDurationMills / 1000}s")
 
     // test avro write
+    println(s"Testing avro write:")
     val avroOutPath = s"${rootPath}/out/avro/${filename}.avro"
     val avroStart = System.currentTimeMillis()
     df.write.mode(SaveMode.Overwrite).format("avro").save(avroOutPath)
     val avroDurationMills = System.currentTimeMillis() - avroStart
+    println(s"Testing avro write: DONE in ${avroDurationMills / 1000}s")
 
     // test csv write
-    val csvOutPath = s"${rootPath}/out/csv/${filename}"
-    val csvStart = System.currentTimeMillis()
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", "true").save(csvOutPath)
-    val csvDurationMills = System.currentTimeMillis() - csvStart
+    var csvOutPath = "N/A"
+    var csvDurationMills = 0L
+    if (testCsv) {
+      println(s"Testing csv write:")
+      csvOutPath = s"${rootPath}/out/csv/${filename}"
+      val csvStart = System.currentTimeMillis()
+      df.write.mode(SaveMode.Overwrite).format("csv").option("header", "true").save(csvOutPath)
+      csvDurationMills = System.currentTimeMillis() - csvStart
+      println(s"Testing csv write: DONE in ${csvDurationMills / 1000}s")
+    }
 
+    println(s"Freeing up memory...")
     // free data frame memory
     df.unpersist(blocking = true)
+    println(s"Freeing up memory: DONE")
 
     Map(
       "filename" -> filename,
@@ -88,28 +104,48 @@ object IOTest extends Serializable {
     )
   }
 
-  def testRead(writeInfo: Map[String, Any])(implicit spark: SparkSession): Map[String, Any] = {
+  def getFromMap[T](map: Map[String, Any], key: String): T = {
+    map.getOrElse(key, "").asInstanceOf[T]
+  }
+
+  def testRead(writeInfo: Map[String, Any])(implicit spark: SparkSession, testCsv: Boolean): Map[String, Any] = {
 
     // read parquet
+    println(s"Testing parquet read:")
     val parquetStart = System.currentTimeMillis()
-    val parquetDF = spark.read.parquet(writeInfo.get("parquetOutPath").asInstanceOf[String]).persist(StorageLevel.MEMORY_ONLY)
+    val parquetDF = spark.read.parquet(getFromMap[String](writeInfo, "parquetOutPath")).persist(StorageLevel.MEMORY_ONLY)
     val parquetOutCount = parquetDF.rdd.count()
     val parquetDurationMills = System.currentTimeMillis() - parquetStart
+    println(s"Testing parquet read: DONE in ${parquetDurationMills / 1000}s rows=${parquetOutCount}")
+    parquetDF.printSchema()
+    parquetDF.show()
     parquetDF.unpersist(blocking = true)
 
     // read avro
+    println(s"Testing avro read:")
     val avroStart = System.currentTimeMillis()
-    val avroDF = spark.read.format("avro").load(writeInfo.get("avroOutPath").asInstanceOf[String]).persist(StorageLevel.MEMORY_ONLY)
+    val avroDF = spark.read.format("avro").load(getFromMap[String](writeInfo, "avroOutPath")).persist(StorageLevel.MEMORY_ONLY)
     val avroOutCount = avroDF.rdd.count()
     val avroDurationMills = System.currentTimeMillis() - avroStart
+    println(s"Testing avro read: DONE in ${avroDurationMills / 1000}s rows=${avroOutCount}")
+    avroDF.printSchema()
+    avroDF.show()
     avroDF.unpersist(blocking = true)
 
     // read csv
-    val csvStart = System.currentTimeMillis()
-    val csvDF = spark.read.format("csv").option("header", "true").load(writeInfo.get("csvOutPath").asInstanceOf[String]).persist(StorageLevel.MEMORY_ONLY)
-    val csvOutCount = csvDF.rdd.count()
-    val csvDurationMills = System.currentTimeMillis() - csvStart
-    csvDF.unpersist(blocking = true)
+    var csvOutCount = 0
+    var csvDurationMills = 0L
+    if (testCsv) {
+      println(s"Testing csv read:")
+      val csvStart = System.currentTimeMillis()
+      val csvDF = spark.read.format("csv").option("header", "true").load(getFromMap[String](writeInfo, "csvOutPath")).persist(StorageLevel.MEMORY_ONLY)
+      csvOutCount = csvDF.rdd.count()
+      csvDurationMills = System.currentTimeMillis() - csvStart
+      println(s"Testing csv read: DONE in ${csvDurationMills / 1000}s rows=${csvOutCount}")
+      csvDF.printSchema()
+      csvDF.show()
+      csvDF.unpersist(blocking = true)
+    }
 
     Map(
       "parquetOutCount" -> parquetOutCount,
