@@ -137,7 +137,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
     show(fullReportDF, "fullReportDF")
 
     val reportPath = s"${conf.cbaReportPath}/${today}"
-    generateFullReport(fullReportDF, reportPath)
+    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
 
     val mdoReportDF = fullReportDF.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "UserAssessmentReport")
@@ -161,7 +161,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("retakes").alias("number_of_retakes"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
+    generateWarehouseReport(warehouseDF.coalesce(1), reportPath, conf.localReportDir)
 
     Redis.closeRedisConnect()
 

@@ -99,10 +99,9 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
       .coalesce(1)
 
     val reportPath = s"${conf.userReportPath}/${today}"
-    // generateFullReport(df, s"${conf.userReportPath}-test/${today}")
-    generateFullReport(fullReportDF, reportPath)
+    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
     val mdoWiseReportDF = fullReportDF.drop("userID", "userOrgID", "userCreatedBy")
-    // generateReports(df, "mdoid", s"/tmp/${reportPath}", "UserReport")
+
     generateAndSyncReports(mdoWiseReportDF, "mdoid", reportPath, "UserReport")
 
     val df_warehouse = userData
@@ -126,7 +125,7 @@ object UserReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutp
         col("data_last_generated_on")
       )
 
-    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath, conf.localReportDir)
 
     Redis.closeRedisConnect()
 

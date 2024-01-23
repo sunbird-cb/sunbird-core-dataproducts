@@ -48,7 +48,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
 
     var user_details = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.userReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
     user_details = user_details.withColumn("user_registration_date", to_date(col("user_registration_date"), "dd/MM/yyyy"))
 
     truncateWarehouseTable(conf.dwUserTable)
@@ -56,7 +56,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
 
     var cbp_details = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.courseReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-warehouse")
 
     cbp_details = cbp_details
       .withColumn("resource_count", col("resource_count").cast("int"))
@@ -73,7 +73,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     saveDataframeToPostgresTable_With_Append(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     var enrollment_details = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.userEnrolmentReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
 
     enrollment_details = enrollment_details
       .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float"))
@@ -88,7 +88,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     saveDataframeToPostgresTable_With_Append(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     var assessment_details = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.cbaReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.cbaReportPath}/${today}-warehouse")
 
     assessment_details = assessment_details
       .withColumn("score_achieved", col("score_achieved").cast("float"))
@@ -105,7 +105,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
 
     var bp_enrollments = spark.read.option("header", "true")
-      .csv(s"/tmp/${conf.blendedReportPath}/${today}-warehouse")
+      .csv(s"${conf.localReportDir}/${conf.blendedReportPath}/${today}-warehouse")
 
     bp_enrollments = bp_enrollments
       .withColumn("component_progress_percentage", col("component_progress_percentage").cast("float"))
@@ -143,7 +143,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
 
     val orgReportPath = s"${conf.orgHierarchyReportPath}/${today}"
-    generateWarehouseReport(orgDwDf.coalesce(1), orgReportPath)
+    generateWarehouseReport(orgDwDf.coalesce(1), orgReportPath, conf.localReportDir)
     truncateWarehouseTable(conf.dwOrgTable)
 
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)

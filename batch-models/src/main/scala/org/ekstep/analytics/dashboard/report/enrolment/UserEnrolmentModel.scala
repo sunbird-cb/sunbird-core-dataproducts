@@ -142,7 +142,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     show(df, "df")
 
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
-    generateFullReport(fullReportDF, reportPath)
+    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
 
     val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseOrgID", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
@@ -164,7 +164,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
         col("userCourseCompletionStatus").alias("user_consumption_status"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(warehouseDF.coalesce(1), reportPath)
+    generateWarehouseReport(warehouseDF.coalesce(1), reportPath, conf.localReportDir)
 
     Redis.closeRedisConnect()
 
