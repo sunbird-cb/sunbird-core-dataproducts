@@ -51,6 +51,7 @@ object IOTest extends Serializable {
 
   def testWrite(filename: String)(implicit spark: SparkSession): Map[String, Any] = {
     // following 2 lines should force spark to read all of the json data in memory and avoid any lazy loading
+    println(s"Loading ${filename}")
     val df = spark.read.json(s"${rootPath}/${filename}").coalesce(1).persist(StorageLevel.MEMORY_ONLY)
     val count = df.rdd.count()
 

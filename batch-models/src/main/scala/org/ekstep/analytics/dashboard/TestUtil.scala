@@ -5,18 +5,18 @@ import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.framework.FrameworkContext
 
 
-object CompetencyMetricsTest extends Serializable {
+object TestUtil extends Serializable {
 
-  def main(args: Array[String]): Unit = {
+  def main(model: DashboardUtil.AbsDashboardModel): Unit = {
     val config = testModelConfig()
-    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext("CompetencyMetricsTest", config)
-    val res = DashboardUtil.Test.time(test(config));
-    Console.println("Time taken to execute script", res._1);
-    spark.stop();
+    implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext(model.name(), config)
+    val res = DashboardUtil.Test.time(test(config, model))
+    Console.println("Time taken to execute script", res._1)
+    spark.stop()
   }
 
-  def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CompetencyMetricsModel.processCompetencyMetricsData(System.currentTimeMillis(), config)
+  def test(config: Map[String, AnyRef], model: DashboardUtil.AbsDashboardModel)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+    model.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

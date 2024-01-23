@@ -206,6 +206,42 @@ object DashboardUtil extends Serializable {
 
   }
 
+  trait AbsDashboardModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+
+    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
+      // we want this call to happen only once, so that timestamp is consistent for all data points
+      val executionTime = System.currentTimeMillis()
+      sc.parallelize(Seq(DummyInput(executionTime)))
+    }
+
+    override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
+      val timestamp = data.first().timestamp  // extract timestamp from input
+      implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
+      parseConfigAndProcessData(timestamp, config)
+      sc.parallelize(Seq())  // return empty rdd
+    }
+
+    override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
+      sc.parallelize(Seq())  // return empty rdd
+    }
+
+    def parseConfigAndProcessData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+      // parse model config
+      println(config)
+      implicit val conf: DashboardConfig = parseConfig(config)
+      if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
+      if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+      if (debug) {
+        println("Spark Config:")
+        println(spark.conf.getAll)
+      }
+      // process
+      processData(timestamp)
+    }
+
+    def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit
+  }
+
   object Test extends Serializable {
     /**
      * ONLY FOR TESTING!!, do not use to create spark context in model or job

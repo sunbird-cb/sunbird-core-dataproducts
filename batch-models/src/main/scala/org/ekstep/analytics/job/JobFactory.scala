@@ -1,6 +1,6 @@
 package org.ekstep.analytics.job
 
-import org.ekstep.analytics.dashboard.CompetencyMetricsJob
+import org.ekstep.analytics.dashboard.DashboardSyncJob
 import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
 import org.ekstep.analytics.dashboard.karma.points.KarmaPointsJob
 import org.ekstep.analytics.dashboard.report.acbp.UserACBPReportJob
@@ -40,8 +40,8 @@ object JobFactory {
         MonitorSummarizer
       case "wfs" =>
         WorkFlowSummarizer
-      case "competency-metrics" =>
-        CompetencyMetricsJob
+      case "dashboard-sync" =>
+        DashboardSyncJob
       case "assessment-metrics" =>
         UserAssessmentJob
       case "summary-redis-sync" =>
