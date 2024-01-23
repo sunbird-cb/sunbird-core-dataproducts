@@ -284,8 +284,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val reportPathMDO = s"${conf.blendedReportPath}-mdo/${today}"
     val reportPathCBP = s"${conf.blendedReportPath}-cbp/${today}"
 
-    // generateFullReport(df, s"${conf.blendedReportPath}-test/${today}")
-    generateFullReport(fullReportDF, reportPath)
+    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
     val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount", "bpProgramDirectorName")
 
     // mdo wise
@@ -327,7 +326,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("data_last_generated_on")
       )
 
-    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath, conf.localReportDir)
 
     Redis.closeRedisConnect()
   }

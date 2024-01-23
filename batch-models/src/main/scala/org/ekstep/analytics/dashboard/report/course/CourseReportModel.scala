@@ -139,8 +139,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     show(fullReportDF, "fullReportDF")
 
     val reportPath = s"${conf.courseReportPath}/${today}"
-    // generateFullReport(fullReportDF, s"${conf.courseReportPath}-test/${today}")
-    generateFullReport(fullReportDF, reportPath)
+    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
     val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "CBPReport")
 
@@ -166,7 +165,7 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
         col("courseReviewStatus").alias("cbp_substatus"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(df_warehouse.coalesce(1), reportPath)
+    generateWarehouseReport(df_warehouse.coalesce(1), reportPath, conf.localReportDir)
 
     Redis.closeRedisConnect()
   }
