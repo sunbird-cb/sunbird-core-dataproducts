@@ -92,6 +92,8 @@ case class DashboardConfig (
     dwOrgTable: String,
     dwAssessmentTable: String,
     dwBPEnrollmentsTable: String,
+    postgreCompetencyTable: String,
+    postgreCompetencyHierarchyTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -628,6 +630,8 @@ object DashboardUtil extends Serializable {
       dwOrgTable = getConfigModelParam(config, "dwOrgTable"),
       dwAssessmentTable = getConfigModelParam(config, "dwAssessmentTable"),
       dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
+      postgreCompetencyTable = getConfigModelParam(config, "postgreCompetencyTable"),
+      postgreCompetencyHierarchyTable = getConfigModelParam(config, "postgreCompetencyHierarchyTable"),
 
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
