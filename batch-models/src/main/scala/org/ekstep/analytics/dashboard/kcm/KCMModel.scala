@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.{MapType, StringType}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
@@ -55,15 +56,19 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .join(competencyJoinedDF, Seq("courseID"), "left")
       .select(col("courseID").alias("course_id"), col("competency_area_id"), col("competency_theme_id"), col("competency_sub_theme_id"))
       .dropDuplicates(Seq("course_id","competency_area_id","competency_theme_id","competency_sub_theme_id"))
-
-//    saveDataframeToPostgresTable_With_Append(competencyContentMappingDF, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    show(competencyContentMappingDF, "competency content mapping df")
+    saveDataframeToPostgresTable_With_Append(competencyContentMappingDF, dwPostgresUrl, conf.dwKcmContentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     // Competency details data with hierarchy
+    val jsonSchema = MapType(StringType, StringType)
     // fetch data from data_node(competency details) and node_mapping(hierarchy)
-    val competencyDataDF = postgresTableAsDataFrame(appPostgresUrl, conf.postgreCompetencyTable, conf.appPostgresUsername, conf.appPostgresCredential)
-      .select(col("id"), col("type"), col("name"), col("description"))
-    val competencyMappingDF = postgresTableAsDataFrame(appPostgresUrl, conf.postgreCompetencyHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
+    val competencyDataDF = postgresTableAsDataFrame(appPostgresUrl, conf.postgresCompetencyTable, conf.appPostgresUsername, conf.appPostgresCredential)
+      .select(col("id"), col("name"), col("description"), col("additional_properties"))
+      .withColumn("jsonThemeType", from_json(col("additional_properties"), jsonSchema)).drop("additional_properties")
+    show(competencyDataDF, "competency data df")
+    val competencyMappingDF = postgresTableAsDataFrame(appPostgresUrl, conf.postgresCompetencyHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
       .select(col("id"), col("parent_id"), col("child_id"))
+    show(competencyMappingDF, "competency mapping DF")
 
     // making hierarchy
     val competencyHierarchyDF = competencyMappingDF
@@ -71,19 +76,21 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
         .withColumnRenamed("parent_id", "parent_parent_id")
         .withColumnRenamed("child_id", "parent_child_id"), col("child_id") === col("parent_parent_id"))
       .select(col("parent_id").alias("competency_area_id"), col("child_id").alias("competency_theme_id"), col("parent_child_id").alias("competency_sub_theme_id"))
+    show(competencyHierarchyDF, "competency hierarchy DF")
 
     // enriching hierarchy with details from data_node
-    val competencyDetailsDF = competencyDataDF
-      .join(competencyHierarchyDF, col("id")===col("competency_area_id"))
-      .withColumnRenamed("name","competency_area").withColumnRenamed("description","competency_area_description").withColumnRenamed("type","competency_type")
-      .join(competencyHierarchyDF, col("id")===col("competency_theme_id"))
-      .withColumnRenamed("name","competency_theme").withColumnRenamed("description","competency_theme_description").withColumnRenamed("type","competency_theme_type")
-      .join(competencyHierarchyDF, col("id")===col("competency_sub_theme_id"))
-      .withColumnRenamed("name","competency_sub_theme").withColumnRenamed("description","competency_sub_theme_description").withColumnRenamed("type","competency_sub_theme_type")
+    val competencyDetailsDF = competencyHierarchyDF
+      .join(competencyDataDF, col("id")===col("competency_area_id"))
+      .withColumnRenamed("name","competency_area").withColumnRenamed("description","competency_area_description").drop("id","jsonThemeType")
+      .join(competencyDataDF, col("id")===col("competency_theme_id"))
+      .withColumnRenamed("name","competency_theme").withColumnRenamed("description","competency_theme_description").drop("id")
+      .withColumn("competency_type", col("jsonThemeType.themeType"))
+      .join(competencyDataDF, col("id")===col("competency_sub_theme_id"))
+      .withColumnRenamed("name","competency_sub_theme").withColumnRenamed("description","competency_sub_theme_description")
       .select("competency_area_id", "competency_area", "competency_area_description", "competency_type",
         "competency_theme_id", "competency_theme", "competency_theme_description", "competency_sub_theme_id", "competency_sub_theme", "competency_sub_theme_description")
-
-//    saveDataframeToPostgresTable_With_Append(competencyDetailsDF, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    show(competencyDetailsDF, "Competency details dataframe")
+    saveDataframeToPostgresTable_With_Append(competencyDetailsDF, dwPostgresUrl, conf.dwKcmDictionaryTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
   }
 }

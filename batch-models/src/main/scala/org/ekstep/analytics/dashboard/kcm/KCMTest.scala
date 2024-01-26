@@ -53,7 +53,10 @@ object KCMTest extends Serializable{
       "appPostgresCredential" -> "sunbird",
       "dwPostgresHost" -> "192.168.3.211:5432",
       "dwPostgresSchema" -> "warehouse",
-
+      "dwKcmDictionaryTable" -> "kcm_dictionary_test",
+      "dwKcmContentTable" -> "kcm_content_mapping_test",
+      "dwPostgresUsername" -> "postgres",
+      "dwPostgresCredential" -> "Password@12345678",
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
@@ -71,8 +74,8 @@ object KCMTest extends Serializable{
       "cassandraKarmaPointsSummaryTable" -> "user_karma_points_summary",
 
       "appPostgresSchema" -> "sunbird",
-      "postgreCompetencyTable" -> "data_node",
-      "postgreCompetencyHierarchyTable" -> "node_mapping",
+      "postgresCompetencyTable" -> "data_node",
+      "postgresCompetencyHierarchyTable" -> "node_mapping",
 
       "cutoffTime" -> "60.0",
 
