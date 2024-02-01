@@ -73,6 +73,12 @@ object KCMTest extends Serializable{
       "cassandraKarmaPointsTable" -> "user_karma_points",
       "cassandraKarmaPointsSummaryTable" -> "user_karma_points_summary",
 
+      "kcmReportPath" -> "standalone-reports/kcm-report",
+      "store" -> "s3",
+      "container" -> "igot",
+      "key" -> "aws_storage_key",
+      "secret" -> "aws_storage_secret",
+
       "appPostgresSchema" -> "sunbird",
       "postgresCompetencyTable" -> "data_node",
       "postgresCompetencyHierarchyTable" -> "node_mapping",

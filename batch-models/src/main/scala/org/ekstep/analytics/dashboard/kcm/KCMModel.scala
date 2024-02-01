@@ -39,12 +39,15 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
 
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
+    val today = getDate()
+    val reportPath = s"${conf.kcmReportPath}/${today}"
+    val fileName = "Content_Competency_Mapping"
 
     // Content - Competency Mapping data
     val categories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")
     val cbpDetails = allCourseProgramESDataFrame(categories)
       .where("courseStatus IN ('Live', 'Retired')")
-      .select(col("courseID"),col("competencyAreaId"),col("competencyThemeId"),col("competencySubThemeId"))
+      .select(col("courseID"),col("competencyAreaId"),col("competencyThemeId"),col("competencySubThemeId"), col("courseName"))
     // explode area, theme and sub theme seperately
     val areaExploded = cbpDetails.select(col("courseID"), expr("posexplode_outer(competencyAreaId) as (pos, competency_area_id)"))
     val themeExploded = cbpDetails.select(col("courseID"), expr("posexplode_outer(competencyThemeId) as (pos, competency_theme_id)"))
@@ -54,10 +57,12 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     // joining with cbpDetails for getting courses with no competencies mapped to it
     val competencyContentMappingDF = cbpDetails
       .join(competencyJoinedDF, Seq("courseID"), "left")
+      .dropDuplicates(Seq("courseID","competency_area_id","competency_theme_id","competency_sub_theme_id"))
+    val contentMappingDF = competencyContentMappingDF
       .select(col("courseID").alias("course_id"), col("competency_area_id"), col("competency_theme_id"), col("competency_sub_theme_id"))
-      .dropDuplicates(Seq("course_id","competency_area_id","competency_theme_id","competency_sub_theme_id"))
-    show(competencyContentMappingDF, "competency content mapping df")
-    saveDataframeToPostgresTable_With_Append(competencyContentMappingDF, dwPostgresUrl, conf.dwKcmContentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    show(contentMappingDF, "competency content mapping df")
+    truncateWarehouseTable(conf.dwKcmContentTable)
+    saveDataframeToPostgresTable_With_Append(contentMappingDF, dwPostgresUrl, conf.dwKcmContentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     // Competency details data with hierarchy
     val jsonSchema = MapType(StringType, StringType)
@@ -78,7 +83,7 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .select(col("parent_id").alias("competency_area_id"), col("child_id").alias("competency_theme_id"), col("parent_child_id").alias("competency_sub_theme_id"))
     show(competencyHierarchyDF, "competency hierarchy DF")
 
-    // enriching hierarchy with details from data_node
+    // enrich hierarchy with details from data_node
     val competencyDetailsDF = competencyHierarchyDF
       .join(competencyDataDF, col("id")===col("competency_area_id"))
       .withColumnRenamed("name","competency_area").withColumnRenamed("description","competency_area_description").drop("id","jsonThemeType")
@@ -90,7 +95,26 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .select("competency_area_id", "competency_area", "competency_area_description", "competency_type",
         "competency_theme_id", "competency_theme", "competency_theme_description", "competency_sub_theme_id", "competency_sub_theme", "competency_sub_theme_description")
     show(competencyDetailsDF, "Competency details dataframe")
+    truncateWarehouseTable(conf.dwKcmDictionaryTable)
     saveDataframeToPostgresTable_With_Append(competencyDetailsDF, dwPostgresUrl, conf.dwKcmDictionaryTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    // competency reporting
+    val competencyReporting = competencyContentMappingDF.join(competencyDetailsDF, Seq("competency_area_id","competency_theme_id","competency_sub_theme_id"))
+      .select(
+        col("courseID").alias("content_id"),
+        col("courseName").alias("content_name"),
+        col("competency_area"),
+        col("competency_area_description"),
+        col("competency_theme"),
+        col("competency_theme_description"),
+        col("competency_type").alias("competency_theme_type"),
+        col("competency_sub_theme"),
+        col("competency_sub_theme_description")
+      )
+    show(competencyReporting, "Competency reporting dataframe")
+
+    generateReportsWithoutPartition(competencyReporting, reportPath, fileName)
+    syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 
   }
 }
