@@ -243,6 +243,20 @@ object DashboardUtil extends Serializable {
     def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit
   }
 
+  trait FSCache extends Serializable {
+    def write(df: DataFrame, path: String): Unit
+    def load(path: String)(implicit spark: SparkSession): DataFrame
+  }
+
+  object AvroFSCache extends FSCache {
+    override def write(df: DataFrame, path: String): Unit = {
+        df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(path)
+    }
+    override def load(path: String)(implicit spark: SparkSession): DataFrame = {
+      spark.read.format("avro").load(path).persist(StorageLevel.MEMORY_ONLY)
+    }
+  }
+
   object Test extends Serializable {
     /**
      * ONLY FOR TESTING!!, do not use to create spark context in model or job
