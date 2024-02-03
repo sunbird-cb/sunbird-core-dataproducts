@@ -106,7 +106,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("completionPerUser").alias("Content_Completion_Per_User"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(mdoCompletionRateWithAdminDetailsDF, s"${commsConsoleReportPath}/topMdoCompletionRatio", "AllMDOsContentCompletion")
+    generateReportsWithoutPartition(mdoCompletionRateWithAdminDetailsDF, s"${commsConsoleReportPath}/AllMDOsContentCompletion", "AllMDOsContentCompletion")
 
     val usersWithEnrollments = enrollmentsDF.select("user_id").distinct()
     //users who have not been enrolled in any cbp
@@ -123,7 +123,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/usersWithoutEnrollments", "UsersOnboardedNotSignedUpAnyContent")
+    generateReportsWithoutPartition(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedNotSignedUpAnyContent", "UsersOnboardedNotSignedUpAnyContent")
 
     // users created in last 15 days, but not enrolled in any cbp
     val usersCreatedInLastNDaysDF = userDF.filter(col("registrationDate").between(dateNDaysAgo, currentDate)).select("user_id").distinct()
@@ -140,7 +140,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/recentUsersWithoutEnrollments", "UsersOnboardedLast15DaysNotSignedUpAnyContent")
+    generateReportsWithoutPartition(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedLast15DaysNotSignedUpAnyContent", "UsersOnboardedLast15DaysNotSignedUpAnyContent")
 
     //top 60 users ranked by cbp completion in last 15 days
     val topXCompletionsInNDays = enrollmentsDF.filter(col("completionDate").between(dateNDaysAgo, currentDate))
@@ -162,7 +162,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("completionCount").alias("Content_Completion"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(topXCompletionsInNDays, s"${commsConsoleReportPath}/topNRecentCompletions", "Top1LakhUsersContentCompletionLast15Days")
+    generateReportsWithoutPartition(topXCompletionsInNDays, s"${commsConsoleReportPath}/Top1LakhUsersContentCompletionLast15Days", "Top1LakhUsersContentCompletionLast15Days")
 
     val prarambhCourses = conf.commsConsolePrarambhCbpIds.split(",").map(_.trim).toList
     val rozgarTags =  conf.commsConsolePrarambhTags.split(",").map(_.trim).toList
@@ -195,9 +195,9 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
       )
 
     generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCompletionCount).drop("prarambhCompletionCount")
-      , s"${commsConsoleReportPath}/prarambhUsers6Completions", "UsersCompleted6PrarambhCoursesPendingFullCompletion")
+      , s"${commsConsoleReportPath}/UsersCompleted6PrarambhCoursesPendingFullCompletion", "UsersCompleted6PrarambhCoursesPendingFullCompletion")
     generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
-      , s"${commsConsoleReportPath}/prarambhUsersAllCompletions", "UsersFinishedEntirePrarambhModule")
+      , s"${commsConsoleReportPath}/UsersFinishedEntirePrarambhModule", "UsersFinishedEntirePrarambhModule")
 
     syncReports(s"${conf.localReportDir}/${commsConsoleReportPath}", commsConsoleReportPath)
 
