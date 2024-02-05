@@ -248,14 +248,16 @@ object DashboardUtil extends Serializable {
     def load(path: String)(implicit spark: SparkSession): DataFrame
   }
 
-  object AvroFSCache extends FSCache {
-    override def write(df: DataFrame, path: String): Unit = {
-        df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(path)
+  class AvroFSCache(val path: String) extends FSCache {
+    override def write(df: DataFrame, name: String): Unit = {
+        df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(s"${path}/${name}")
     }
-    override def load(path: String)(implicit spark: SparkSession): DataFrame = {
-      spark.read.format("avro").load(path).persist(StorageLevel.MEMORY_ONLY)
+    override def load(name: String)(implicit spark: SparkSession): DataFrame = {
+      spark.read.format("avro").load(s"${path}/${name}").persist(StorageLevel.MEMORY_ONLY)
     }
   }
+
+  val cache: FSCache = new AvroFSCache("/mount/data/analytics/cache")
 
   object Test extends Serializable {
     /**

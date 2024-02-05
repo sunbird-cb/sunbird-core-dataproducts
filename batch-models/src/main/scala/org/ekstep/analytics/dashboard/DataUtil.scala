@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
 import DashboardUtil.StorageUtil._
 
-import java.io.{File, Serializable}
+import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
@@ -332,7 +332,7 @@ object DataUtil extends Serializable {
    * @return DataFrame(orgID, orgName, orgStatus, orgCreatedDate, orgType, orgSubType)
    */
   def orgDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
+    var orgDF = cache.load("org")
       .select(
         col("id").alias("orgID"),
         col("orgname").alias("orgName"),
@@ -356,7 +356,7 @@ object DataUtil extends Serializable {
    */
   def userDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(additionalProperties = true, professionalDetails = true)
-    var userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+    var userDF = cache.load("user")
       .select(
         col("id").alias("userID"),
         col("firstname").alias("firstName"),
@@ -427,7 +427,7 @@ object DataUtil extends Serializable {
    * @return DataFrame(userID, role)
    */
   def roleDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val roleDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserRolesTable)
+    val roleDF = cache.load("role")
       .select(
         col("userid").alias("userID"),
         col("role").alias("role")
@@ -699,8 +699,7 @@ object DataUtil extends Serializable {
   }
 
   def contentHierarchyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
-      .select(col("identifier"), col("hierarchy"))
+    cache.load("hierarchy").select(col("identifier"), col("hierarchy"))
   }
 
   /**
@@ -898,7 +897,7 @@ object DataUtil extends Serializable {
    * @return DataFrame(courseID, categoryLower, ratingSum, ratingCount, ratingAverage, count1Star, count2Star, count3Star, count4Star, count5Star)
    */
   def courseRatingSummaryDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingSummaryTable)
+    var df = cache.load("ratingSummary")
       .where(expr("total_number_of_ratings > 0"))
       .withColumn("ratingAverage", expr("sum_of_total_ratings / total_number_of_ratings"))
       .select(
@@ -923,9 +922,14 @@ object DataUtil extends Serializable {
   }
 
   def orgHierarchyDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgHierarchyTable).select(
-      col("orgname").alias("userOrgName"), col("mapid").alias("mapID"), col("orgcode").alias("orgCode"),
-      col("parentmapid").alias("parentMapID"), col("sborgid").alias("subOrgID"))
+    var df = cache.load( "ratingSummary")
+      .select(
+        col("orgname").alias("userOrgName"),
+        col("mapid").alias("mapID"),
+        col("orgcode").alias("orgCode"),
+        col("parentmapid").alias("parentMapID"),
+        col("sborgid").alias("subOrgID")
+      )
 
     val alias1 = df.alias("alias1")
     val alias2 = df.alias("alias2")
@@ -954,7 +958,7 @@ object DataUtil extends Serializable {
   }
 
   def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable)
+    val df = cache.load("rating")
       .select(
         col("activityid").alias("courseID"),
         col("userid").alias("userID"),
@@ -993,15 +997,16 @@ object DataUtil extends Serializable {
    *         courseBatchStatus, courseBatchUpdatedDate)
    */
   def courseBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable).select(
-      col("courseid").alias("courseID"),
-      col("batchid").alias("batchID"),
-      col("name").alias("courseBatchName"),
-      col("createdby").alias("courseBatchCreatedBy"),
-      col("start_date").alias("courseBatchStartDate"),
-      col("end_date").alias("courseBatchEndDate"),
-      col("batch_attributes").alias("courseBatchAttrs")
-    ).na.fill("{}", Seq("courseBatchAttrs"))
+    val df = cache.load("batch")
+      .select(
+        col("courseid").alias("courseID"),
+        col("batchid").alias("batchID"),
+        col("name").alias("courseBatchName"),
+        col("createdby").alias("courseBatchCreatedBy"),
+        col("start_date").alias("courseBatchStartDate"),
+        col("end_date").alias("courseBatchEndDate"),
+        col("batch_attributes").alias("courseBatchAttrs")
+      ).na.fill("{}", Seq("courseBatchAttrs"))
     show(df, "Course Batch Data")
     df
   }
@@ -1018,7 +1023,7 @@ object DataUtil extends Serializable {
     val selectCols = Seq("userID", "courseID", "batchID", "courseProgress", "dbCompletionStatus", "courseCompletedTimestamp",
       "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount", "certificateGeneratedOn") ++ extraCols
 
-    var df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
+    var df = cache.load("enrolment")
       .where(expr("active=true"))
       .withColumn("courseCompletedTimestamp", col("completedon"))
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
@@ -1070,7 +1075,7 @@ object DataUtil extends Serializable {
   }
 
   def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, "user_content_consumption")
+    val df = cache.load("contentConsumption")
       .select(
         col("userid").alias("userID"),
         col("courseid").alias("courseID"),
@@ -1225,7 +1230,7 @@ object DataUtil extends Serializable {
    * @return DataFrame(userID, competencyID, declaredCompetencyLevel)
    */
   def declaredCompetencyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val userdata = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+    val userdata = cache.load("user")
     val profileDetailsSchema = Schema.makeProfileDetailsSchema(competencies = true)
 
     // select id and profile details column where profile details are available
@@ -1402,7 +1407,7 @@ object DataUtil extends Serializable {
    */
   def userAssessmentDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
 
-    var df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserAssessmentTable)
+    var df = cache.load("userAssessment")
       .select(
         col("assessmentid").alias("assessChildID"),
         col("starttime").alias("assessStartTime"),
@@ -1563,7 +1568,7 @@ object DataUtil extends Serializable {
    * Reading existing weekly claps data
    */
   def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+    val df = cache.load("learnerStats")
     show(df, "Learner stats data")
     df
   }
@@ -1572,7 +1577,7 @@ object DataUtil extends Serializable {
    * Reading user_karma_points data
    */
   def userKarmaPointsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+    val df = cache.load("karmaPoints")
     show(df, "Karma Points data")
     df
   }
@@ -1647,7 +1652,7 @@ object DataUtil extends Serializable {
   }
 
   def userFeedFromCassandraDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
+    var df = cache.load("userFeed")
       .select(col("userid").alias("userid"))
       .where(col("category") === "NPS")
     if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
@@ -1707,7 +1712,7 @@ object DataUtil extends Serializable {
   }
 
   def acbpDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
+    val df = cache.load("acbp")
       .where(col("status") === "Live")
       .select(
         col("id").alias("acbpID"),
