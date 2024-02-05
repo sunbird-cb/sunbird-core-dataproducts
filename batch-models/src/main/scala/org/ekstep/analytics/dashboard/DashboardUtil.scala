@@ -92,6 +92,10 @@ case class DashboardConfig (
     dwOrgTable: String,
     dwAssessmentTable: String,
     dwBPEnrollmentsTable: String,
+    dwKcmDictionaryTable: String,
+    dwKcmContentTable: String,
+    postgresCompetencyTable: String,
+    postgresCompetencyHierarchyTable: String,
 
     // redis keys
     redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
@@ -123,6 +127,7 @@ case class DashboardConfig (
     acbpReportPath: String,
     acbpMdoEnrolmentReportPath: String,
     acbpMdoSummaryReportPath: String,
+    kcmReportPath: String,
 
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
@@ -628,6 +633,10 @@ object DashboardUtil extends Serializable {
       dwOrgTable = getConfigModelParam(config, "dwOrgTable"),
       dwAssessmentTable = getConfigModelParam(config, "dwAssessmentTable"),
       dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
+      dwKcmDictionaryTable = getConfigModelParam(config, "dwKcmDictionaryTable"),
+      dwKcmContentTable = getConfigModelParam(config, "dwKcmContentTable"),
+      postgresCompetencyTable = getConfigModelParam(config, "postgresCompetencyTable"),
+      postgresCompetencyHierarchyTable = getConfigModelParam(config, "postgresCompetencyHierarchyTable"),
 
       // cassandra key spaces
       cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
@@ -692,6 +701,7 @@ object DashboardUtil extends Serializable {
       acbpReportPath = getConfigModelParam(config, "acbpReportPath"),
       acbpMdoEnrolmentReportPath = getConfigModelParam(config, "acbpMdoEnrolmentReportPath"),
       acbpMdoSummaryReportPath = getConfigModelParam(config, "acbpMdoSummaryReportPath"),
+      kcmReportPath = getConfigModelParam(config, "kcmReportPath"),
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
