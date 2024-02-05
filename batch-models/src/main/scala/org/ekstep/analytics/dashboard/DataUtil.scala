@@ -282,7 +282,7 @@ object DataUtil extends Serializable {
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String], extraFields: Seq[String] = Seq(), extraArrayFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor") ++ extraFields
+    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor", "competencies_v5") ++ extraFields
     val arrayFields = Seq("createdFor") ++ extraArrayFields
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
@@ -586,7 +586,11 @@ object DataUtil extends Serializable {
         col("duration").cast(FloatType).alias("courseDuration"),
         col("leafNodesCount").alias("courseResourceCount"),
         col("lastStatusChangedOn").alias("lastStatusChangedOn"),
-        col("courseOrgID")
+        col("courseOrgID"),
+        col("competencies_v5.competencyAreaId"),
+        col("competencies_v5.competencyThemeId"),
+        col("competencies_v5.competencySubThemeId")
+
       )
 
     df = df.dropDuplicates("courseID", "category")

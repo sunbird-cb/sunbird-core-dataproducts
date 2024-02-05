@@ -120,9 +120,9 @@ object UserACBPReportModel extends IBatchModelTemplate[String, DummyInput, Dummy
     // for enrolment report
     val enrolmentReportDataDF = acbpEnrolmentDF
       .withColumn("currentProgress", expr("CASE WHEN dbCompletionStatus=2 THEN 'Completed' WHEN dbCompletionStatus=1 THEN 'In Progress' WHEN dbCompletionStatus=0 THEN 'Not Started' ELSE 'Not Enrolled' END"))
-      .withColumn("courseCompletedTimestamp", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy HH:mm:ss a"))
-      .withColumn("allocatedOn", to_date(col("allocatedOn"), "dd/MM/yyyy"))
-      .withColumn("completionDueDate", to_date(col("completionDueDate"), "dd/MM/yyyy"))
+      .withColumn("courseCompletedTimestamp",  date_format(col("courseCompletedTimestamp"), "dd/MM/yy"))
+      .withColumn("allocatedOn",  date_format(col("allocatedOn"), "dd/MM/yy"))
+      .withColumn("completionDueDate",  date_format(col("completionDueDate"), "dd/MM/yy"))
       .na.fill("")
     show(enrolmentReportDataDF, "enrolmentReportDataDF")
 

@@ -3,6 +3,7 @@ package org.ekstep.analytics.job
 import org.ekstep.analytics.dashboard.DashboardSyncJob
 import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
 import org.ekstep.analytics.dashboard.karma.points.KarmaPointsJob
+import org.ekstep.analytics.dashboard.kcm.KCMJob
 import org.ekstep.analytics.dashboard.report.acbp.UserACBPReportJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
@@ -66,6 +67,8 @@ object JobFactory {
         KarmaPointsJob
       case "hall-of-fame" =>
         HallOfFameJob
+      case "kcm" =>
+        KCMJob
       case "acbp-report" =>
         UserACBPReportJob
       case "video-streaming" =>
