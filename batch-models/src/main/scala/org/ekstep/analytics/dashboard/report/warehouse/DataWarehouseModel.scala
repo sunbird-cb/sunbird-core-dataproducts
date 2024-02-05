@@ -69,6 +69,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     cbp_details = cbp_details.dropDuplicates(Seq("cbp_id"))
 
+
     truncateWarehouseTable(conf.dwCourseTable)
     saveDataframeToPostgresTable_With_Append(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
@@ -122,12 +123,12 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
-    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"))
-    val orgDfWithOrgType = orgDf.join(orgCassandraDF, Seq("sborgid"), "inner")
+    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"))
+    val orgDfWithOrgType = orgCassandraDF.join(orgDf, Seq("sborgid"), "left")
 
     var orgDwDf = orgDfWithOrgType.select(
         col("sborgid").alias("mdo_id"),
-        col("orgname").alias("mdo_name"),
+        col("cassOrgName").alias("mdo_name"),
         col("l1orgname").alias("ministry"),
         col("l2orgname").alias("department"),
         col("orgType")
