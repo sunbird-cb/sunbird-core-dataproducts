@@ -18,7 +18,7 @@ object DataExhaustModel extends AbsDashboardModel {
    * Master method, does all the work, fetching, processing and dispatching
    *
    * @param timestamp unique timestamp from the start of the processing
-   * @param config model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
+   * @param conf model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
