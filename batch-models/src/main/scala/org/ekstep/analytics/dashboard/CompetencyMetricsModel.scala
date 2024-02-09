@@ -12,6 +12,7 @@ import org.joda.time.DateTime
 
 import java.io.Serializable
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 
 /*
 
@@ -111,7 +112,8 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     println("Spark Config:")
     println(spark.conf.getAll)
 
-    // obtain and save user org data
+
+     //obtain and save user org data
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val designationsDF = orgDesignationsDF(userOrgDF)
@@ -138,7 +140,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
@@ -146,13 +148,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
 
-    // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
+     //get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
-    // org user details redis dispatch
+     //org user details redis dispatch
     val (orgRegisteredUserCountMap, orgTotalUserCountMap, orgNameMap) = getOrgUserMaps(orgUserCountDF)
     val activeOrgCount = orgDF.where(expr("orgStatus=1")).count()
     val activeUserCount = userDF.where(expr("userStatus=1")).count()
@@ -162,15 +164,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update(conf.redisTotalRegisteredOfficerCountKey, activeUserCount.toString)
     Redis.update(conf.redisTotalOrgCountKey, activeOrgCount.toString)
 
-    // update redis data for learner home page
+     //update redis data for learner home page
     updateLearnerHomePageData(orgDF, userOrgDF, userCourseProgramCompletionDF)
 
-    // update redis data for dashboards
+     //update redis data for dashboards
     dashboardRedisUpdates(orgRoleCount, userDF, allCourseProgramDetailsWithRatingDF, allCourseProgramCompletionWithDetailsDF)
 
-    // update redis data and dispatch to kafka for competency related data
-    // comment out for now
-    // dashboardCompetencyUpdates(timestamp, allCourseProgramCompetencyDF, allCourseProgramCompletionWithDetailsDF)
+     /*update redis data and dispatch to kafka for competency related data
+     comment out for now*/
+     //dashboardCompetencyUpdates(timestamp, allCourseProgramCompetencyDF, allCourseProgramCompletionWithDetailsDF)
 
     Redis.closeRedisConnect()
 
@@ -237,6 +239,16 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // enrollment/not-started/started/in-progress/completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    // enrolments in last 12 months
+    val currentDate = LocalDate.now()
+    // Calculate twelve months ago
+    val twelveMonthsAgo = currentDate.minusMonths(12)
+    // Convert to LocalDateTime by adding a time component (midnight)
+    val twelveMonthsAgoLocalDateTime = twelveMonthsAgo.atStartOfDay()
+    // Get the epoch time in milliseconds with IST offset
+    val twelveMonthsAgoEpochMillis = twelveMonthsAgoLocalDateTime.toEpochSecond(java.time.ZoneOffset.ofHoursMinutes(5, 30)) * 1000
+    println(twelveMonthsAgoEpochMillis)
+    val liveRetiredCourseEnrolmentsInLast12MonthsDF = allCourseProgramCompletionWithDetailsDF.where(expr(s"category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1 AND courseEnrolledTimestamp >= ${twelveMonthsAgoEpochMillis}"))
     // started + not-started = enrolled
     val liveRetiredCourseNotStartedDF = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus=0"))
     val liveRetiredCourseStartedDF = liveRetiredCourseEnrolmentDF.where(expr("dbCompletionStatus IN (1, 2)"))
@@ -289,8 +301,10 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // mdo-wise enrollment/not-started/started/in-progress/completion counts
     val liveRetiredCourseEnrolmentByMDODF = liveRetiredCourseEnrolmentDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
+    val liveRetiredCourseEnrolmentsInLast12MonthsByMDODF = liveRetiredCourseEnrolmentsInLast12MonthsDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     Redis.dispatchDataFrame[Long]("dashboard_enrolment_count_by_user_org", liveRetiredCourseEnrolmentByMDODF, "userOrgID", "count")
     Redis.dispatchDataFrame[Long]("dashboard_enrolment_unique_user_count_by_user_org", liveRetiredCourseEnrolmentByMDODF, "userOrgID", "uniqueUserCount")
+    Redis.dispatchDataFrame[Long]("dashboard_active_users_last_12_months_by_org", liveRetiredCourseEnrolmentsInLast12MonthsByMDODF, "userOrgID", "uniqueUserCount")
     val liveRetiredCourseNotStartedByMDODF = liveRetiredCourseNotStartedDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     Redis.dispatchDataFrame[Long]("dashboard_not_started_count_by_user_org", liveRetiredCourseNotStartedByMDODF, "userOrgID", "count")
     Redis.dispatchDataFrame[Long]("dashboard_not_started_unique_user_count_by_user_org", liveRetiredCourseNotStartedByMDODF, "userOrgID", "uniqueUserCount")
@@ -370,20 +384,20 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // AND userStatus=1 AND category='Course' AND courseStatus IN ('Live', 'Retired') $mdo$
     // GROUP BY 1, 2, 3, 4 ORDER BY \"Course Completions\" DESC LIMIT 5
     val top5CoursesByCompletionByMdoDF = liveRetiredCourseEnrolmentDF
-      .groupBy("courseID", "courseName", "courseOrgID", "courseOrgName")
+      .groupBy("courseID", "courseName", "userOrgID", "userOrgName")
       .agg(
         count("userID").alias("enrolledCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=0 THEN 1 ELSE 0 END)").alias("notStartedCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=1 THEN 1 ELSE 0 END)").alias("inProgressCount"),
         expr("SUM(CASE WHEN dbCompletionStatus=2 THEN 1 ELSE 0 END)").alias("completedCount")
       )
-      .groupByLimit(Seq("courseOrgID"), "completedCount", 5, desc = true)
-      .withColumn("jsonData", struct("rowNum", "courseID", "courseName", "courseOrgID", "courseOrgName", "enrolledCount", "notStartedCount", "inProgressCount", "completedCount"))
+      .groupByLimit(Seq("userOrgID"), "completedCount", 5, desc = true)
+      .withColumn("jsonData", struct("rowNum", "courseID", "courseName", "userOrgID", "userOrgName", "enrolledCount", "notStartedCount", "inProgressCount", "completedCount"))
       .orderBy(col("completedCount").desc)
-      .groupBy("courseOrgID")
+      .groupBy("userOrgID")
       .agg(to_json(collect_list("jsonData")).alias("jsonData"))
     show(top5CoursesByCompletionByMdoDF, "top5CoursesByCompletionByMdoDF")
-    Redis.dispatchDataFrame[String]("dashboard_top_5_courses_by_completion_by_org", top5CoursesByCompletionByMdoDF, "courseOrgID", "jsonData")
+    Redis.dispatchDataFrame[String]("dashboard_top_5_courses_by_completion_by_org", top5CoursesByCompletionByMdoDF, "userOrgID", "jsonData")
 
     // Top 5 Courses - By user ratings
     // SELECT courseID, courseName, category, courseOrgName, ROUND(AVG(ratingAverage), 1) AS rating_avg, SUM(ratingCount) AS rating_count
@@ -646,7 +660,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.dispatchDataFrame[String]("lhp_trending", trendingCoursesListByOrg, "userOrgID:courses", "trendingCourseList", replace = false)
     show(trendingProgramsListByOrg, "trendingProgramsListByOrg")
     Redis.dispatchDataFrame[String]("lhp_trending", trendingProgramsListByOrg, "userOrgID:programs", "trendingProgramList", replace = false)
-//
+    //
     print("most enrolled tag :" + mostEnrolledTag)
     Redis.update("lhp_mostEnrolledTag", mostEnrolledTag + "\n")
   }
