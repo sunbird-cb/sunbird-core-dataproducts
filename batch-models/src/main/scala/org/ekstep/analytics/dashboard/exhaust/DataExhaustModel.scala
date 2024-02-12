@@ -48,20 +48,20 @@ object DataExhaustModel extends AbsDashboardModel {
     val enrolmentDF = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
     cache.write(enrolmentDF, "enrolment")
 
-    val contentConsumptionDF = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, "user_content_consumption")
-    cache.write(contentConsumptionDF, "contentConsumption")
+//    val contentConsumptionDF = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, "user_content_consumption")
+//    cache.write(contentConsumptionDF, "contentConsumption")
 
     val userAssessmentDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserAssessmentTable)
     cache.write(userAssessmentDF, "userAssessment")
 
-    val learnerStatsDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
-    cache.write(learnerStatsDF, "learnerStats")
+//    val learnerStatsDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
+//    cache.write(learnerStatsDF, "learnerStats")
+//
+//    val karmaPointsDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+//    cache.write(karmaPointsDF, "karmaPoints")
 
-    val karmaPointsDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
-    cache.write(karmaPointsDF, "karmaPoints")
-
-    val userFeedDF = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
-    cache.write(userFeedDF, "userFeed")
+//    val userFeedDF = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
+//    cache.write(userFeedDF, "userFeed")
 
     val acbpDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
     cache.write(acbpDF, "acbp")

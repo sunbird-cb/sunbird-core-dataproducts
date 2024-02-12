@@ -1078,22 +1078,22 @@ object DataUtil extends Serializable {
     df
   }
 
-  def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val df = cache.load("contentConsumption")
-      .select(
-        col("userid").alias("userID"),
-        col("courseid").alias("courseID"),
-        col("batchid").alias("batchID"),
-        col("contentid").alias("contentID"),
-        col("completionpercentage").alias("contentCompletionPercentage"),
-        col("status").alias("contentConsumptionStatus")
-      )
-      .withColumn("contentCompletionPercentage", expr("CASE WHEN contentConsumptionStatus=2 THEN 100.0 ELSE contentCompletionPercentage END"))
-      .na.fill(0.0, Seq("contentCompletionPercentage"))
-
-    show(df)
-    df
-  }
+//  def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    val df = cache.load("contentConsumption")
+//      .select(
+//        col("userid").alias("userID"),
+//        col("courseid").alias("courseID"),
+//        col("batchid").alias("batchID"),
+//        col("contentid").alias("contentID"),
+//        col("completionpercentage").alias("contentCompletionPercentage"),
+//        col("status").alias("contentConsumptionStatus")
+//      )
+//      .withColumn("contentCompletionPercentage", expr("CASE WHEN contentConsumptionStatus=2 THEN 100.0 ELSE contentCompletionPercentage END"))
+//      .na.fill(0.0, Seq("contentCompletionPercentage"))
+//
+//    show(df)
+//    df
+//  }
 
   def withCompletionPercentageColumn(df: DataFrame): DataFrame = {
     df
@@ -1656,7 +1656,7 @@ object DataUtil extends Serializable {
   }
 
   def userFeedFromCassandraDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cache.load("userFeed")
+    var df = cassandraTableAsDataFrame(conf.cassandraUserFeedKeyspace, conf.cassandraUserFeedTable)
       .select(col("userid").alias("userid"))
       .where(col("category") === "NPS")
     if(df == null) return emptySchemaDataFrame(Schema.npsUserIds)
