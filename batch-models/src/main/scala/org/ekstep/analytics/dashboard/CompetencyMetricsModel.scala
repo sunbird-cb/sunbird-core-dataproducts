@@ -139,7 +139,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
       "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
