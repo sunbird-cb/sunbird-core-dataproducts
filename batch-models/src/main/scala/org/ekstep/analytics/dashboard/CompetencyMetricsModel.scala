@@ -112,8 +112,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     println("Spark Config:")
     println(spark.conf.getAll)
 
-
-     //obtain and save user org data
+    // obtain and save user org data
     val (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val designationsDF = orgDesignationsDF(userOrgDF)
@@ -148,13 +147,13 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     val allCourseProgramCompetencyDF = allCourseProgramCompetencyDataFrame(allCourseProgramDetailsWithCompDF)
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
 
-     //get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
+    // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
-     //org user details redis dispatch
+    // org user details redis dispatch
     val (orgRegisteredUserCountMap, orgTotalUserCountMap, orgNameMap) = getOrgUserMaps(orgUserCountDF)
     val activeOrgCount = orgDF.where(expr("orgStatus=1")).count()
     val activeUserCount = userDF.where(expr("userStatus=1")).count()
@@ -164,15 +163,15 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     Redis.update(conf.redisTotalRegisteredOfficerCountKey, activeUserCount.toString)
     Redis.update(conf.redisTotalOrgCountKey, activeOrgCount.toString)
 
-     //update redis data for learner home page
+    // update redis data for learner home page
     updateLearnerHomePageData(orgDF, userOrgDF, userCourseProgramCompletionDF)
 
-     //update redis data for dashboards
+    // update redis data for dashboards
     dashboardRedisUpdates(orgRoleCount, userDF, allCourseProgramDetailsWithRatingDF, allCourseProgramCompletionWithDetailsDF)
 
-     /*update redis data and dispatch to kafka for competency related data
-     comment out for now*/
-     //dashboardCompetencyUpdates(timestamp, allCourseProgramCompetencyDF, allCourseProgramCompletionWithDetailsDF)
+    // update redis data and dispatch to kafka for competency related data
+    // comment out for now
+    // dashboardCompetencyUpdates(timestamp, allCourseProgramCompetencyDF, allCourseProgramCompletionWithDetailsDF)
 
     Redis.closeRedisConnect()
 
@@ -239,7 +238,6 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
 
     // enrollment/not-started/started/in-progress/completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
-    // enrolments in last 12 months
     val currentDate = LocalDate.now()
     // Calculate twelve months ago
     val twelveMonthsAgo = currentDate.minusMonths(12)
