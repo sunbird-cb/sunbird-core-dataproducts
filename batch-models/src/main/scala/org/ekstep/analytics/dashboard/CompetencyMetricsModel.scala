@@ -244,7 +244,7 @@ object CompetencyMetricsModel extends IBatchModelTemplate[String, DummyInput, Du
     // Convert to LocalDateTime by adding a time component (midnight)
     val twelveMonthsAgoLocalDateTime = twelveMonthsAgo.atStartOfDay()
     // Get the epoch time in milliseconds with IST offset
-    val twelveMonthsAgoEpochMillis = twelveMonthsAgoLocalDateTime.toEpochSecond(java.time.ZoneOffset.ofHoursMinutes(5, 30)) * 1000
+    val twelveMonthsAgoEpochMillis = twelveMonthsAgoLocalDateTime.toEpochSecond(java.time.ZoneOffset.ofHoursMinutes(5, 30))
     println(twelveMonthsAgoEpochMillis)
     val liveRetiredCourseEnrolmentsInLast12MonthsDF = allCourseProgramCompletionWithDetailsDF.where(expr(s"category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1 AND courseEnrolledTimestamp >= ${twelveMonthsAgoEpochMillis}"))
     // started + not-started = enrolled
