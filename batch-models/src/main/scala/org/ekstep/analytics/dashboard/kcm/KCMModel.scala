@@ -89,10 +89,10 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
       .withColumnRenamed("name","competency_area").withColumnRenamed("description","competency_area_description").drop("id","jsonThemeType")
       .join(competencyDataDF, col("id")===col("competency_theme_id"))
       .withColumnRenamed("name","competency_theme").withColumnRenamed("description","competency_theme_description").drop("id")
-      .withColumn("competency_type", col("jsonThemeType.themeType"))
+      .withColumn("competency_theme_type", col("jsonThemeType.themeType"))
       .join(competencyDataDF, col("id")===col("competency_sub_theme_id"))
       .withColumnRenamed("name","competency_sub_theme").withColumnRenamed("description","competency_sub_theme_description")
-      .select("competency_area_id", "competency_area", "competency_area_description", "competency_type",
+      .select("competency_area_id", "competency_area", "competency_area_description", "competency_theme_type",
         "competency_theme_id", "competency_theme", "competency_theme_description", "competency_sub_theme_id", "competency_sub_theme", "competency_sub_theme_description")
     show(competencyDetailsDF, "Competency details dataframe")
     truncateWarehouseTable(conf.dwKcmDictionaryTable)
@@ -107,7 +107,7 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
         col("competency_area_description"),
         col("competency_theme"),
         col("competency_theme_description"),
-        col("competency_type").alias("competency_theme_type"),
+        col("competency_theme_type"),
         col("competency_sub_theme"),
         col("competency_sub_theme_description")
       )
