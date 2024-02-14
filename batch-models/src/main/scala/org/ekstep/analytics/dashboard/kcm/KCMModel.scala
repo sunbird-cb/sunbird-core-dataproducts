@@ -110,7 +110,7 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
         col("competency_theme_type"),
         col("competency_sub_theme"),
         col("competency_sub_theme_description")
-      )
+      ).orderBy("content_id")
     show(competencyReporting, "Competency reporting dataframe")
 
     generateReportsWithoutPartition(competencyReporting, reportPath, fileName)
