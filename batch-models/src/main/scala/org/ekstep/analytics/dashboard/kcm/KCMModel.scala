@@ -40,8 +40,8 @@ object KCMModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, Dum
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val today = getDate()
-    val reportPath = s"${conf.kcmReportPath}/${today}"
-    val fileName = "Content_Competency_Mapping"
+    val reportPath = s"${conf.kcmReportPath}/${today}/ContentCompetencyMapping"
+    val fileName = "ContentCompetencyMapping"
 
     // Content - Competency Mapping data
     val categories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")

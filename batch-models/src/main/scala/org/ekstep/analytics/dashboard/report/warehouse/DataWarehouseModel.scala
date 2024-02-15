@@ -123,7 +123,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
 
     val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
-    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"))
+    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"), col("orgCreatedDate"))
     val orgDfWithOrgType = orgCassandraDF.join(orgDf, Seq("sborgid"), "left")
 
     var orgDwDf = orgDfWithOrgType.select(
@@ -131,6 +131,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
         col("cassOrgName").alias("mdo_name"),
         col("l1orgname").alias("ministry"),
         col("l2orgname").alias("department"),
+        to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
         col("orgType")
       )
       .withColumn("is_cbp_provider",
