@@ -1002,23 +1002,6 @@ object DataUtil extends Serializable {
     df
   }
 
-//  def userContentConsumptionDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-//    val df = cache.load("contentConsumption")
-//      .select(
-//        col("userid").alias("userID"),
-//        col("courseid").alias("courseID"),
-//        col("batchid").alias("batchID"),
-//        col("contentid").alias("contentID"),
-//        col("completionpercentage").alias("contentCompletionPercentage"),
-//        col("status").alias("contentConsumptionStatus")
-//      )
-//      .withColumn("contentCompletionPercentage", expr("CASE WHEN contentConsumptionStatus=2 THEN 100.0 ELSE contentCompletionPercentage END"))
-//      .na.fill(0.0, Seq("contentCompletionPercentage"))
-//
-//    show(df)
-//    df
-//  }
-
   def withCompletionPercentageColumn(df: DataFrame): DataFrame = {
     df
       .withColumn("completionPercentage", expr("CASE WHEN courseResourceCount=0 OR courseProgress=0 OR dbCompletionStatus=0 THEN 0.0 WHEN dbCompletionStatus=2 THEN 100.0 ELSE 100.0 * courseProgress / courseResourceCount END"))
@@ -1463,7 +1446,7 @@ object DataUtil extends Serializable {
    * Reading existing weekly claps data
    */
   def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cache.load("learnerStats")
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
     show(df, "Learner stats data")
     df
   }
@@ -1472,7 +1455,7 @@ object DataUtil extends Serializable {
    * Reading user_karma_points data
    */
   def userKarmaPointsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cache.load("karmaPoints")
+    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
     show(df, "Karma Points data")
     df
   }
