@@ -291,9 +291,9 @@ object DashboardConfigParser extends Serializable {
   /* Config functions end */
 }
 
-class AvroFSCache(val path: String) extends Serializable {
+class AvroFSCache(val path: String, val compression: String = "snappy") extends Serializable {
   def write(df: DataFrame, name: String): Unit = {
-    df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(s"${path}/${name}")
+    df.write.mode(SaveMode.Overwrite).option("compression", compression).format("avro").save(s"${path}/${name}")
   }
   def load(name: String)(implicit spark: SparkSession): DataFrame = {
     spark.read.format("avro").load(s"${path}/${name}").persist(StorageLevel.MEMORY_ONLY)
@@ -385,8 +385,6 @@ object StorageUtil extends Serializable {
 }
 
 
-
-
 object DashboardUtil extends Serializable {
 
   implicit var debug: Boolean = false
@@ -459,7 +457,7 @@ object DashboardUtil extends Serializable {
 
   }
 
-  val cache: AvroFSCache = new AvroFSCache("/mount/data/analytics/cache")
+  val cache: AvroFSCache = new AvroFSCache("/mount/data/analytics/cache", "uncompressed")
 
   object Test extends Serializable {
     /**
