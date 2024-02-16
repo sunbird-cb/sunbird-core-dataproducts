@@ -235,7 +235,7 @@ object DataUtil extends Serializable {
   }
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    cache.load("esContent").filter(col("primaryCategory").isin(primaryCategories))
+    cache.load("esContent").filter(col("primaryCategory").isin(primaryCategories:_*))
   }
 
   def fracCompetencyAPI(host: String): String = {
