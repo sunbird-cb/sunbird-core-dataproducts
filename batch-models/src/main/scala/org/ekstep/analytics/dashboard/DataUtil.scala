@@ -874,54 +874,15 @@ object DataUtil extends Serializable {
   }
 
   def orgHierarchyDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    // TODO
-
     val orgHDF = cache.load("orgHierarchy")
       .select(
-        col("").alias("userOrgID"),
-        col("").alias("userOrgName"),
-        col("").alias("deptID"),
-        col("").alias("dept_name"),
-        col("").alias("ministryID"),
-        col("").alias("ministry_name")
+        col("mdo_id").alias("userOrgID"),
+        col("mdo_name").alias("userOrgName"),
+        col("department").alias("dept_name"),
+        col("ministry").alias("ministry_name")
       )
     show(orgHDF, "orgHierarchyDataframe")
     orgHDF
-
-
-//    var df = cache.load( "ratingSummary")
-//      .select(
-//        col("orgname").alias("userOrgName"),
-//        col("mapid").alias("mapID"),
-//        col("orgcode").alias("orgCode"),
-//        col("parentmapid").alias("parentMapID"),
-//        col("sborgid").alias("subOrgID")
-//      )
-//
-//    val alias1 = df.alias("alias1")
-//    val alias2 = df.alias("alias2")
-//    val orgDeptDF = alias1.join(alias2, col("alias1.parentMapID") === col("alias2.mapID"), "inner")
-//    val orgDeptDataDF = orgDeptDF.select(
-//      col("alias1.userOrgName").alias("orgname"),
-//      col("alias1.mapID"),
-//      col("alias2.mapID").alias("department"),
-//      col("alias2.userOrgName").alias("dept_name"),
-//      col("alias2.parentMapID").alias("dept_parent")
-//    )
-//    val alias3 = orgDeptDataDF.alias("alias3")
-//    val alias4 = df.alias("alias4")
-//    val deptMinistryDF = alias3.join(alias4, col("alias3.dept_parent") === col("alias4.mapID"), "left")
-//    var orgDeptMinistryDataDF = deptMinistryDF.select(
-//      col("alias3.mapID"),
-//      col("alias3.orgname").alias("userOrgName"),
-//      col("alias3.department"),
-//      col("alias3.dept_name").alias("dept_name"),
-//      col("alias4.mapID"),
-//      col("alias4.userOrgName").alias("ministry_name")
-//    )
-//    show(orgDeptDataDF, "result DF ")
-//    show(orgDeptMinistryDataDF, "Org Hierarchy DF")
-//    orgDeptMinistryDataDF
   }
 
   def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {

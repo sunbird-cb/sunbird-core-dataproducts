@@ -2,8 +2,9 @@ package org.ekstep.analytics.dashboard.exhaust
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
 import org.ekstep.analytics.framework._
 
 /**
@@ -11,8 +12,8 @@ import org.ekstep.analytics.framework._
  */
 object DataExhaustModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.DashboardSyncModel"
-  override def name() = "DashboardSyncModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.exhaust.DataExhaustModel"
+  override def name() = "DataExhaustModel"
 
   /**
    * Master method, does all the work, fetching, processing and dispatching
@@ -38,15 +39,13 @@ object DataExhaustModel extends AbsDashboardModel {
     val acbpDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
     cache.write(acbpDF, "acbp")
 
-    val orgHierarchyDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgHierarchyTable)
-    cache.write(orgHierarchyDF, "orgHierarchy")
-
     val ratingDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable)
     cache.write(ratingDF, "rating")
 
     val roleDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserRolesTable)
     cache.write(roleDF, "role")
 
+    // ES content
     val primaryCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
     val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor", "competencies_v5", "programDirectorName")
@@ -58,6 +57,33 @@ object DataExhaustModel extends AbsDashboardModel {
 
     val orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
     cache.write(orgDF, "org")
+
+    // org hierarchy
+    val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
+    val orgPostgresDF = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
+    val orgCassandraDF = orgDF.select(
+      col("id").alias("sborgid"),
+      col("organisationtype").alias("orgType"),
+      col("orgname").alias("cassOrgName"),
+      col("createddate").alias("orgCreatedDate")
+    )
+    val orgDfWithOrgType = orgCassandraDF.join(orgPostgresDF, Seq("sborgid"), "left")
+    val orgHierarchyDF = orgDfWithOrgType.select(
+      col("sborgid").alias("mdo_id"),
+      col("cassOrgName").alias("mdo_name"),
+      col("l1orgname").alias("ministry"),
+      col("l2orgname").alias("department"),
+      to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
+      col("orgType")
+    )
+      .withColumn("is_content_provider",
+        when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
+      .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
+      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+      .distinct()
+      .drop("orgType")
+      .dropDuplicates(Seq("mdo_id"))
+    cache.write(orgHierarchyDF, "orgHierarchy")
 
     val userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
     cache.write(userDF, "user")

@@ -6,7 +6,7 @@ import org.ekstep.analytics.framework.{FrameworkContext, IJob, JobDriver}
 
 object DataExhaustJob extends optional.Application with IJob {
   
-    implicit val className = "org.ekstep.analytics.dashboard.DataExhaustJob"
+    implicit val className = "org.ekstep.analytics.dashboard.exhaust.DataExhaustJob"
     
     def main(config: String)(implicit sc: Option[SparkContext] = None, fc: Option[FrameworkContext] = None) {
         implicit val sparkContext: SparkContext = sc.getOrElse(null);

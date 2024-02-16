@@ -23,7 +23,6 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     val today = getDate()
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
-    val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
 
     var user_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
@@ -99,33 +98,11 @@ object DataWarehouseModel extends AbsDashboardModel {
     truncateWarehouseTable(conf.dwBPEnrollmentsTable)
     saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
-    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"), col("orgCreatedDate"))
-    val orgDfWithOrgType = orgCassandraDF.join(orgDf, Seq("sborgid"), "left")
+    val orgDwDf = cache.load("orgHierarchy")
+    generateReport(orgDwDf.coalesce(1), s"${conf.orgHierarchyReportPath}/${today}-warehouse")
 
-    var orgDwDf = orgDfWithOrgType.select(
-        col("sborgid").alias("mdo_id"),
-        col("cassOrgName").alias("mdo_name"),
-        col("l1orgname").alias("ministry"),
-        col("l2orgname").alias("department"),
-        to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
-        col("orgType")
-      )
-      .withColumn("is_content_provider",
-        when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
-      .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
-      .distinct()
-
-    orgDwDf = orgDwDf.drop("orgType")
-
-    orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
-
-    val orgReportPath = s"${conf.orgHierarchyReportPath}/${today}"
-    generateReport(orgDwDf.coalesce(1), s"${orgReportPath}-warehouse")
     truncateWarehouseTable(conf.dwOrgTable)
-
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
   }
 
