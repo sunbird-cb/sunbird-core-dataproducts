@@ -25,8 +25,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
 
     // get user and user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    val orgHierarchyData = orgHierarchyDataframe().select("userOrgName", "ministry_name", "dept_name").distinct()
-    show(orgHierarchyData, "orgHierarchyData")
+    val orgHierarchyData = orgHierarchyDataframe()
 
     var userDataDF = userOrgDF
       .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
@@ -40,7 +39,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     show(userDataDF, "userDataDF -1")
 
     userDataDF = userDataDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
     show(userDataDF, "userDataDF")
 
     // Get Blended Program data

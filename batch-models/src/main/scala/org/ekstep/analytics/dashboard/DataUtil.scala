@@ -877,7 +877,6 @@ object DataUtil extends Serializable {
     val orgHDF = cache.load("orgHierarchy")
       .select(
         col("mdo_id").alias("userOrgID"),
-        col("mdo_name").alias("userOrgName"),
         col("department").alias("dept_name"),
         col("ministry").alias("ministry_name")
       )

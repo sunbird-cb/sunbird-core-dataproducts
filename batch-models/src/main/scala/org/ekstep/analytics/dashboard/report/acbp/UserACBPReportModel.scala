@@ -22,12 +22,12 @@ object UserACBPReportModel extends AbsDashboardModel {
     val orgHierarchyData = orgHierarchyDataframe()
 
     val userDataDF = userOrgDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
       .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
       .withColumn("group", coalesce(col("professionalDetails.group"), lit("")))
       .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
       .withColumn("userMobile", col("personalDetails.mobile"))
-      .select("userID", "fullName", "userPrimaryEmail", "userMobile", "userOrgID", "ministry_name", "dept_name","userOrgName", "designation", "group")
+      .select("userID", "fullName", "userPrimaryEmail", "userMobile", "userOrgID", "ministry_name", "dept_name", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
 

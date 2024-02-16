@@ -27,7 +27,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
     val userDataDF = userOrgDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
     show(userDataDF, "userDataDF")
 
     // Get course data first

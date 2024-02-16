@@ -40,7 +40,7 @@ object CourseBasedAssessmentModel extends AbsDashboardModel {
     val orgHierarchyData = orgHierarchyDataframe()
 
     val userAssessChildDataDF = userAssessChildrenDetailsDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
     show(userAssessChildDataDF, "userAssessChildDataDF")
 
     val retakesDF = userAssessChildDataDF

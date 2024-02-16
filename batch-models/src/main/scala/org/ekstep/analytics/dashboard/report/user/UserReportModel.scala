@@ -31,7 +31,7 @@ object UserReportModel extends AbsDashboardModel {
 
     val userData = userOrgDF
       .join(userRolesDF, Seq("userID"), "left")
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
       .dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
       .where(expr("userStatus=1"))
