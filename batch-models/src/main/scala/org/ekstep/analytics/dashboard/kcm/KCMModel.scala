@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 
 object KCMModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.kcm.KCMModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.kcm.KCMModel"
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
