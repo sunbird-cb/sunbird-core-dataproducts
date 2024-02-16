@@ -17,7 +17,7 @@ object BlendedProgramReportTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    BlendedProgramReportModel.processData(System.currentTimeMillis(), config)
+    BlendedProgramReportModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

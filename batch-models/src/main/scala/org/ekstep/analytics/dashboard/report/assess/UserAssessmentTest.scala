@@ -16,7 +16,7 @@ object UserAssessmentTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    UserAssessmentModel.processUserAssessmentData(System.currentTimeMillis(), config)
+    UserAssessmentModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

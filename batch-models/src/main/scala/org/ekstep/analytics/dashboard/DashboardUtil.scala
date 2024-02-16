@@ -1,7 +1,7 @@
 package org.ekstep.analytics.dashboard
 
 import org.apache.hadoop.fs.{FileSystem, Path}
-import redis.clients.jedis.{Jedis, JedisPool}
+import redis.clients.jedis.Jedis
 import org.apache.spark.SparkContext
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
@@ -9,15 +9,15 @@ import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.{Column, DataFrame, Dataset, Row, SaveMode, SparkSession, functions}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
 import org.ekstep.analytics.framework.dispatcher.KafkaDispatcher
 import org.ekstep.analytics.framework.storage.CustomS3StorageService
-import org.joda.time.{DateTime, DateTimeConstants, DateTimeZone, format}
+import org.joda.time.{DateTime, DateTimeConstants, DateTimeZone}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.sunbird.cloud.storage.BaseStorageService
 import org.sunbird.cloud.storage.factory.{StorageConfig, StorageServiceFactory}
@@ -139,6 +139,289 @@ case class DashboardConfig (
     cutoffTime: Float
 ) extends Serializable
 
+object DashboardConfig extends Serializable {
+  /* Config functions */
+  def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
+    val path = key.split('.')
+    var obj = config
+    path.slice(0, path.length - 1).foreach(f => { obj = obj.getOrElse(f, Map()).asInstanceOf[Map[String, AnyRef]] })
+    obj.getOrElse(path.last, default).asInstanceOf[T]
+  }
+  def getConfigModelParam(config: Map[String, AnyRef], key: String, default: String = ""): String = getConfig[String](config, key, default)
+  def getConfigSideBroker(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.brokerList", "")
+  def getConfigSideBrokerCompression(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.compression", "snappy")
+  def getConfigSideTopic(config: Map[String, AnyRef], key: String): String = getConfig[String](config, s"sideOutput.topics.${key}", "")
+
+  def parseConfig(config: Map[String, AnyRef]): DashboardConfig = {
+    DashboardConfig(
+      debug = getConfigModelParam(config, "debug"),
+      validation = getConfigModelParam(config, "validation"),
+      // kafka connection config
+      broker = getConfigSideBroker(config),
+      compression = getConfigSideBrokerCompression(config),
+      // redis connection config
+      redisHost = getConfigModelParam(config, "redisHost"),
+      redisPort = getConfigModelParam(config, "redisPort").toInt,
+      redisDB = getConfigModelParam(config, "redisDB").toInt,
+      //for blob storage
+      store = getConfigModelParam(config, "store"),
+      container = getConfigModelParam(config, "container"),
+      key = getConfigModelParam(config, "key"),
+      secret = getConfigModelParam(config, "secret"),
+      // other hosts connection config
+      sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
+      sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
+      sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
+      sparkMongoConnectionHost =  getConfigModelParam(config, "sparkMongoConnectionHost"),
+      fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
+      // kafka topics
+      roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
+      orgRoleUserCountTopic = getConfigSideTopic(config, "orgRoleUserCount"),
+      allCourseTopic = getConfigSideTopic(config, "allCourses"),
+      userCourseProgramProgressTopic = getConfigSideTopic(config, "userCourseProgramProgress"),
+      fracCompetencyTopic = getConfigSideTopic(config, "fracCompetency"),
+      courseCompetencyTopic = getConfigSideTopic(config, "courseCompetency"),
+      expectedCompetencyTopic = getConfigSideTopic(config, "expectedCompetency"),
+      declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
+      competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
+      userOrgTopic = getConfigSideTopic(config, "userOrg"),
+      orgTopic = getConfigSideTopic(config, "org"),
+      userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
+      assessmentTopic = getConfigSideTopic(config, "assessment"),
+      acbpEnrolmentTopic = getConfigSideTopic(config, "acbpEnrolment"),
+
+      //Newly added for the datawarehouse job
+      appPostgresHost = getConfigModelParam(config, "appPostgresHost"),
+      appPostgresSchema = getConfigModelParam(config, "appPostgresSchema"),
+      appPostgresUsername = getConfigModelParam(config, "appPostgresUsername"),
+      appPostgresCredential = getConfigModelParam(config, "appPostgresCredential"),
+      appOrgHierarchyTable = getConfigModelParam(config, "appOrgHierarchyTable"),
+      dwPostgresHost = getConfigModelParam(config, "dwPostgresHost"),
+      dwPostgresSchema = getConfigModelParam(config, "dwPostgresSchema"),
+      dwPostgresUsername = getConfigModelParam(config, "dwPostgresUsername"),
+      dwPostgresCredential = getConfigModelParam(config, "dwPostgresCredential"),
+      dwUserTable = getConfigModelParam(config, "dwUserTable"),
+      dwCourseTable = getConfigModelParam(config, "dwCourseTable"),
+      dwEnrollmentsTable = getConfigModelParam(config, "dwEnrollmentsTable"),
+      dwOrgTable = getConfigModelParam(config, "dwOrgTable"),
+      dwAssessmentTable = getConfigModelParam(config, "dwAssessmentTable"),
+      dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
+      dwKcmDictionaryTable = getConfigModelParam(config, "dwKcmDictionaryTable"),
+      dwKcmContentTable = getConfigModelParam(config, "dwKcmContentTable"),
+      postgresCompetencyTable = getConfigModelParam(config, "postgresCompetencyTable"),
+      postgresCompetencyHierarchyTable = getConfigModelParam(config, "postgresCompetencyHierarchyTable"),
+
+      // cassandra key spaces
+      cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
+      cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
+      cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
+      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
+      // cassandra table details
+      cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
+      cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
+      cassandraOrgTable = getConfigModelParam(config, "cassandraOrgTable"),
+      cassandraUserEnrolmentsTable = getConfigModelParam(config, "cassandraUserEnrolmentsTable"),
+      cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
+      cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
+      cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
+      cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
+      cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
+      cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
+      cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
+      cassandraLearnerStatsTable = getConfigModelParam(config, "cassandraLearnerStatsTable"),
+      cassandraKarmaPointsTable = getConfigModelParam(config, "cassandraKarmaPointsTable"),
+      cassandraAcbpTable = getConfigModelParam(config, "cassandraAcbpTable"),
+      cassandraHallOfFameTable = getConfigModelParam(config, "cassandraHallOfFameTable"),
+      cassandraKarmaPointsLookupTable = getConfigModelParam(config, "cassandraKarmaPointsLookupTable"),
+      cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
+
+      // redis keys
+      redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
+      redisTotalOfficerCountKey = "mdo_total_officer_count",
+      redisOrgNameKey = "mdo_name_by_org",
+      redisTotalRegisteredOfficerCountKey = "mdo_total_registered_officer_count",
+      redisTotalOrgCountKey = "mdo_total_org_count",
+      redisExpectedUserCompetencyCount = "dashboard_expected_user_competency_count",
+      redisDeclaredUserCompetencyCount = "dashboard_declared_user_competency_count",
+      redisUserCompetencyDeclarationRate = "dashboard_user_competency_declaration_rate",
+      redisOrgCompetencyDeclarationRate = "dashboard_org_competency_declaration_rate",
+      redisUserCompetencyGapCount = "dashboard_user_competency_gap_count",
+      redisUserCourseEnrolmentCount = "dashboard_user_course_enrollment_count",
+      redisUserCompetencyGapEnrolmentRate = "dashboard_user_competency_gap_enrollment_rate",
+      redisOrgCompetencyGapEnrolmentRate = "dashboard_org_competency_gap_enrollment_rate",
+      redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
+      redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
+      redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
+      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
+
+      //mongoBD configurations
+      mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
+      mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
+      platformRatingSurveyId = getConfigModelParam(config, "platformRatingSurveyId"),
+
+      // for reports
+      mdoIDs = getConfigModelParam(config, "mdoIDs"),
+      localReportDir = getConfigModelParam(config, "localReportDir", "/mount/data/analytics/reports"),
+      standaloneAssessmentReportPath = getConfigModelParam(config, "standaloneAssessmentReportPath"),
+      userReportPath = getConfigModelParam(config, "userReportPath"),
+      userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
+      courseReportPath = getConfigModelParam(config, "courseReportPath"),
+      taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
+      cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
+      blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
+      orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
+      commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
+      acbpReportPath = getConfigModelParam(config, "acbpReportPath"),
+      acbpMdoEnrolmentReportPath = getConfigModelParam(config, "acbpMdoEnrolmentReportPath"),
+      acbpMdoSummaryReportPath = getConfigModelParam(config, "acbpMdoSummaryReportPath"),
+      kcmReportPath = getConfigModelParam(config, "kcmReportPath"),
+
+      // comms-console
+      commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
+      commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
+      commsConsoleNumTopLearnersToConsider = getConfigModelParam(config, "commsConsoleNumTopLearnersToConsider", "60").toInt,
+      commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
+      commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
+      commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
+
+      // for weekly claps
+      cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat
+    )
+  }
+  /* Config functions end */
+}
+
+trait AbsDashboardModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+
+  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
+    // we want this call to happen only once, so that timestamp is consistent for all data points
+    val executionTime = System.currentTimeMillis()
+    sc.parallelize(Seq(DummyInput(executionTime)))
+  }
+
+  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
+    val timestamp = data.first().timestamp  // extract timestamp from input
+    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
+    parseConfigAndProcessData(timestamp, config)
+    sc.parallelize(Seq())  // return empty rdd
+  }
+
+  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
+    sc.parallelize(Seq())  // return empty rdd
+  }
+
+  def parseConfigAndProcessData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+    // parse model config
+    println(config)
+    implicit val conf: DashboardConfig = DashboardConfig.parseConfig(config)
+    if (conf.debug == "true") DashboardUtil.debug = true // set debug to true if explicitly specified in the config
+    if (conf.validation == "true") DashboardUtil.validation = true // set validation to true if explicitly specified in the config
+    if (DashboardUtil.debug) {
+      println("Spark Config:")
+      println(spark.conf.getAll)
+    }
+    // process
+    processData(timestamp)
+  }
+
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit
+}
+
+class AvroFSCache(val path: String) extends Serializable {
+  def write(df: DataFrame, name: String): Unit = {
+    df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(s"${path}/${name}")
+  }
+  def load(name: String)(implicit spark: SparkSession): DataFrame = {
+    spark.read.format("avro").load(s"${path}/${name}").persist(StorageLevel.MEMORY_ONLY)
+  }
+}
+
+object StorageUtil extends Serializable {
+
+  def getStorageService(config: DashboardConfig): BaseStorageService = {
+    val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
+    val storageType = "s3"
+    val storageKey = AppConf.getConfig(config.key)
+    val storageSecret = AppConf.getConfig(config.secret)
+
+    val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
+      new CustomS3StorageService(
+        StorageConfig(storageType, storageKey, storageSecret, Option(storageEndpoint))
+      )
+    } else {
+      StorageServiceFactory.getStorageService(
+        StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"))
+      )
+    }
+    storageService
+  }
+
+
+  def removeFile(path: String)(implicit spark: SparkSession): Unit = {
+    val rmFile = new Path(path)
+    val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+    if (fs.exists(rmFile)) {
+      fs.delete(rmFile, true)
+    }
+  }
+
+  def simulateSparkOverwrite(path: String, fileName: String, content: String): Unit = {
+    val file = new File(s"${path}/${fileName}")
+    // clear parent directory
+    if (file.getParentFile.exists()) {
+      val directory = new Directory(file.getParentFile)
+      directory.deleteRecursively()
+    }
+    file.getParentFile.mkdirs()
+    // create the file
+    if (!file.exists()) file.createNewFile()
+    // write content
+    val fileWriter = new FileWriter(file)
+    fileWriter.write(content)
+    fileWriter.close()
+  }
+
+  def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String, partitionKey: String): Unit = {
+    ids.foreach(id => {
+      val orgReportPath = new File(s"${reportTempPath}/${partitionKey}=${id}/")
+      val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
+        orgReportPath.listFiles().filter(f => {
+          f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
+        }).toList
+      } else {
+        List[File]()
+      }
+
+      csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
+        val (csvFile, index) = csvFileWithIndex
+        val customizedPath = new File(s"${reportTempPath}/${partitionKey}=${id}/${fileName}${if (index == 0) "" else index}.csv")
+        csvFile.renameTo(customizedPath)
+      })
+
+    })
+  }
+
+  def renameCSVWithoutPartitions(reportTempPath: String, fileName: String): Unit = {
+    val orgReportPath = new File(s"${reportTempPath}/")
+    val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
+      orgReportPath.listFiles().filter(f => {
+        f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
+      }).toList
+    } else {
+      List[File]()
+    }
+
+    csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
+      val (csvFile, index) = csvFileWithIndex
+      val customizedPath = new File(s"${reportTempPath}/${fileName}${if (index == 0) "" else index}.csv")
+      csvFile.renameTo(customizedPath)
+    })
+  }
+
+}
+
+
+
 
 object DashboardUtil extends Serializable {
 
@@ -212,57 +495,7 @@ object DashboardUtil extends Serializable {
 
   }
 
-  trait AbsDashboardModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
-
-    override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-      // we want this call to happen only once, so that timestamp is consistent for all data points
-      val executionTime = System.currentTimeMillis()
-      sc.parallelize(Seq(DummyInput(executionTime)))
-    }
-
-    override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-      val timestamp = data.first().timestamp  // extract timestamp from input
-      implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-      parseConfigAndProcessData(timestamp, config)
-      sc.parallelize(Seq())  // return empty rdd
-    }
-
-    override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-      sc.parallelize(Seq())  // return empty rdd
-    }
-
-    def parseConfigAndProcessData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-      // parse model config
-      println(config)
-      implicit val conf: DashboardConfig = parseConfig(config)
-      if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-      if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
-      if (debug) {
-        println("Spark Config:")
-        println(spark.conf.getAll)
-      }
-      // process
-      processData(timestamp)
-    }
-
-    def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit
-  }
-
-  trait FSCache extends Serializable {
-    def write(df: DataFrame, path: String): Unit
-    def load(path: String)(implicit spark: SparkSession): DataFrame
-  }
-
-  class AvroFSCache(val path: String) extends FSCache {
-    override def write(df: DataFrame, name: String): Unit = {
-        df.write.mode(SaveMode.Overwrite).option("compression", "snappy").format("avro").save(s"${path}/${name}")
-    }
-    override def load(name: String)(implicit spark: SparkSession): DataFrame = {
-      spark.read.format("avro").load(s"${path}/${name}").persist(StorageLevel.MEMORY_ONLY)
-    }
-  }
-
-  val cache: FSCache = new AvroFSCache("/mount/data/analytics/cache")
+  val cache: AvroFSCache = new AvroFSCache("/mount/data/analytics/cache")
 
   object Test extends Serializable {
     /**
@@ -301,90 +534,6 @@ object DashboardUtil extends Serializable {
       val result = block // call-by-name
       val t1 = System.currentTimeMillis()
       ((t1 - t0), result)
-    }
-
-  }
-
-  object StorageUtil extends Serializable {
-
-    def getStorageService(config: DashboardConfig): BaseStorageService = {
-      val storageEndpoint = AppConf.getConfig("cloud_storage_endpoint_with_protocol")
-      val storageType = "s3"
-      val storageKey = AppConf.getConfig(config.key)
-      val storageSecret = AppConf.getConfig(config.secret)
-
-      val storageService = if ("s3".equalsIgnoreCase(storageType) && !"".equalsIgnoreCase(storageEndpoint)) {
-        new CustomS3StorageService(
-          StorageConfig(storageType, storageKey, storageSecret, Option(storageEndpoint))
-        )
-      } else {
-        StorageServiceFactory.getStorageService(
-          StorageConfig(storageType, AppConf.getConfig("storage.key.config"), AppConf.getConfig("storage.secret.config"))
-        )
-      }
-      storageService
-    }
-
-
-    def removeFile(path: String)(implicit spark: SparkSession): Unit = {
-      val rmFile = new Path(path)
-      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-      if (fs.exists(rmFile)) {
-        fs.delete(rmFile, true)
-      }
-    }
-
-    def simulateSparkOverwrite(path: String, fileName: String, content: String): Unit = {
-      val file = new File(s"${path}/${fileName}")
-      // clear parent directory
-      if (file.getParentFile.exists()) {
-        val directory = new Directory(file.getParentFile)
-        directory.deleteRecursively()
-      }
-      file.getParentFile.mkdirs()
-      // create the file
-      if (!file.exists()) file.createNewFile()
-      // write content
-      val fileWriter = new FileWriter(file)
-      fileWriter.write(content)
-      fileWriter.close()
-    }
-
-    def renameCSV(ids: util.List[String], reportTempPath: String, fileName: String, partitionKey: String): Unit = {
-      ids.foreach(id => {
-        val orgReportPath = new File(s"${reportTempPath}/${partitionKey}=${id}/")
-        val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
-          orgReportPath.listFiles().filter(f => {
-            f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
-          }).toList
-        } else {
-          List[File]()
-        }
-
-        csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
-          val (csvFile, index) = csvFileWithIndex
-          val customizedPath = new File(s"${reportTempPath}/${partitionKey}=${id}/${fileName}${if (index == 0) "" else index}.csv")
-          csvFile.renameTo(customizedPath)
-        })
-
-      })
-    }
-
-    def renameCSVWithoutPartitions(reportTempPath: String, fileName: String): Unit = {
-      val orgReportPath = new File(s"${reportTempPath}/")
-      val csvFiles = if (orgReportPath.exists() && orgReportPath.isDirectory) {
-        orgReportPath.listFiles().filter(f => {
-          f != null && f.getName != null && f.getName.startsWith("part-") && f.getName.endsWith(".csv")
-        }).toList
-      } else {
-        List[File]()
-      }
-
-      csvFiles.zipWithIndex.foreach(csvFileWithIndex => {
-        val (csvFile, index) = csvFileWithIndex
-        val customizedPath = new File(s"${reportTempPath}/${fileName}${if (index == 0) "" else index}.csv")
-        csvFile.renameTo(customizedPath)
-      })
     }
 
   }
@@ -433,6 +582,23 @@ object DashboardUtil extends Serializable {
   def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
     df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
       .partitionBy(partitionKey).save(path)
+  }
+
+  def generateReport(df: DataFrame, reportPath: String, partitionKey: String = null, fileName: String = null)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    import spark.implicits._
+    val reportFullPath = s"${conf.localReportDir}/${reportPath}"
+    println(s"REPORT: Writing report to ${reportFullPath} ...")
+    if (partitionKey == null) {
+      csvWrite(df.coalesce(1), reportFullPath)
+      if (fileName != null) StorageUtil.renameCSVWithoutPartitions(reportFullPath, fileName)
+    } else {
+      val ids = df.select(partitionKey).distinct().map(_.getString(0)).filter(_.nonEmpty).collectAsList()
+      // generate partitioned report
+      csvWritePartition(df, reportFullPath, partitionKey)
+      if (fileName != null) StorageUtil.renameCSV(ids, reportFullPath, fileName, partitionKey) // rename part-*.csv files to provided name
+    }
+    StorageUtil.removeFile(s"${reportFullPath}/_SUCCESS") // remove success file
+    println(s"REPORT: Finished Writing report to ${reportFullPath}")
   }
 
   def kafkaDispatch(data: RDD[String], topic: String)(implicit sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
@@ -619,155 +785,6 @@ object DashboardUtil extends Serializable {
       .save()
   }
 
-  /* Config functions */
-  def getConfig[T](config: Map[String, AnyRef], key: String, default: T = null): T = {
-    val path = key.split('.')
-    var obj = config
-    path.slice(0, path.length - 1).foreach(f => { obj = obj.getOrElse(f, Map()).asInstanceOf[Map[String, AnyRef]] })
-    obj.getOrElse(path.last, default).asInstanceOf[T]
-  }
-  def getConfigModelParam(config: Map[String, AnyRef], key: String, default: String = ""): String = getConfig[String](config, key, default)
-  def getConfigSideBroker(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.brokerList", "")
-  def getConfigSideBrokerCompression(config: Map[String, AnyRef]): String = getConfig[String](config, "sideOutput.compression", "snappy")
-  def getConfigSideTopic(config: Map[String, AnyRef], key: String): String = getConfig[String](config, s"sideOutput.topics.${key}", "")
-
-  def parseConfig(config: Map[String, AnyRef]): DashboardConfig = {
-    DashboardConfig(
-      debug = getConfigModelParam(config, "debug"),
-      validation = getConfigModelParam(config, "validation"),
-      // kafka connection config
-      broker = getConfigSideBroker(config),
-      compression = getConfigSideBrokerCompression(config),
-      // redis connection config
-      redisHost = getConfigModelParam(config, "redisHost"),
-      redisPort = getConfigModelParam(config, "redisPort").toInt,
-      redisDB = getConfigModelParam(config, "redisDB").toInt,
-      //for blob storage
-      store = getConfigModelParam(config, "store"),
-      container = getConfigModelParam(config, "container"),
-      key = getConfigModelParam(config, "key"),
-      secret = getConfigModelParam(config, "secret"),
-        // other hosts connection config
-      sparkCassandraConnectionHost = getConfigModelParam(config, "sparkCassandraConnectionHost"),
-      sparkDruidRouterHost = getConfigModelParam(config, "sparkDruidRouterHost"),
-      sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
-      sparkMongoConnectionHost =  getConfigModelParam(config, "sparkMongoConnectionHost"),
-      fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
-      // kafka topics
-      roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
-      orgRoleUserCountTopic = getConfigSideTopic(config, "orgRoleUserCount"),
-      allCourseTopic = getConfigSideTopic(config, "allCourses"),
-      userCourseProgramProgressTopic = getConfigSideTopic(config, "userCourseProgramProgress"),
-      fracCompetencyTopic = getConfigSideTopic(config, "fracCompetency"),
-      courseCompetencyTopic = getConfigSideTopic(config, "courseCompetency"),
-      expectedCompetencyTopic = getConfigSideTopic(config, "expectedCompetency"),
-      declaredCompetencyTopic = getConfigSideTopic(config, "declaredCompetency"),
-      competencyGapTopic = getConfigSideTopic(config, "competencyGap"),
-      userOrgTopic = getConfigSideTopic(config, "userOrg"),
-      orgTopic = getConfigSideTopic(config, "org"),
-      userAssessmentTopic = getConfigSideTopic(config, "userAssessment"),
-      assessmentTopic = getConfigSideTopic(config, "assessment"),
-      acbpEnrolmentTopic = getConfigSideTopic(config, "acbpEnrolment"),
-
-      //Newly added for the datawarehouse job
-      appPostgresHost = getConfigModelParam(config, "appPostgresHost"),
-      appPostgresSchema = getConfigModelParam(config, "appPostgresSchema"),
-      appPostgresUsername = getConfigModelParam(config, "appPostgresUsername"),
-      appPostgresCredential = getConfigModelParam(config, "appPostgresCredential"),
-      appOrgHierarchyTable = getConfigModelParam(config, "appOrgHierarchyTable"),
-      dwPostgresHost = getConfigModelParam(config, "dwPostgresHost"),
-      dwPostgresSchema = getConfigModelParam(config, "dwPostgresSchema"),
-      dwPostgresUsername = getConfigModelParam(config, "dwPostgresUsername"),
-      dwPostgresCredential = getConfigModelParam(config, "dwPostgresCredential"),
-      dwUserTable = getConfigModelParam(config, "dwUserTable"),
-      dwCourseTable = getConfigModelParam(config, "dwCourseTable"),
-      dwEnrollmentsTable = getConfigModelParam(config, "dwEnrollmentsTable"),
-      dwOrgTable = getConfigModelParam(config, "dwOrgTable"),
-      dwAssessmentTable = getConfigModelParam(config, "dwAssessmentTable"),
-      dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
-      dwKcmDictionaryTable = getConfigModelParam(config, "dwKcmDictionaryTable"),
-      dwKcmContentTable = getConfigModelParam(config, "dwKcmContentTable"),
-      postgresCompetencyTable = getConfigModelParam(config, "postgresCompetencyTable"),
-      postgresCompetencyHierarchyTable = getConfigModelParam(config, "postgresCompetencyHierarchyTable"),
-
-      // cassandra key spaces
-      cassandraUserKeyspace = getConfigModelParam(config, "cassandraUserKeyspace"),
-      cassandraCourseKeyspace = getConfigModelParam(config, "cassandraCourseKeyspace"),
-      cassandraHierarchyStoreKeyspace = getConfigModelParam(config, "cassandraHierarchyStoreKeyspace"),
-      cassandraUserFeedKeyspace = getConfigModelParam(config, "cassandraUserFeedKeyspace"),
-      // cassandra table details
-      cassandraUserTable = getConfigModelParam(config, "cassandraUserTable"),
-      cassandraUserRolesTable = getConfigModelParam(config, "cassandraUserRolesTable"),
-      cassandraOrgTable = getConfigModelParam(config, "cassandraOrgTable"),
-      cassandraUserEnrolmentsTable = getConfigModelParam(config, "cassandraUserEnrolmentsTable"),
-      cassandraContentHierarchyTable = getConfigModelParam(config, "cassandraContentHierarchyTable"),
-      cassandraRatingSummaryTable = getConfigModelParam(config, "cassandraRatingSummaryTable"),
-      cassandraUserAssessmentTable = getConfigModelParam(config, "cassandraUserAssessmentTable"),
-      cassandraRatingsTable = getConfigModelParam(config, "cassandraRatingsTable"),
-      cassandraOrgHierarchyTable = getConfigModelParam(config, "cassandraOrgHierarchyTable"),
-      cassandraUserFeedTable = getConfigModelParam(config, "cassandraUserFeedTable"),
-      cassandraCourseBatchTable = getConfigModelParam(config, "cassandraCourseBatchTable"),
-      cassandraLearnerStatsTable = getConfigModelParam(config, "cassandraLearnerStatsTable"),
-      cassandraKarmaPointsTable = getConfigModelParam(config, "cassandraKarmaPointsTable"),
-      cassandraAcbpTable = getConfigModelParam(config, "cassandraAcbpTable"),
-      cassandraHallOfFameTable = getConfigModelParam(config, "cassandraHallOfFameTable"),
-      cassandraKarmaPointsLookupTable = getConfigModelParam(config, "cassandraKarmaPointsLookupTable"),
-      cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
-
-      // redis keys
-      redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
-      redisTotalOfficerCountKey = "mdo_total_officer_count",
-      redisOrgNameKey = "mdo_name_by_org",
-      redisTotalRegisteredOfficerCountKey = "mdo_total_registered_officer_count",
-      redisTotalOrgCountKey = "mdo_total_org_count",
-      redisExpectedUserCompetencyCount = "dashboard_expected_user_competency_count",
-      redisDeclaredUserCompetencyCount = "dashboard_declared_user_competency_count",
-      redisUserCompetencyDeclarationRate = "dashboard_user_competency_declaration_rate",
-      redisOrgCompetencyDeclarationRate = "dashboard_org_competency_declaration_rate",
-      redisUserCompetencyGapCount = "dashboard_user_competency_gap_count",
-      redisUserCourseEnrolmentCount = "dashboard_user_course_enrollment_count",
-      redisUserCompetencyGapEnrolmentRate = "dashboard_user_competency_gap_enrollment_rate",
-      redisOrgCompetencyGapEnrolmentRate = "dashboard_org_competency_gap_enrollment_rate",
-      redisUserCourseCompletionCount = "dashboard_user_course_completion_count",
-      redisUserCompetencyGapClosedCount = "dashboard_user_competency_gap_closed_count",
-      redisUserCompetencyGapClosedRate = "dashboard_user_competency_gap_closed_rate",
-      redisOrgCompetencyGapClosedRate = "dashboard_org_competency_gap_closed_rate",
-
-      //mongoBD configurations
-      mongoDBCollection =  getConfigModelParam(config, "mongoDBCollection"),
-      mongoDatabase = getConfigModelParam(config, "mongoDatabase"),
-      platformRatingSurveyId = getConfigModelParam(config, "platformRatingSurveyId"),
-
-      // for reports
-      mdoIDs = getConfigModelParam(config, "mdoIDs"),
-      localReportDir = getConfigModelParam(config, "localReportDir", "/mount/data/analytics/reports"),
-      standaloneAssessmentReportPath = getConfigModelParam(config, "standaloneAssessmentReportPath"),
-      userReportPath = getConfigModelParam(config, "userReportPath"),
-      userEnrolmentReportPath = getConfigModelParam(config, "userEnrolmentReportPath"),
-      courseReportPath = getConfigModelParam(config, "courseReportPath"),
-      taggedUsersPath = getConfigModelParam(config, "taggedUsersPath"),
-      cbaReportPath = getConfigModelParam(config, "cbaReportPath"),
-      blendedReportPath = getConfigModelParam(config, "blendedReportPath"),
-      orgHierarchyReportPath = getConfigModelParam(config, "orgHierarchyReportPath"),
-      commsConsoleReportPath = getConfigModelParam(config, "commsConsoleReportPath"),
-      acbpReportPath = getConfigModelParam(config, "acbpReportPath"),
-      acbpMdoEnrolmentReportPath = getConfigModelParam(config, "acbpMdoEnrolmentReportPath"),
-      acbpMdoSummaryReportPath = getConfigModelParam(config, "acbpMdoSummaryReportPath"),
-      kcmReportPath = getConfigModelParam(config, "kcmReportPath"),
-
-      // comms-console
-      commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
-      commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
-      commsConsoleNumTopLearnersToConsider = getConfigModelParam(config, "commsConsoleNumTopLearnersToConsider", "60").toInt,
-      commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
-      commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
-      commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
-
-      // for weekly claps
-      cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat
-    )
-  }
-  /* Config functions end */
 
   def checkAvailableColumns(df: DataFrame, expectedColumnsInput: List[String]) : DataFrame = {
     expectedColumnsInput.foldLeft(df) {

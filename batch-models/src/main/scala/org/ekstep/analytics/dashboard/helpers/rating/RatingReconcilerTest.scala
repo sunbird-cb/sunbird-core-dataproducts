@@ -17,7 +17,7 @@ object RatingReconcilerTest extends Serializable{
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    RatingReconcilerModel.processRatingData(System.currentTimeMillis(), config)
+    RatingReconcilerModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

@@ -29,7 +29,7 @@ object RedisTest extends Serializable {
   def processData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
-    implicit val conf: DashboardConfig = DashboardUtil.parseConfig(config)
+    implicit val conf: DashboardConfig = DashboardConfig.parseConfig(config)
     if (conf.debug == "true") DashboardUtil.debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") DashboardUtil.validation = true // set validation to true if explicitly specified in the config
 

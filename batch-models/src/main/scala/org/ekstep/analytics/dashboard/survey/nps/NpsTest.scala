@@ -3,7 +3,6 @@ package org.ekstep.analytics.dashboard.survey.nps
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.ekstep.analytics.dashboard.DashboardUtil
-import org.ekstep.analytics.dashboard.DashboardUtil.getConfigModelParam
 import org.ekstep.analytics.framework.FrameworkContext
 
 object NpsTest extends Serializable{
@@ -18,7 +17,7 @@ object NpsTest extends Serializable{
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    NpsModel.processUserReport(System.currentTimeMillis(), config)
+    NpsModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

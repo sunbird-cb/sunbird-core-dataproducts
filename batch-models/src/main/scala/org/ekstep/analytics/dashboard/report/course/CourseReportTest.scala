@@ -17,7 +17,7 @@ object CourseReportTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CourseReportModel.processCourseReport(System.currentTimeMillis(), config)
+    CourseReportModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

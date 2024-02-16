@@ -21,7 +21,7 @@ object ValidateDerivedTest extends Serializable {
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
 
-    implicit val conf: DashboardConfig = parseConfig(config)
+    implicit val conf: DashboardConfig = DashboardConfig.parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 

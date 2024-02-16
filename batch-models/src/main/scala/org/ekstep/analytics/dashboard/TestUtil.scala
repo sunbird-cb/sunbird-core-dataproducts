@@ -7,7 +7,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 
 object TestUtil extends Serializable {
 
-  def main(model: DashboardUtil.AbsDashboardModel): Unit = {
+  def main(model: AbsDashboardModel): Unit = {
     val config = testModelConfig()
     implicit val (spark, sc, fc) = DashboardUtil.Test.getSessionAndContext(model.name(), config)
     val res = DashboardUtil.Test.time(test(config, model))
@@ -15,7 +15,7 @@ object TestUtil extends Serializable {
     spark.stop()
   }
 
-  def test(config: Map[String, AnyRef], model: DashboardUtil.AbsDashboardModel)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
+  def test(config: Map[String, AnyRef], model: AbsDashboardModel)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     model.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 

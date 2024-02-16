@@ -16,7 +16,7 @@ object CourseBasedAssessmentTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CourseBasedAssessmentModel.processCourseBasedAssessmentData(System.currentTimeMillis(), config)
+    CourseBasedAssessmentModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

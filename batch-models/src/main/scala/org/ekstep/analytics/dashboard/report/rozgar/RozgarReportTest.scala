@@ -17,7 +17,7 @@ object RozgarReportTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    RozgarReportModel.processUserEnrolmentData(System.currentTimeMillis(), config)
+    RozgarReportModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

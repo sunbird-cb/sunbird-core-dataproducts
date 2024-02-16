@@ -2,19 +2,16 @@ package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
-import DashboardUtil.StorageUtil._
 
 import java.io.Serializable
 import java.util
 import scala.collection.mutable.ListBuffer
-import scala.util.matching.Regex
 
 
 object DataUtil extends Serializable {
@@ -237,57 +234,8 @@ object DataUtil extends Serializable {
     ))
   }
 
-
-  object CompLevelParser extends Serializable {
-
-    val competencyLevelPattern: Regex = ".*[Ll]evel[ ]+?([0-9]+).*".r
-    /**
-     * match string against level pattern and return level or zero
-     * @param s string to parse
-     * @return level or zero
-     */
-    def parseCompetencyLevelString(s: String): Int = {
-      s match {
-        case competencyLevelPattern(level) => level.toInt
-        case _ => 0
-      }
-    }
-    /**
-     * get competency level from string value
-     * @param levelString level string
-     * @return level value as int
-     */
-    def getCompetencyLevel(levelString: String): Int = {
-      intOrZero(levelString) match {
-        case 0 => parseCompetencyLevelString(levelString)
-        case default => default
-      }
-    }
-
-    /**
-     * spark udf to infer competency level value, returns 1 if no value could be inferred
-     * @param csaLevel value of competencySelfAttestedLevel column
-     * @param csaLevelValue value of competencySelfAttestedLevelValue column
-     * @return level value as int
-     */
-    def compLevelParser(csaLevel: String, csaLevelValue: String): Int = {
-      for (levelString <- Seq(csaLevel, csaLevelValue)) {
-        val level = getCompetencyLevel(levelString)
-        if (level != 0) return level
-      }
-      1 // return 1 as default
-    }
-    val compLevelParserUdf: UserDefinedFunction = udf(compLevelParser _)
-  }
-
-  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String], extraFields: Seq[String] = Seq(), extraArrayFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
-    val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor", "competencies_v5") ++ extraFields
-    val arrayFields = Seq("createdFor") ++ extraArrayFields
-    val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
-    val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
-
-    elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, arrayFields)
+  def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    cache.load("esContent").filter(col("primaryCategory").isin(primaryCategories))
   }
 
   def fracCompetencyAPI(host: String): String = {
@@ -533,8 +481,8 @@ object DataUtil extends Serializable {
    * content from elastic search api
    * @return DataFrame(courseID, category, courseName, courseStatus, courseReviewStatus, courseOrgID, lastPublishedOn)
    */
-  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course", extraFields: Seq[String] = Seq())(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = elasticSearchCourseProgramDataFrame(primaryCategories, extraFields=extraFields)
+  def contentESDataFrame(primaryCategories: Seq[String], prefix: String = "course")(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var df = elasticSearchCourseProgramDataFrame(primaryCategories)
 
     // now that error handling is done, proceed with business as usual
     df = df
@@ -926,39 +874,54 @@ object DataUtil extends Serializable {
   }
 
   def orgHierarchyDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    var df = cache.load( "ratingSummary")
-      .select(
-        col("orgname").alias("userOrgName"),
-        col("mapid").alias("mapID"),
-        col("orgcode").alias("orgCode"),
-        col("parentmapid").alias("parentMapID"),
-        col("sborgid").alias("subOrgID")
-      )
+    // TODO
 
-    val alias1 = df.alias("alias1")
-    val alias2 = df.alias("alias2")
-    val orgDeptDF = alias1.join(alias2, col("alias1.parentMapID") === col("alias2.mapID"), "inner")
-    val orgDeptDataDF = orgDeptDF.select(
-      col("alias1.userOrgName").alias("orgname"),
-      col("alias1.mapID"),
-      col("alias2.mapID").alias("department"),
-      col("alias2.userOrgName").alias("dept_name"),
-      col("alias2.parentMapID").alias("dept_parent")
-    )
-    val alias3 = orgDeptDataDF.alias("alias3")
-    val alias4 = df.alias("alias4")
-    val deptMinistryDF = alias3.join(alias4, col("alias3.dept_parent") === col("alias4.mapID"), "left")
-    var orgDeptMinistryDataDF = deptMinistryDF.select(
-      col("alias3.mapID"),
-      col("alias3.orgname").alias("userOrgName"),
-      col("alias3.department"),
-      col("alias3.dept_name").alias("dept_name"),
-      col("alias4.mapID"),
-      col("alias4.userOrgName").alias("ministry_name")
-    )
-    show(orgDeptDataDF, "result DF ")
-    show(orgDeptMinistryDataDF, "Org Hierarchy DF")
-    orgDeptMinistryDataDF
+    val orgHDF = cache.load("orgHierarchy")
+      .select(
+        col("").alias("userOrgID"),
+        col("").alias("userOrgName"),
+        col("").alias("deptID"),
+        col("").alias("dept_name"),
+        col("").alias("ministryID"),
+        col("").alias("ministry_name")
+      )
+    show(orgHDF, "orgHierarchyDataframe")
+    orgHDF
+
+
+//    var df = cache.load( "ratingSummary")
+//      .select(
+//        col("orgname").alias("userOrgName"),
+//        col("mapid").alias("mapID"),
+//        col("orgcode").alias("orgCode"),
+//        col("parentmapid").alias("parentMapID"),
+//        col("sborgid").alias("subOrgID")
+//      )
+//
+//    val alias1 = df.alias("alias1")
+//    val alias2 = df.alias("alias2")
+//    val orgDeptDF = alias1.join(alias2, col("alias1.parentMapID") === col("alias2.mapID"), "inner")
+//    val orgDeptDataDF = orgDeptDF.select(
+//      col("alias1.userOrgName").alias("orgname"),
+//      col("alias1.mapID"),
+//      col("alias2.mapID").alias("department"),
+//      col("alias2.userOrgName").alias("dept_name"),
+//      col("alias2.parentMapID").alias("dept_parent")
+//    )
+//    val alias3 = orgDeptDataDF.alias("alias3")
+//    val alias4 = df.alias("alias4")
+//    val deptMinistryDF = alias3.join(alias4, col("alias3.dept_parent") === col("alias4.mapID"), "left")
+//    var orgDeptMinistryDataDF = deptMinistryDF.select(
+//      col("alias3.mapID"),
+//      col("alias3.orgname").alias("userOrgName"),
+//      col("alias3.department"),
+//      col("alias3.dept_name").alias("dept_name"),
+//      col("alias4.mapID"),
+//      col("alias4.userOrgName").alias("ministry_name")
+//    )
+//    show(orgDeptDataDF, "result DF ")
+//    show(orgDeptMinistryDataDF, "Org Hierarchy DF")
+//    orgDeptMinistryDataDF
   }
 
   def userCourseRatingDataframe()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1227,39 +1190,6 @@ object DataUtil extends Serializable {
       .na.fill(0, Seq("liveCourseCount"))
 
     show(df)
-    df
-  }
-
-  /**
-   * User's declared competency data from cassandra sunbird:user
-   * @return DataFrame(userID, competencyID, declaredCompetencyLevel)
-   */
-  def declaredCompetencyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val userdata = cache.load("user")
-    val profileDetailsSchema = Schema.makeProfileDetailsSchema(competencies = true)
-
-    // select id and profile details column where profile details are available
-    var df = userdata.where(col("profiledetails").isNotNull).select("id", "profiledetails")
-    // json parse profile details
-    df = df.withColumn("profile", from_json(col("profiledetails"), profileDetailsSchema))
-    // explode competencies
-    df = df.select(col("id"), explode_outer(col("profile.competencies")).alias("competency"))
-    // filter out where competency or competency id not present
-    df = df.where(col("competency").isNotNull && col("competency.id").isNotNull)
-
-    // use udf for competency level parsing, as the schema for competency level is broken
-    df = df.withColumn("declaredCompetencyLevel",
-      CompLevelParser.compLevelParserUdf(col("competency.competencySelfAttestedLevel"), col("competency.competencySelfAttestedLevelValue"))
-    ).na.fill(1, Seq("declaredCompetencyLevel"))  // if competency is listed without a level assume level 1
-
-    // select useful columns
-    df = df.select(
-      col("id").alias("userID"),
-      col("competency.id").alias("competencyID"),
-      col("declaredCompetencyLevel")
-    )
-
-    show(df, "declaredCompetencyDataFrame [userID, competencyID, declaredCompetencyLevel]")
     df
   }
 
@@ -1665,57 +1595,6 @@ object DataUtil extends Serializable {
     df
   }
 
-  /* report generation stuff */
-  def generateFullReport(df: DataFrame, reportPath: String, localReportDir: String): Unit = {
-    val fullReportPath = s"${localReportDir}/${reportPath}-full"
-    println(s"REPORT: Writing full report to ${fullReportPath} ...")
-    csvWrite(df, fullReportPath)
-    println(s"REPORT: Finished Writing full report to ${fullReportPath}")
-  }
-
-  def generateWarehouseReport(df: DataFrame, reportPath: String, localReportDir: String): Unit = {
-    val warehouseReportPath = s"${localReportDir}/${reportPath}-warehouse"
-    println(s"REPORT: Writing warehouse report to ${warehouseReportPath} ...")
-    csvWrite(df, warehouseReportPath)
-    println(s"REPORT: Finished Writing warehouse report to ${warehouseReportPath}")
-  }
-
-
-  def generateReports(df: DataFrame, partitionKey: String, reportTempPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    import spark.implicits._
-    println(s"REPORT: Writing mdo wise report to ${reportTempPath} ...")
-    val ids = df.select(partitionKey).distinct().map(_.getString(0)).filter(_.nonEmpty).collectAsList()
-
-    // generate partitioned report
-    csvWritePartition(df, reportTempPath, partitionKey)
-    removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
-    renameCSV(ids, reportTempPath, fileName, partitionKey) // rename part-*.csv files to provided name
-    println(s"REPORT: Finished Writing mdo wise report to ${reportTempPath}")
-  }
-
-  def generateReportsWithoutPartition(df: DataFrame, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"${conf.localReportDir}/${reportPath}"
-    csvWrite(df.coalesce(1), reportTempPath)
-    removeFile(s"${reportTempPath}/_SUCCESS") // remove success file
-    renameCSVWithoutPartitions(reportTempPath, fileName)
-  }
-
-  def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    println(s"REPORT: Syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath} ...")
-    val storageService = getStorageService(conf)
-    // upload files to - {store}://{container}/{reportPath}/
-    val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
-    storageService.upload(storageConfig.container, reportTempPath, s"${reportPath}/", Some(true), Some(0), Some(3), None)
-    storageService.closeContext()
-    println(s"REPORT: Finished syncing mdo wise reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}")
-  }
-
-  def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
-    val reportTempPath = s"${conf.localReportDir}/${reportPath}"
-    generateReports(df, partitionKey, reportTempPath, fileName)
-    syncReports(reportTempPath, reportPath)
-  }
-
   def acbpDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = cache.load("acbp")
       .where(col("status") === "Live")
@@ -1733,6 +1612,26 @@ object DataUtil extends Serializable {
 
   }
 
+  /* report generation stuff
 
+  this is here instead of in DashboardUtil to avoid the conflict b/w
+  org.sunbird.cloud.storage.factory.StorageConfig and
+  org.ekstep.analytics.framework.StorageConfig */
+
+  def syncReports(reportTempPath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    println(s"REPORT: Syncing reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath} ...")
+    val storageService = StorageUtil.getStorageService(conf)
+    // upload files to - {store}://{container}/{reportPath}/
+    val storageConfig = new StorageConfig(conf.store, conf.container, reportTempPath)
+    storageService.upload(storageConfig.container, reportTempPath, s"${reportPath}/", Some(true), Some(0), Some(3), None)
+    storageService.closeContext()
+    println(s"REPORT: Finished syncing reports from ${reportTempPath} to ${conf.store}://${conf.container}/${reportPath}")
+  }
+
+  def generateAndSyncReports(df: DataFrame, partitionKey: String, reportPath: String, fileName: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    val reportTempPath = s"${conf.localReportDir}/${reportPath}"
+    generateReport(df, reportPath, partitionKey, fileName)
+    syncReports(reportTempPath, reportPath)
+  }
 
 }

@@ -16,7 +16,7 @@ object DataWarehouseTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    DataWarehouseModel.syncReportsToPostgres(System.currentTimeMillis(), config)
+    DataWarehouseModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

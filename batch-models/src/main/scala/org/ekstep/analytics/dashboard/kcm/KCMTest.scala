@@ -15,7 +15,7 @@ object KCMTest extends Serializable{
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    KCMModel.processKCM(System.currentTimeMillis(), config)
+    KCMModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

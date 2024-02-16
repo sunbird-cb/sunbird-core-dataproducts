@@ -16,7 +16,7 @@ object KarmaPointsTest extends Serializable {
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    KarmaPointsModel.processKarmaPoints(System.currentTimeMillis(), config)
+    KarmaPointsModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

@@ -1,43 +1,22 @@
 package org.ekstep.analytics.dashboard.weekly.claps
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.ekstep.analytics.framework.FrameworkContext
 import org.ekstep.analytics.framework.util.JobLogger
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
 
-object WeeklyClapsModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable{
+
+object WeeklyClapsModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsModel"
 
   override def name() = "WeeklyClapsModel"
 
-  override def preProcess(events: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(events: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = events.first().timestamp // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processWeeklyClaps(timestamp, config)
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
-  override def postProcess(events: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq())
-  }
-
-  def processWeeklyClaps(l: Long, config: Map[String, AnyRef]) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    // parse model config
-    println(config)
-    implicit val conf: DashboardConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     // get weekStart, weekEnd and dataTillDate(previous day) from today's date
     val (weekStart, weekEnd, weekEndTime, dataTillDate) = getThisWeekDates()

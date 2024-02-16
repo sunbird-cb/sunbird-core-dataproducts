@@ -17,7 +17,7 @@ object CommsReportTest extends Serializable{
   }
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    CommsReportModel.processCommsConsoleReport(System.currentTimeMillis(), config)
+    CommsReportModel.parseConfigAndProcessData(System.currentTimeMillis(), config)
   }
 
   def testModelConfig(): Map[String, AnyRef] = {

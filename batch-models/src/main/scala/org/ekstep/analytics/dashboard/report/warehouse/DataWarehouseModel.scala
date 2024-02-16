@@ -1,48 +1,26 @@
 package org.ekstep.analytics.dashboard.report.warehouse
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.ekstep.analytics.framework.FrameworkContext
 
-import java.io.Serializable
 
-object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object DataWarehouseModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseModel"
   override def name() = "DataWarehouseModel"
-
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    // we want this call to happen only once, so that timestamp is consistent for all data points
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = data.first().timestamp  // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-
-
-    syncReportsToPostgres(timestamp, config)
-    sc.parallelize(Seq())  // return empty rdd
-  }
-
-  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq())  // return empty rdd
-  }
 
   /**
    * Reading all the reports and saving it to postgres. Overwriting the data in postgres
    *
    * @param timestamp unique timestamp from the start of the processing
-   * @param config model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
-  def syncReportsToPostgres(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    implicit val conf: DashboardConfig = parseConfig(config)
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+
     val today = getDate()
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
@@ -144,7 +122,7 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
 
     val orgReportPath = s"${conf.orgHierarchyReportPath}/${today}"
-    generateWarehouseReport(orgDwDf.coalesce(1), orgReportPath, conf.localReportDir)
+    generateReport(orgDwDf.coalesce(1), s"${orgReportPath}-warehouse")
     truncateWarehouseTable(conf.dwOrgTable)
 
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
