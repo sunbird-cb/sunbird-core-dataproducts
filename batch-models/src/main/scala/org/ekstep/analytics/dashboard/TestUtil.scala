@@ -68,7 +68,7 @@ object TestUtil extends Serializable {
       "dwPostgresSchema" -> "warehouse",
 
       "dwUserTable" -> "user_detail",
-      "dwCourseTable" -> "cbp",
+      "dwCourseTable" -> "content",
       "dwEnrollmentsTable" -> "user_enrolment",
       "dwOrgTable" -> "org_hierarchy",
       "dwAssessmentTable" -> "assessment_detail",

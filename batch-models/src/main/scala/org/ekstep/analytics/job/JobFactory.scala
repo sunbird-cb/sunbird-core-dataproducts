@@ -1,6 +1,7 @@
 package org.ekstep.analytics.job
 
 import org.ekstep.analytics.dashboard.DashboardSyncJob
+import org.ekstep.analytics.dashboard.exhaust.DataExhaustJob
 import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
 import org.ekstep.analytics.dashboard.karma.points.KarmaPointsJob
 import org.ekstep.analytics.dashboard.report.kcm.KCMJob
@@ -41,6 +42,8 @@ object JobFactory {
         MonitorSummarizer
       case "wfs" =>
         WorkFlowSummarizer
+      case "data-exhaust" =>
+        DataExhaustJob
       case "dashboard-sync" =>
         DashboardSyncJob
       case "assessment-metrics" =>
