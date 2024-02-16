@@ -66,7 +66,7 @@ object DataWarehouseTest extends Serializable {
       "dwPostgresUsername" -> "postgres",
       "dwPostgresCredential" -> "Password@12345678",
       "dwUserTable" -> "user_detail",
-      "dwCourseTable" -> "cbp",
+      "dwCourseTable" -> "content",
       "dwEnrollmentsTable" -> "user_enrolment",
       "dwOrgTable" -> "org_hierarchy",
       "dwAssessmentTable" -> "assessment_detail",
