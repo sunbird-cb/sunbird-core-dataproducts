@@ -39,13 +39,13 @@ object DataWarehouseModel extends AbsDashboardModel {
     cbp_details = cbp_details
       .withColumn("resource_count", col("resource_count").cast("int"))
       .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
-      .withColumn("cbp_rating", col("cbp_rating").cast("float"))
+      .withColumn("content_rating", col("content_rating").cast("float"))
       .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd"))
       .withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
       .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd"))
-      .withColumn("cbp_retired_on", to_date(col("cbp_retired_on"), "yyyy-MM-dd"))
+      .withColumn("content_retired_on", to_date(col("content_retired_on"), "yyyy-MM-dd"))
 
-    cbp_details = cbp_details.dropDuplicates(Seq("cbp_id"))
+    cbp_details = cbp_details.dropDuplicates(Seq("content_id"))
 
 
     truncateWarehouseTable(conf.dwCourseTable)
@@ -55,13 +55,13 @@ object DataWarehouseModel extends AbsDashboardModel {
       .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
 
     enrollment_details = enrollment_details
-      .withColumn("cbp_progress_percentage", col("cbp_progress_percentage").cast("float"))
+      .withColumn("content_progress_percentage", col("content_progress_percentage").cast("float"))
       .withColumn("user_rating", col("user_rating").cast("float"))
       .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
       .withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
       .withColumn("certificate_generated_on", to_date(col("certificate_generated_on"), "yyyy-MM-dd"))
       .withColumn("enrolled_on", to_date(col("enrolled_on"), "yyyy-MM-dd"))
-      .filter(col("cbp_id").isNotNull)
+      .filter(col("content_id").isNotNull)
 
     truncateWarehouseTable(conf.dwEnrollmentsTable)
     saveDataframeToPostgresTable_With_Append(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
@@ -77,7 +77,7 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("number_of_incorrect_responses", col("number_of_incorrect_responses").cast("int"))
       .withColumn("number_of_retakes", col("number_of_retakes").cast("int"))
       .withColumn("completion_date", to_date(col("completion_date"), "dd/MM/yyyy"))
-      .filter(col("cbp_id").isNotNull)
+      .filter(col("content_id").isNotNull)
 
     truncateWarehouseTable(conf.dwAssessmentTable)
     saveDataframeToPostgresTable_With_Append(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
@@ -92,7 +92,7 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("component_completed_on", to_date(col("component_completed_on"), "yyyy-MM-dd"))
       .withColumn("last_accessed_on", to_date(col("last_accessed_on"), "yyyy-MM-dd"))
       .withColumnRenamed("instructor(s)_name", "instructors_name")
-      .filter(col("cbp_id").isNotNull)
+      .filter(col("content_id").isNotNull)
       .filter(col("user_id").isNotNull)
       .filter(col("batch_id").isNotNull)
 
@@ -101,7 +101,7 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
-    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"))
+    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"), col("orgCreatedDate"))
     val orgDfWithOrgType = orgCassandraDF.join(orgDf, Seq("sborgid"), "left")
 
     var orgDwDf = orgDfWithOrgType.select(
@@ -109,9 +109,10 @@ object DataWarehouseModel extends AbsDashboardModel {
         col("cassOrgName").alias("mdo_name"),
         col("l1orgname").alias("ministry"),
         col("l2orgname").alias("department"),
+        to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
         col("orgType")
       )
-      .withColumn("is_cbp_provider",
+      .withColumn("is_content_provider",
         when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))

@@ -58,7 +58,8 @@ object UserReportModel extends AbsDashboardModel {
         col("additionalProperties.externalSystem").alias("External_System"),
         col("additionalProperties.externalSystemId").alias("External_System_Id"),
         col("userOrgID").alias("mdoid"),
-        col("Report_Last_Generated_On")
+        col("Report_Last_Generated_On"),
+        from_unixtime(col("userOrgCreatedDate"), "dd/MM/yyyy").alias("MDO_Created_On")
       )
       .coalesce(1)
 
@@ -79,6 +80,7 @@ object UserReportModel extends AbsDashboardModel {
         col("personalDetails.mobile").alias("phone_number"),
         col("professionalDetails.group").alias("groups"),
         col("Tag").alias("tag"),
+        col("userVerified").alias("is_verified_karmayogi"),
         from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
         col("role").alias("roles"),
         col("personalDetails.gender").alias("gender"),

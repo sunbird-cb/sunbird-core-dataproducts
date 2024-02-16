@@ -323,7 +323,7 @@ object DataUtil extends Serializable {
       .withColumn("profileDetails", from_json(col("userProfileDetails"), profileDetailsSchema))
       .withColumn("personalDetails", col("profileDetails.personalDetails"))
       .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
-      .withColumn("userVerified", col("profileDetails.verifiedKarmayogi"))
+      .withColumn("userVerified", when(col("profileDetails.verifiedKarmayogi").isNull, false).otherwise(col("profileDetails.verifiedKarmayogi")))
       .withColumn("userMandatoryFieldsExists", col("profileDetails.mandatoryFieldsExists"))
       .withColumn("userPhoneVerified", expr("LOWER(personalDetails.phoneVerified) = 'true'"))
       .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
