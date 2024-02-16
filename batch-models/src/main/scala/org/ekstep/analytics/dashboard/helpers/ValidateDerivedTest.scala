@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.{DataFrame, RelationalGroupedDataset, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.LongType
-import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil}
+import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardConfigParser, DashboardUtil}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 
@@ -21,7 +21,7 @@ object ValidateDerivedTest extends Serializable {
 
   def test(config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
 
-    implicit val conf: DashboardConfig = DashboardConfig.parseConfig(config)
+    implicit val conf: DashboardConfig = DashboardConfigParser.parseConfig(config)
     if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
 

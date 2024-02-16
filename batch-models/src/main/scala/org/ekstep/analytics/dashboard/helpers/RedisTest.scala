@@ -2,7 +2,7 @@ package org.ekstep.analytics.dashboard.helpers
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardUtil, Redis}
+import org.ekstep.analytics.dashboard.{DashboardConfig, DashboardConfigParser, DashboardUtil, Redis}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.framework.FrameworkContext
 import redis.clients.jedis.Jedis
@@ -29,7 +29,7 @@ object RedisTest extends Serializable {
   def processData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
     // parse model config
     println(config)
-    implicit val conf: DashboardConfig = DashboardConfig.parseConfig(config)
+    implicit val conf: DashboardConfig = DashboardConfigParser.parseConfig(config)
     if (conf.debug == "true") DashboardUtil.debug = true // set debug to true if explicitly specified in the config
     if (conf.validation == "true") DashboardUtil.validation = true // set validation to true if explicitly specified in the config
 
