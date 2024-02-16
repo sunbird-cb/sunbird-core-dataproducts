@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.leaderboard
+package org.ekstep.analytics.dashboard.helpers.leaderboard
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework._
 
 object LeaderboardMetricsModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.leaderboard.LeaderboardMetricsModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.helpers.leaderboard.LeaderboardMetricsModel"
   override def name() = "LeaderboardMetricsModel"
 
   /**
