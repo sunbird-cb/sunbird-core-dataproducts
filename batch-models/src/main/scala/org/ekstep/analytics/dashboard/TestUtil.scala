@@ -34,7 +34,9 @@ object TestUtil extends Serializable {
         "declaredCompetency" -> "dev.dashboards.competency.declared",
         "competencyGap" -> "dev.dashboards.competency.gap",
         "userOrg" -> "dev.dashboards.user.org",
-        "org" -> "dev.dashboards.org"
+        "org" -> "dev.dashboards.org",
+        "userAssessment" -> "dev.dashboards.user.assessment",
+        "assessment" -> "dev.dashboards.assessment"
       )
     )
     val modelParams = Map(
@@ -49,10 +51,36 @@ object TestUtil extends Serializable {
       "sparkDruidRouterHost" -> "192.168.3.91",
       "sparkElasticsearchConnectionHost" -> "192.168.3.211",
       "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
+      "sparkMongoConnectionHost" -> "192.168.3.178",
+
+      "appPostgresHost" -> "192.168.3.178:5432",
+      "appPostgresUsername" -> "sunbird",
+      "appPostgresCredential" -> "sunbird",
+      "appPostgresSchema" -> "sunbird",
+
+      "appOrgHierarchyTable" -> "org_hierarchy_v4",
+      "postgresCompetencyTable" -> "data_node",
+      "postgresCompetencyHierarchyTable" -> "node_mapping",
+
+      "dwPostgresHost" -> "192.168.3.211:5432",
+      "dwPostgresUsername" -> "postgres",
+      "dwPostgresCredential" -> "Password@12345678",
+      "dwPostgresSchema" -> "warehouse",
+
+      "dwUserTable" -> "user_detail",
+      "dwCourseTable" -> "cbp",
+      "dwEnrollmentsTable" -> "user_enrolment",
+      "dwOrgTable" -> "org_hierarchy",
+      "dwAssessmentTable" -> "assessment_detail",
+      "dwBPEnrollmentsTable" -> "bp_enrollments",
+
+      "dwKcmDictionaryTable" -> "kcm_dictionary_test",
+      "dwKcmContentTable" -> "kcm_content_mapping_test",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",
       "cassandraHierarchyStoreKeyspace" -> "dev_hierarchy_store",
+      "cassandraUserFeedKeyspace" -> "sunbird_notifications",
 
       "cassandraUserTable" -> "user",
       "cassandraUserRolesTable" -> "user_roles",
@@ -60,8 +88,52 @@ object TestUtil extends Serializable {
       "cassandraUserEnrolmentsTable" -> "user_enrolments",
       "cassandraContentHierarchyTable" -> "content_hierarchy",
       "cassandraRatingSummaryTable" -> "ratings_summary",
+      "cassandraRatingsTable" -> "ratings",
+      "cassandraOrgHierarchyTable" -> "org_hierarchy",
+      "cassandraCourseBatchTable" -> "course_batch",
+      "cassandraLearnerStatsTable" -> "learner_stats",
+      "cassandraKarmaPointsTable" -> "user_karma_points",
+      "cassandraHallOfFameTable" -> "mdo_karma_points",
+      "cassandraUserAssessmentTable" -> "user_assessment_data",
+      "cassandraKarmaPointsLookupTable" -> "user_karma_points_credit_lookup",
+      "cassandraKarmaPointsTable" -> "user_karma_points",
+      "cassandraKarmaPointsSummaryTable" -> "user_karma_points_summary",
+      "cassandraUserFeedTable" -> "notification_feed",
+      "cassandraLearnerStatsTable" -> "learner_stats",
+      "cassandraAcbpTable" -> "cb_plan",
 
+      "mongoDatabase" -> "nodebb",
+      "mongoDBCollection" -> "objects",
+
+      "key" -> "aws_storage_key",
+      "secret" -> "aws_storage_secret",
+      "store" -> "s3",
+      "container" -> "igot",
+
+      "platformRatingSurveyId" -> "1696404440829",
       "cutoffTime" -> "60.0",
+      "mdoIDs" -> "",
+
+      "userReportPath" -> "standalone-reports/user-report",
+      "userEnrolmentReportPath" -> "standalone-reports/user-enrollment-report",
+      "courseReportPath" -> "standalone-reports/course-report",
+      "cbaReportPath" -> "standalone-reports/cba-report",
+      "taggedUsersPath" -> "tagged-users/",
+      "standaloneAssessmentReportPath" -> "standalone-reports/user-assessment-report-cbp",
+      "blendedReportPath" -> "standalone-reports/blended-program-report",
+      "orgHierarchyReportPath" -> "standalone-reports/org-hierarchy-report",
+      "acbpReportPath" -> "standalone-reports/cbp-report",
+      "acbpMdoEnrolmentReportPath" -> "standalone-reports/cbp-report-mdo-enrolment",
+      "acbpMdoSummaryReportPath" -> "standalone-reports/cbp-report-mdo-summary",
+      "kcmReportPath" -> "standalone-reports/kcm-report",
+      "commsConsoleReportPath" -> "standalone-reports/comms-console",
+
+      "commsConsolePrarambhEmailSuffix" -> ".kb@karmayogi.in",
+      "commsConsoleNumDaysToConsider" -> "15",
+      "commsConsoleNumTopLearnersToConsider" -> "60",
+      "commsConsolePrarambhTags" -> "rojgaar,rozgaar,rozgar",
+      "commsConsolePrarambhCbpIds" -> "do_113882965067743232154,do_1137468666262241281756,do_1139032976499261441156",
+      "commsConsolePrarambhNCount" -> "2",
 
       "sideOutput" -> sideOutput
     )

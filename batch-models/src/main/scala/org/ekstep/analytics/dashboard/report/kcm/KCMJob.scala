@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.kcm
+package org.ekstep.analytics.dashboard.report.kcm
 
 import org.apache.spark.SparkContext
 import org.ekstep.analytics.framework.util.JobLogger

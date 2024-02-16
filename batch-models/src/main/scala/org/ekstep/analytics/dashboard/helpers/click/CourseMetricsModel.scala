@@ -1,4 +1,4 @@
-package org.ekstep.analytics.dashboard.report.click
+package org.ekstep.analytics.dashboard.helpers.click
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.functions._
@@ -11,7 +11,7 @@ import org.ekstep.analytics.framework._
 
 object CourseMetricsModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.click.CourseMetricsModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.helpers.click.CourseMetricsModel"
   override def name() = "CourseMetricsModel"
 
   /**
