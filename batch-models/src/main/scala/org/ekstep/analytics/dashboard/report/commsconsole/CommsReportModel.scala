@@ -173,7 +173,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
     val prarambhCompletionCount = conf.commsConsolePrarambhNCount
 
     val prarambhEnrollments = rawEnrollmentsDF
-      .filter(col("user_consumption_status") === "completed" && col("cbp_id").isin(prarambhCourses: _*))
+      .filter(col("user_consumption_status") === "completed" && col("content_id").isin(prarambhCourses: _*))
     val prarambEnrollmentsByRozgarUsersDF = rozgarUsersDF.join(prarambhEnrollments, Seq("user_id"), "left")
     val prarambhCompletionCountsDF = prarambEnrollmentsByRozgarUsersDF.groupBy("user_id").agg(
       count("*").alias("prarambhCompletionCount"),

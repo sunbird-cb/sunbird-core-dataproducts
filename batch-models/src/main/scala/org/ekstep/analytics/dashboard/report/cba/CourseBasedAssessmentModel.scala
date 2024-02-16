@@ -117,7 +117,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
         col("userOrgName").alias("Organisation"),
         col("assessChildName").alias("Assessment Name"),
         col("assessment_type").alias("Assessment Type"),
-        col("assessOrgName").alias("Assessment/CBP Provider"),
+        col("assessOrgName").alias("Assessment/Content Provider"),
         from_unixtime(col("assessLastPublishedOn").cast("long"), "dd/MM/yyyy").alias("Assessment Publish Date"),
         col("assessment_course_name").alias("Course Name"),
         col("course_id").alias("Course ID"),
@@ -146,7 +146,7 @@ object CourseBasedAssessmentModel extends IBatchModelTemplate[String, DummyInput
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
-        col("course_id").alias("cbp_id"),
+        col("course_id").alias("content_id"),
         col("assessID").alias("assessment_id"),
         col("assessChildName").alias("assessment_name"),
         col("assessment_type").alias("assessment_type"),

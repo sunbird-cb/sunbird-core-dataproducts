@@ -113,24 +113,24 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
       .select(
         col("courseID"),
         col("courseOrgID"),
-        col("courseStatus").alias("CBP_Status"),
-        col("courseOrgName").alias("CBP_Provider"),
-        col("courseName").alias("CBP_Name"),
-        col("category").alias("CBP_Type"),
+        col("courseStatus").alias("Content_Status"),
+        col("courseOrgName").alias("Content_Provider"),
+        col("courseName").alias("Content_Name"),
+        col("category").alias("Content_Type"),
         col("batchID").alias("Batch_Id"),
         col("courseBatchName").alias("Batch_Name"),
         col("courseBatchStartDate").alias("Batch_Start_Date"),
         col("courseBatchEndDate").alias("Batch_End_Date"),
-        col("courseDuration").alias("CBP_Duration"),
+        col("courseDuration").alias("Content_Duration"),
         col("enrolledUserCount").alias("Enrolled"),
         col("notStartedCount").alias("Not_Started"),
         col("inProgressCount").alias("In_Progress"),
         col("completedCount").alias("Completed"),
-        col("rating").alias("CBP_Rating"),
+        col("rating").alias("Content_Rating"),
         col("courseLastPublishedOn").alias("Last_Published_On"),
         col("firstCompletedOn").alias("First_Completed_On"),
         col("lastCompletedOn").alias("Last_Completed_On"),
-        col("ArchivedOn").alias("CBP_Retired_On"),
+        col("ArchivedOn").alias("Content_Retired_On"),
         col("totalCertificatesIssued").alias("Total_Certificates_Issued"),
         col("courseOrgID").alias("mdoid"),
         col("Report_Last_Generated_On")
@@ -141,28 +141,28 @@ object CourseReportModel extends IBatchModelTemplate[String, DummyInput, DummyOu
     val reportPath = s"${conf.courseReportPath}/${today}"
     generateFullReport(fullReportDF, reportPath, conf.localReportDir)
     val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
-    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "CBPReport")
+    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ContentReport")
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
-        col("courseID").alias("cbp_id"),
-        col("courseOrgID").alias("cbp_provider_id"),
-        col("courseOrgName").alias("cbp_provider_name"),
-        col("courseName").alias("cbp_name"),
-        col("category").alias("cbp_type"),
+        col("courseID").alias("content_id"),
+        col("courseOrgID").alias("content_provider_id"),
+        col("courseOrgName").alias("content_provider_name"),
+        col("courseName").alias("content_name"),
+        col("category").alias("content_type"),
         col("batchID").alias("batch_id"),
         col("courseBatchName").alias("batch_name"),
         col("courseBatchStartDate").alias("batch_start_date"),
         col("courseBatchEndDate").alias("batch_end_date"),
-        col("courseDuration").alias("cbp_duration"),
-        col("rating").alias("cbp_rating"),
+        col("courseDuration").alias("content_duration"),
+        col("rating").alias("content_rating"),
         col("courseLastPublishedOn").alias("last_published_on"),
-        col("ArchivedOn").alias("cbp_retired_on"),
-        col("courseStatus").alias("cbp_status"),
+        col("ArchivedOn").alias("content_retired_on"),
+        col("courseStatus").alias("content_status"),
         col("courseResourceCount").alias("resource_count"),
         col("totalCertificatesIssued").alias("total_certificates_issued"),
-        col("courseReviewStatus").alias("cbp_substatus"),
+        col("courseReviewStatus").alias("content_substatus"),
         col("data_last_generated_on")
       )
     generateWarehouseReport(df_warehouse.coalesce(1), reportPath, conf.localReportDir)

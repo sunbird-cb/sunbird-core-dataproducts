@@ -272,7 +272,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("bpProgramDirectorName"),
         col("Certificate_Generated"),
         col("userOrgID").alias("mdoid"),
-        col("bpOrgID").alias("cbpid"),
+        col("bpOrgID").alias("contentid"),
         col("Report_Last_Generated_On")
       )
       .orderBy("bpID", "userID")
@@ -288,13 +288,13 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount", "bpProgramDirectorName")
 
     // mdo wise
-    val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "cbpid")
+    val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "contentid")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
 
     // cbp wise
     val cbpReportDF = reportDF
       .drop("Email", "Phone_Number", "mdoid")
-      .withColumnRenamed("cbpid", "mdoid")
+      .withColumnRenamed("contentid", "mdoid")
       .withColumnRenamed("maskedEmail", "Email")
       .withColumnRenamed("maskedPhone", "Phone_Number")
 
@@ -305,7 +305,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
-        col("bpOrgID").alias("cbp_id"),
+        col("bpOrgID").alias("content_id"),
         col("bpBatchID").alias("batch_id"),
         col("bpBatchLocation").alias("batch_location"),
         col("bpChildName").alias("component_name"),
