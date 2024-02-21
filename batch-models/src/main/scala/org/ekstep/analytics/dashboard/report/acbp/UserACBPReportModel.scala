@@ -30,7 +30,6 @@ object UserACBPReportModel extends AbsDashboardModel {
       .select("userID", "fullName", "userPrimaryEmail", "userMobile", "userOrgID", "ministry_name", "dept_name", "userOrgName", "designation", "group")
     show(userDataDF, "userDataDF")
 
-
     // get course details and course enrolment data frames
     val hierarchyDF = contentHierarchyDataFrame()
     val allCourseProgramESDF = allCourseProgramESDataFrame(Seq("Course", "Program", "Blended Program", "Curated Program", "Standalone Assessment"))
@@ -110,6 +109,8 @@ object UserACBPReportModel extends AbsDashboardModel {
       )
     show(enrolmentReportDF, "enrolmentReportDF")
 
+    val reportPath = s"${conf.acbpReportPath}/${today}"
+
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
       .withColumn("completionDueDateLong", expr("completionDueDate + INTERVAL 24 HOURS").cast(LongType))
@@ -121,6 +122,8 @@ object UserACBPReportModel extends AbsDashboardModel {
         expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestampLong<completionDueDateLong THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
       )
     show(userSummaryDataDF, "userSummaryDataDF")
+    generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
+    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
 
     val userSummaryReportDF = userSummaryDataDF
       .select(
@@ -139,19 +142,12 @@ object UserACBPReportModel extends AbsDashboardModel {
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
     show(userSummaryReportDF, "userSummaryReportDF")
-
-    val reportPath = s"${conf.acbpReportPath}/${today}"
-    // generateReport(acbpAllEnrolmentDF, s"${reportPath}-full")
-
-    generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
     generateReport(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", fileName="CBPUserSummaryReport")
-    syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
-
-    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
     generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "CBPUserSummaryReport")
 
-    Redis.closeRedisConnect()
+    syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 
+    Redis.closeRedisConnect()
   }
 }
 

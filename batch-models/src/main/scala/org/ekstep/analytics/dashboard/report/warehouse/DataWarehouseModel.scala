@@ -4,7 +4,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
 import org.ekstep.analytics.framework.FrameworkContext
 
@@ -32,10 +31,10 @@ object DataWarehouseModel extends AbsDashboardModel {
     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
 
-    var cbp_details = spark.read.option("header", "true")
+    var content_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-warehouse")
 
-    cbp_details = cbp_details
+    content_details = content_details
       .withColumn("resource_count", col("resource_count").cast("int"))
       .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
       .withColumn("content_rating", col("content_rating").cast("float"))
@@ -44,11 +43,11 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd"))
       .withColumn("content_retired_on", to_date(col("content_retired_on"), "yyyy-MM-dd"))
 
-    cbp_details = cbp_details.dropDuplicates(Seq("content_id"))
+    content_details = content_details.dropDuplicates(Seq("content_id"))
 
 
     truncateWarehouseTable(conf.dwCourseTable)
-    saveDataframeToPostgresTable_With_Append(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    saveDataframeToPostgresTable_With_Append(content_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     var enrollment_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")

@@ -70,7 +70,7 @@ object JobFactory {
         KarmaPointsJob
       case "hall-of-fame" =>
         HallOfFameJob
-      case "kcm" =>
+      case "kcm-report" =>
         KCMJob
       case "acbp-report" =>
         UserACBPReportJob
