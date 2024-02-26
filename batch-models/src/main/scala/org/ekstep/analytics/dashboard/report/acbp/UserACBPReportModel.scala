@@ -78,6 +78,7 @@ object UserACBPReportModel extends AbsDashboardModel {
     // for particular userID and course ID, choose allotment entries based on priority rules
     val acbpEnrolmentDF = acbpAllEnrolmentDF
       .groupByLimit(Seq("userID", "courseID"), "completionDueDate", 1, desc = true)
+    show(acbpEnrolmentDF, "acbpEnrolmentDF")
     kafkaDispatch(withTimestamp(acbpEnrolmentDF, timestamp), conf.acbpEnrolmentTopic)
 
     // for enrolment report
@@ -107,9 +108,12 @@ object UserACBPReportModel extends AbsDashboardModel {
         col("userOrgID").alias("mdoid"),
         date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a").alias("Report_Last_Generated_On")
       )
+      .repartition(1)  // repartitioning here resolves a memory issue
     show(enrolmentReportDF, "enrolmentReportDF")
 
     val reportPath = s"${conf.acbpReportPath}/${today}"
+    generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
+    generateAndSyncReports(enrolmentReportDF, "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
@@ -122,8 +126,6 @@ object UserACBPReportModel extends AbsDashboardModel {
         expr("SUM(CASE WHEN dbCompletionStatus=2 AND courseCompletedTimestampLong<completionDueDateLong THEN 1 ELSE 0 END)").alias("completedBeforeDueDateCount")
       )
     show(userSummaryDataDF, "userSummaryDataDF")
-    generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
-    generateAndSyncReports(enrolmentReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
 
     val userSummaryReportDF = userSummaryDataDF
       .select(
