@@ -22,27 +22,35 @@ object DataExhaustModel extends AbsDashboardModel {
    */
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val enrolmentDF = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraUserEnrolmentsTable)
+    show(enrolmentDF, "enrolmentDF")
     cache.write(enrolmentDF, "enrolment")
 
     val batchDF = cassandraTableAsDataFrame(conf.cassandraCourseKeyspace, conf.cassandraCourseBatchTable)
+    show(batchDF, "batchDF")
     cache.write(batchDF, "batch")
 
     val userAssessmentDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserAssessmentTable)
+    show(userAssessmentDF, "userAssessmentDF")
     cache.write(userAssessmentDF, "userAssessment")
 
     val hierarchyDF = cassandraTableAsDataFrame(conf.cassandraHierarchyStoreKeyspace, conf.cassandraContentHierarchyTable)
+    show(hierarchyDF, "hierarchyDF")
     cache.write(hierarchyDF, "hierarchy")
 
     val ratingSummaryDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingSummaryTable)
+    show(ratingSummaryDF, "ratingSummaryDF")
     cache.write(ratingSummaryDF, "ratingSummary")
 
     val acbpDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraAcbpTable)
+    show(acbpDF, "acbpDF")
     cache.write(acbpDF, "acbp")
 
     val ratingDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraRatingsTable)
+    show(ratingDF, "ratingDF")
     cache.write(ratingDF, "rating")
 
     val roleDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserRolesTable)
+    show(roleDF, "roleDF")
     cache.write(roleDF, "role")
 
     // ES content
@@ -53,29 +61,34 @@ object DataExhaustModel extends AbsDashboardModel {
     val fieldsClause = fields.map(f => s""""${f}"""").mkString(",")
     val query = s"""{"_source":[${fieldsClause}],"query":{"bool":{"should":[${shouldClause}]}}}"""
     val esContentDF = elasticSearchDataFrame(conf.sparkElasticsearchConnectionHost, "compositesearch", query, fields, arrayFields)
+    show(esContentDF, "esContentDF")
     cache.write(esContentDF, "esContent")
 
     val orgDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraOrgTable)
+    show(orgDF, "orgDF")
     cache.write(orgDF, "org")
 
     // org hierarchy
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
     val orgPostgresDF = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
-    val orgCassandraDF = orgDF.select(
-      col("id").alias("sborgid"),
-      col("organisationtype").alias("orgType"),
-      col("orgname").alias("cassOrgName"),
-      col("createddate").alias("orgCreatedDate")
-    )
+    val orgCassandraDF = orgDF
+      .withColumn("createddate", to_timestamp(col("createddate"), "yyyy-MM-dd HH:mm:ss:SSSZ"))
+      .select(
+        col("id").alias("sborgid"),
+        col("organisationtype").alias("orgType"),
+        col("orgname").alias("cassOrgName"),
+        col("createddate").alias("orgCreatedDate")
+      )
     val orgDfWithOrgType = orgCassandraDF.join(orgPostgresDF, Seq("sborgid"), "left")
-    val orgHierarchyDF = orgDfWithOrgType.select(
-      col("sborgid").alias("mdo_id"),
-      col("cassOrgName").alias("mdo_name"),
-      col("l1orgname").alias("ministry"),
-      col("l2orgname").alias("department"),
-      to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
-      col("orgType")
-    )
+    val orgHierarchyDF = orgDfWithOrgType
+      .select(
+        col("sborgid").alias("mdo_id"),
+        col("cassOrgName").alias("mdo_name"),
+        col("l1orgname").alias("ministry"),
+        col("l2orgname").alias("department"),
+        col("orgCreatedDate").alias("mdo_created_on"),
+        col("orgType")
+      )
       .withColumn("is_content_provider",
         when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
@@ -83,9 +96,11 @@ object DataExhaustModel extends AbsDashboardModel {
       .distinct()
       .drop("orgType")
       .dropDuplicates(Seq("mdo_id"))
+    show(orgHierarchyDF, "orgHierarchyDF")
     cache.write(orgHierarchyDF, "orgHierarchy")
 
     val userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
+    show(userDF, "userDF")
     cache.write(userDF, "user")
   }
 

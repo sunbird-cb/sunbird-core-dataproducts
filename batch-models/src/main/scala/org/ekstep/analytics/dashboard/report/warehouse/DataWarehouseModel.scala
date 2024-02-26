@@ -99,6 +99,7 @@ object DataWarehouseModel extends AbsDashboardModel {
 
 
     val orgDwDf = cache.load("orgHierarchy")
+      .withColumn("mdo_created_on", to_date(col("mdo_created_on")))
     generateReport(orgDwDf.coalesce(1), s"${conf.orgHierarchyReportPath}/${today}-warehouse")
 
     truncateWarehouseTable(conf.dwOrgTable)
