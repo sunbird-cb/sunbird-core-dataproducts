@@ -1,9 +1,10 @@
 package org.ekstep.analytics.job
 
-import org.ekstep.analytics.dashboard.CompetencyMetricsJob
+import org.ekstep.analytics.dashboard.DashboardSyncJob
+import org.ekstep.analytics.dashboard.exhaust.DataExhaustJob
 import org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameJob
 import org.ekstep.analytics.dashboard.karma.points.KarmaPointsJob
-import org.ekstep.analytics.dashboard.kcm.KCMJob
+import org.ekstep.analytics.dashboard.report.kcm.KCMJob
 import org.ekstep.analytics.dashboard.report.acbp.UserACBPReportJob
 import org.ekstep.analytics.dashboard.report.assess.UserAssessmentJob
 import org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportJob
@@ -41,8 +42,10 @@ object JobFactory {
         MonitorSummarizer
       case "wfs" =>
         WorkFlowSummarizer
+      case "data-exhaust" =>
+        DataExhaustJob
       case "dashboard-sync" =>
-        CompetencyMetricsJob
+        DashboardSyncJob
       case "assessment-metrics" =>
         UserAssessmentJob
       case "summary-redis-sync" =>
@@ -67,7 +70,7 @@ object JobFactory {
         KarmaPointsJob
       case "hall-of-fame" =>
         HallOfFameJob
-      case "kcm" =>
+      case "kcm-report" =>
         KCMJob
       case "acbp-report" =>
         UserACBPReportJob

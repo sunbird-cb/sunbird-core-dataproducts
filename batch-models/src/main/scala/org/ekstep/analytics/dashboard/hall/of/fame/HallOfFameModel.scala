@@ -1,41 +1,20 @@
 package org.ekstep.analytics.dashboard.hall.of.fame
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.ekstep.analytics.framework.FrameworkContext
 
-object HallOfFameModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object HallOfFameModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.hall.of.fame.HallOfFameModel"
 
   override def name() = "HallOfFameModel"
 
-  override def preProcess(events: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(events: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = events.first().timestamp // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processHallOfFame(timestamp, config)
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
-  override def postProcess(events: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq())
-  }
-
-  def processHallOfFame(timestamp: Long, config: Map[String, AnyRef]) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    println(config)
-    implicit val conf: DashboardConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     // get month start and end dates
     val monthStart = date_format(date_trunc("MONTH", add_months(current_date(), -1)), "yyyy-MM-dd HH:mm:ss")

@@ -1,51 +1,27 @@
 package org.ekstep.analytics.dashboard.report.warehouse
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.ekstep.analytics.framework.FrameworkContext
 
-import java.io.Serializable
 
-object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object DataWarehouseModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseModel"
   override def name() = "DataWarehouseModel"
-
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    // we want this call to happen only once, so that timestamp is consistent for all data points
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = data.first().timestamp  // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-
-
-    syncReportsToPostgres(timestamp, config)
-    sc.parallelize(Seq())  // return empty rdd
-  }
-
-  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq())  // return empty rdd
-  }
 
   /**
    * Reading all the reports and saving it to postgres. Overwriting the data in postgres
    *
    * @param timestamp unique timestamp from the start of the processing
-   * @param config model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
-  def syncReportsToPostgres(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    implicit val conf: DashboardConfig = parseConfig(config)
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+
     val today = getDate()
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
-    val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
 
     var user_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
@@ -55,10 +31,10 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
 
-    var cbp_details = spark.read.option("header", "true")
+    var content_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-warehouse")
 
-    cbp_details = cbp_details
+    content_details = content_details
       .withColumn("resource_count", col("resource_count").cast("int"))
       .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
       .withColumn("content_rating", col("content_rating").cast("float"))
@@ -67,11 +43,11 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
       .withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd"))
       .withColumn("content_retired_on", to_date(col("content_retired_on"), "yyyy-MM-dd"))
 
-    cbp_details = cbp_details.dropDuplicates(Seq("content_id"))
+    content_details = content_details.dropDuplicates(Seq("content_id"))
 
 
     truncateWarehouseTable(conf.dwCourseTable)
-    saveDataframeToPostgresTable_With_Append(cbp_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+    saveDataframeToPostgresTable_With_Append(content_details, dwPostgresUrl, conf.dwCourseTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     var enrollment_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
@@ -121,33 +97,12 @@ object DataWarehouseModel extends IBatchModelTemplate[String, DummyInput, DummyO
     truncateWarehouseTable(conf.dwBPEnrollmentsTable)
     saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    val orgDf = postgresTableAsDataFrame(appPostgresUrl, conf.appOrgHierarchyTable, conf.appPostgresUsername, conf.appPostgresCredential)
 
-    val orgCassandraDF = orgDataFrame().select(col("orgID").alias("sborgid"), col("orgType"), col("orgName").alias("cassOrgName"), col("orgCreatedDate"))
-    val orgDfWithOrgType = orgCassandraDF.join(orgDf, Seq("sborgid"), "left")
+    val orgDwDf = cache.load("orgHierarchy")
+      .withColumn("mdo_created_on", to_date(col("mdo_created_on")))
+    generateReport(orgDwDf.coalesce(1), s"${conf.orgHierarchyReportPath}/${today}-warehouse")
 
-    var orgDwDf = orgDfWithOrgType.select(
-        col("sborgid").alias("mdo_id"),
-        col("cassOrgName").alias("mdo_name"),
-        col("l1orgname").alias("ministry"),
-        col("l2orgname").alias("department"),
-        to_date(to_timestamp(col("orgCreatedDate"))).alias("mdo_created_on"),
-        col("orgType")
-      )
-      .withColumn("is_content_provider",
-        when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
-      .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
-      .distinct()
-
-    orgDwDf = orgDwDf.drop("orgType")
-
-    orgDwDf = orgDwDf.dropDuplicates(Seq("mdo_id"))
-
-    val orgReportPath = s"${conf.orgHierarchyReportPath}/${today}"
-    generateWarehouseReport(orgDwDf.coalesce(1), orgReportPath, conf.localReportDir)
     truncateWarehouseTable(conf.dwOrgTable)
-
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
   }
 

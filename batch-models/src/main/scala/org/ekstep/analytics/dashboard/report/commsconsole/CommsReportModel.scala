@@ -1,52 +1,19 @@
 package org.ekstep.analytics.dashboard.report.commsconsole
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
+import org.ekstep.analytics.framework.FrameworkContext
 
 
-object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object CommsReportModel extends AbsDashboardModel {
   implicit val className: String = "org.ekstep.analytics.dashboard.report.commsconsole.CommsReportModel"
   override def name() = "CommsReportModel"
-  /**
-   * Pre processing steps before running the algorithm. Few pre-process steps are
-   * 1. Transforming input - Filter/Map etc.
-   * 2. Join/fetch data from LP
-   * 3. Join/Fetch data from Cassandra
-   */
-  override def preProcess(events: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
 
-  /**
-   * Method which runs the actual algorithm
-   */
-  override def algorithm(events: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = events.first().timestamp // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processCommsConsoleReport(timestamp, config)
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
-  /**
-   * Post processing on the algorithm output.
-   */
-  override def postProcess(events: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq())
-  }
-
-  def processCommsConsoleReport(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    // parse model config
-    println(config)
-    implicit val conf: DashboardConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val today = getDate()
 
@@ -106,7 +73,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("completionPerUser").alias("Content_Completion_Per_User"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(mdoCompletionRateWithAdminDetailsDF, s"${commsConsoleReportPath}/AllMDOsContentCompletion", "AllMDOsContentCompletion")
+    generateReport(mdoCompletionRateWithAdminDetailsDF, s"${commsConsoleReportPath}/AllMDOsContentCompletion", fileName="AllMDOsContentCompletion")
 
     val usersWithEnrollments = enrollmentsDF.select("user_id").distinct()
     //users who have not been enrolled in any cbp
@@ -123,7 +90,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedNotSignedUpAnyContent", "UsersOnboardedNotSignedUpAnyContent")
+    generateReport(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedNotSignedUpAnyContent", fileName="UsersOnboardedNotSignedUpAnyContent")
 
     // users created in last 15 days, but not enrolled in any cbp
     val usersCreatedInLastNDaysDF = userDF.filter(col("registrationDate").between(dateNDaysAgo, currentDate)).select("user_id").distinct()
@@ -140,7 +107,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("user_registration_date").alias("User_Registration_Date"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedLast15DaysNotSignedUpAnyContent", "UsersOnboardedLast15DaysNotSignedUpAnyContent")
+    generateReport(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedLast15DaysNotSignedUpAnyContent", fileName="UsersOnboardedLast15DaysNotSignedUpAnyContent")
 
     //top 60 users ranked by cbp completion in last 15 days
     val topXCompletionsInNDays = enrollmentsDF.filter(col("completionDate").between(dateNDaysAgo, currentDate))
@@ -162,7 +129,7 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("completionCount").alias("Content_Completion"),
         col("Last_Updated_On")
       )
-    generateReportsWithoutPartition(topXCompletionsInNDays, s"${commsConsoleReportPath}/Top1LakhUsersContentCompletionLast15Days", "Top1LakhUsersContentCompletionLast15Days")
+    generateReport(topXCompletionsInNDays, s"${commsConsoleReportPath}/Top1LakhUsersContentCompletionLast15Days", fileName="Top1LakhUsersContentCompletionLast15Days")
 
     val prarambhCourses = conf.commsConsolePrarambhCbpIds.split(",").map(_.trim).toList
     val rozgarTags =  conf.commsConsolePrarambhTags.split(",").map(_.trim).toList
@@ -194,10 +161,10 @@ object CommsReportModel extends IBatchModelTemplate[String, DummyInput, DummyOut
         col("prarambhCompletionCount")
       )
 
-    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCompletionCount).drop("prarambhCompletionCount")
-      , s"${commsConsoleReportPath}/UsersCompleted6PrarambhCoursesPendingFullCompletion", "UsersCompleted6PrarambhCoursesPendingFullCompletion")
-    generateReportsWithoutPartition(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
-      , s"${commsConsoleReportPath}/UsersFinishedEntirePrarambhModule", "UsersFinishedEntirePrarambhModule")
+    generateReport(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCompletionCount).drop("prarambhCompletionCount")
+      , s"${commsConsoleReportPath}/UsersCompleted6PrarambhCoursesPendingFullCompletion", fileName="UsersCompleted6PrarambhCoursesPendingFullCompletion")
+    generateReport(prarambhUserDataWithCompletionCountsDF.filter(col("prarambhCompletionCount") === prarambhCourseCount).drop("prarambhCompletionCount")
+      , s"${commsConsoleReportPath}/UsersFinishedEntirePrarambhModule", fileName="UsersFinishedEntirePrarambhModule")
 
     syncReports(s"${conf.localReportDir}/${commsConsoleReportPath}", commsConsoleReportPath)
 

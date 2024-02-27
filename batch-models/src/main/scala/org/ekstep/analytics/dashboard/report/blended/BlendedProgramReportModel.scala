@@ -1,57 +1,31 @@
 package org.ekstep.analytics.dashboard.report.blended
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
+import org.ekstep.analytics.framework.FrameworkContext
 
-import java.io.Serializable
 
-object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object BlendedProgramReportModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.blended.BlendedProgramReportModel"
 
   override def name() = "BlendedProgramReportModel"
 
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    // we want this call to happen only once, so that timestamp is consistent for all data points
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = data.first().timestamp // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processData(timestamp, config)
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
-  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
   /**
    * Master method, does all the work, fetching, processing and dispatching
    *
    * @param timestamp unique timestamp from the start of the processing
-   * @param config    model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
-  def processData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    // parse model config
-    println(config)
-    implicit val conf: DashboardConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val today = getDate()
 
     // get user and user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    val orgHierarchyData = orgHierarchyDataframe().select("userOrgName", "ministry_name", "dept_name").distinct()
-    show(orgHierarchyData, "orgHierarchyData")
+    val orgHierarchyData = orgHierarchyDataframe()
 
     var userDataDF = userOrgDF
       .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
@@ -65,11 +39,11 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     show(userDataDF, "userDataDF -1")
 
     userDataDF = userDataDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
     show(userDataDF, "userDataDF")
 
     // Get Blended Program data
-    val blendedProgramESDF = contentESDataFrame(Seq("Blended Program"), "bp", extraFields = Seq("programDirectorName"))
+    val blendedProgramESDF = contentESDataFrame(Seq("Blended Program"), "bp")
       .where(expr("bpStatus IN ('Live', 'Retired')"))
       .where(col("bpLastPublishedOn").isNotNull)
     val bpOrgDF = orgDF.select(
@@ -284,7 +258,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
     val reportPathMDO = s"${conf.blendedReportPath}-mdo/${today}"
     val reportPathCBP = s"${conf.blendedReportPath}-cbp/${today}"
 
-    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
+    // generateReport(fullReportDF, s"${reportPath}-full")
     val reportDF = fullReportDF.drop("userID", "userOrgID", "bpID", "bpOrgID", "bpChildID", "bpBatchID", "bpIssuedCertificateCount", "bpProgramDirectorName")
 
     // mdo wise
@@ -326,7 +300,7 @@ object BlendedProgramReportModel extends IBatchModelTemplate[String, DummyInput,
         col("data_last_generated_on")
       )
 
-    generateWarehouseReport(df_warehouse.coalesce(1), reportPath, conf.localReportDir)
+    generateReport(df_warehouse.coalesce(1), s"${reportPath}-warehouse")
 
     Redis.closeRedisConnect()
   }

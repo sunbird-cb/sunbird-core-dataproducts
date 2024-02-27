@@ -1,58 +1,33 @@
 package org.ekstep.analytics.dashboard.report.enrolment
 
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
-import org.ekstep.analytics.dashboard.{DashboardConfig, DummyInput, DummyOutput, Redis}
-import org.ekstep.analytics.framework.{FrameworkContext, IBatchModelTemplate}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
+import org.ekstep.analytics.framework.FrameworkContext
 
-import java.io.Serializable
 
-object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyOutput, DummyOutput] with Serializable {
+object UserEnrolmentModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentModel"
 
   override def name() = "UserEnrolmentModel"
 
-  override def preProcess(data: RDD[String], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyInput] = {
-    // we want this call to happen only once, so that timestamp is consistent for all data points
-    val executionTime = System.currentTimeMillis()
-    sc.parallelize(Seq(DummyInput(executionTime)))
-  }
-
-  override def algorithm(data: RDD[DummyInput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    val timestamp = data.first().timestamp // extract timestamp from input
-    implicit val spark: SparkSession = SparkSession.builder.config(sc.getConf).getOrCreate()
-    processUserEnrolmentData(timestamp, config)
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
-  override def postProcess(data: RDD[DummyOutput], config: Map[String, AnyRef])(implicit sc: SparkContext, fc: FrameworkContext): RDD[DummyOutput] = {
-    sc.parallelize(Seq()) // return empty rdd
-  }
-
   /**
    * Master method, does all the work, fetching, processing and dispatching
    *
    * @param timestamp unique timestamp from the start of the processing
-   * @param config    model config, should be defined at sunbird-data-pipeline:ansible/roles/data-products-deploy/templates/model-config.j2
    */
-  def processUserEnrolmentData(timestamp: Long, config: Map[String, AnyRef])(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext): Unit = {
-    // parse model config
-    println(config)
-    implicit val conf: DashboardConfig = parseConfig(config)
-    if (conf.debug == "true") debug = true // set debug to true if explicitly specified in the config
-    if (conf.validation == "true") validation = true // set validation to true if explicitly specified in the config
+  def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val today = getDate()
 
     //GET ORG DATA
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
     val userDataDF = userOrgDF
-      .join(orgHierarchyData, Seq("userOrgName"), "left")
+      .join(orgHierarchyData, Seq("userOrgID"), "left")
     show(userDataDF, "userDataDF")
 
     // Get course data first
@@ -144,7 +119,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
     show(df, "df")
 
     val reportPath = s"${conf.userEnrolmentReportPath}/${today}"
-    generateFullReport(fullReportDF, reportPath, conf.localReportDir)
+    // generateReport(fullReportDF, s"${reportPath}-full")
 
     val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseOrgID", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
@@ -167,7 +142,7 @@ object UserEnrolmentModel extends IBatchModelTemplate[String, DummyInput, DummyO
         col("Certificate_ID").alias("certificate_id"),
         col("data_last_generated_on")
       )
-    generateWarehouseReport(warehouseDF.coalesce(1), reportPath, conf.localReportDir)
+    generateReport(warehouseDF.coalesce(1), s"${reportPath}-warehouse")
 
     Redis.closeRedisConnect()
 
