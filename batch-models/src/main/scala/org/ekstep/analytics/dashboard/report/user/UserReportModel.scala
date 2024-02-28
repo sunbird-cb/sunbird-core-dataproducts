@@ -59,7 +59,8 @@ object UserReportModel extends AbsDashboardModel {
         col("additionalProperties.externalSystemId").alias("External_System_Id"),
         col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On"),
-        from_unixtime(col("userOrgCreatedDate"), "dd/MM/yyyy").alias("MDO_Created_On")
+        from_unixtime(col("userOrgCreatedDate"), "dd/MM/yyyy").alias("MDO_Created_On"),
+        col("userVerified").alias("Verified Karmayogi")
       )
       .coalesce(1)
 

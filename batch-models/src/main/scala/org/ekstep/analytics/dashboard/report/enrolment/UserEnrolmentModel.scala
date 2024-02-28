@@ -125,7 +125,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
     generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
 
     val warehouseDF = df
-      .withColumn("certificate_generated_on", to_date(col("certificateGeneratedOn"), "yyyy-MM-dd"))
+      .withColumn("certificate_generated_on",to_date(from_utc_timestamp(to_utc_timestamp(to_timestamp(
+        col("certificateGeneratedOn"), "yyyy-MM-dd'T'HH:mm:ss.SSS"), "UTC"), "IST"), "yyyy-MM-dd"))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
