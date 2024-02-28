@@ -69,10 +69,10 @@ object TestUtil extends Serializable {
 
       "dwUserTable" -> "user_detail",
       "dwCourseTable" -> "content",
-      "dwEnrollmentsTable" -> "user_enrolment",
+      "dwEnrollmentsTable" -> "user_enrolments",
       "dwOrgTable" -> "org_hierarchy",
       "dwAssessmentTable" -> "assessment_detail",
-      "dwBPEnrollmentsTable" -> "bp_enrollments",
+      "dwBPEnrollmentsTable" -> "bp_enrolments",
 
       "dwKcmDictionaryTable" -> "kcm_dictionary_test",
       "dwKcmContentTable" -> "kcm_content_mapping_test",

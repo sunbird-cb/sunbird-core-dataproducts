@@ -96,6 +96,7 @@ object DataExhaustModel extends AbsDashboardModel {
       .distinct()
       .drop("orgType")
       .dropDuplicates(Seq("mdo_id"))
+      .repartition(16)
     show(orgHierarchyDF, "orgHierarchyDF")
     cache.write(orgHierarchyDF, "orgHierarchy")
 

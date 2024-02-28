@@ -14,15 +14,18 @@ CREATE TABLE user_detail(
    phone_number VARCHAR(255),
    groups VARCHAR(255),
    tag VARCHAR(255),
-   user_registration_date DATE,
    roles VARCHAR(255),
    gender VARCHAR(255),
    category VARCHAR(255),
    created_by_id VARCHAR(255),
    external_system VARCHAR(255),
    external_system_id VARCHAR(255),
+   is_verified_karmayogi VARCHAR(255),
+   mdo_created_on DATE,
+   user_registration_date DATE,
    data_last_generated_on VARCHAR(255)
 );
+
 
 -- Table: org_hierarchy
 CREATE TABLE org_hierarchy(
