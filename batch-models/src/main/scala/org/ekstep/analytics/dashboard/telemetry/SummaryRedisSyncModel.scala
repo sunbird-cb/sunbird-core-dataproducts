@@ -5,6 +5,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.dashboard.telemetry.SummaryRedisSyncModel.averageMonthlyActiveUsersDataFrame
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
 import org.ekstep.analytics.framework._
 
@@ -39,6 +40,15 @@ object SummaryRedisSyncModel extends AbsDashboardModel {
     val activeUsersLast24HoursDF = activeUsersLast24HoursDataFrame()
     Redis.dispatchDataFrame[Long]("dashboard_active_users_last_24_hours_by_org", activeUsersLast24HoursDF, "orgID", "activeCount")
 
+    //Monthly active users
+    // SELECT ROUND(AVG(daily_count * 1.0), 1)  as DAUOutput FROM
+    // (SELECT COUNT(DISTINCT(actor_id)) AS daily_count, TIME_FLOOR(__time + INTERVAL '05:30' HOUR TO MINUTE, 'P1D') AS day_start FROM \"telemetry-events-syncts\"
+    // WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 2)
+    val averageMonthlyActiveUsersDF = averageMonthlyActiveUsersDataFrame()
+    val averageMonthlyActiveUsersCount = averageMonthlyActiveUsersDF.groupBy().agg(expr("CASE WHEN COUNT(*) > 0 THEN CAST(AVG(DAUOutput) AS LONG) ELSE 0 END").alias("count")).first().getLong(0)
+    Redis.update("lp_monthly_active_users", averageMonthlyActiveUsersCount.toString)
+    println(s"lp_monthly_active_users = ${averageMonthlyActiveUsersCount}")
+
 
     Redis.closeRedisConnect()
 
@@ -72,6 +82,17 @@ object SummaryRedisSyncModel extends AbsDashboardModel {
     if (df == null) return emptySchemaDataFrame(Schema.activeUsersSchema)
 
     df = df.withColumn("activeCount", expr("CAST(activeCount as LONG)"))  // Important to cast as long otherwise a cast will fail later on
+
+    show(df)
+    df
+  }
+
+  def averageMonthlyActiveUsersDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
+    val query = """SELECT ROUND(AVG(daily_count * 1.0), 1)  as DAUOutput FROM (SELECT COUNT(DISTINCT(actor_id)) AS daily_count, TIME_FLOOR(__time + INTERVAL '05:30' HOUR TO MINUTE, 'P1D') AS day_start FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 2)"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.monthlyActiveUsersSchema)
+
+    df = df.withColumn("DAUOutput", expr("CAST(DAUOutput as LONG)"))  // Important to cast as long otherwise a cast will fail later on
 
     show(df)
     df
