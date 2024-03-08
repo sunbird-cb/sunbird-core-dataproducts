@@ -151,7 +151,16 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     // enrollment/not-started/started/in-progress/completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveRetiredCourseProgramEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val currentDate = LocalDate.now()
+    // Calculate twenty four hours ago
+    val twentyFourHoursAgo = currentDate.minusDays(1)
+    // Convert to LocalDateTime by adding a time component (midnight)
+    val twentyFourHoursAgoLocalDateTime = twentyFourHoursAgo.atStartOfDay()
+    // Get the epoch time in milliseconds with IST offset
+    val twentyFourHoursAgoEpochMillis = twentyFourHoursAgoLocalDateTime.toEpochSecond(java.time.ZoneOffset.ofHoursMinutes(5, 30))
+    println("yesterday epoch : "+twentyFourHoursAgoEpochMillis)
+    val liveRetiredCourseProgramCompletedYesterdayDF = allCourseProgramCompletionWithDetailsDF.where(expr(s"category IN ('Course', 'Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1 AND dbCompletionStatus=2 AND courseCompletedTimestamp >= ${twentyFourHoursAgoEpochMillis}"))
     // Calculate twelve months ago
     val twelveMonthsAgo = currentDate.minusMonths(12)
     // Convert to LocalDateTime by adding a time component (midnight)
@@ -166,6 +175,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     // in-progress + completed = started
     val liveRetiredCourseInProgressDF = liveRetiredCourseStartedDF.where(expr("dbCompletionStatus=1"))
     val liveRetiredCourseCompletedDF = liveRetiredCourseStartedDF.where(expr("dbCompletionStatus=2"))
+    // course program completed
+    val liveRetiredCourseProgramCompletedDF = liveRetiredCourseProgramEnrolmentDF.where(expr("dbCompletionStatus=2"))
 
     // do both count(*) and countDistinct(userID) aggregates at once
     val enrolmentCountDF = liveRetiredCourseEnrolmentDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
@@ -173,6 +184,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     val startedCountDF = liveRetiredCourseStartedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     val inProgressCountDF = liveRetiredCourseInProgressDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     val completedCountDF = liveRetiredCourseCompletedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
+    val landingPageCompletedCountDF = liveRetiredCourseProgramCompletedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
+    val landingPageCompletedYesterdayCountDF = liveRetiredCourseProgramCompletedYesterdayDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
 
     // unique user counts
     val enrolmentUniqueUserCount = enrolmentCountDF.select("uniqueUserCount").first().getLong(0)
@@ -198,17 +211,23 @@ object DashboardSyncModel extends AbsDashboardModel {
     val startedCount = startedCountDF.select("count").first().getLong(0)
     val inProgressCount = inProgressCountDF.select("count").first().getLong(0)
     val completedCount = completedCountDF.select("count").first().getLong(0)
+    val landingPageCompletedCount = landingPageCompletedCountDF.select("count").first().getLong(0)
+    val landingPageCompletedYesterdayCount = landingPageCompletedYesterdayCountDF.select("count").first().getLong(0)
 
     Redis.update("dashboard_enrolment_count", enrolmentCount.toString)
     Redis.update("dashboard_not_started_count", notStartedCount.toString)
     Redis.update("dashboard_started_count", startedCount.toString)
     Redis.update("dashboard_in_progress_count", inProgressCount.toString)
     Redis.update("dashboard_completed_count", completedCount.toString)
+    Redis.update("lp_completed_count", landingPageCompletedCount.toString)
+    Redis.update("lp_completed_yesterday_count", landingPageCompletedYesterdayCount.toString)
     println(s"dashboard_enrolment_count = ${enrolmentCount}")
     println(s"dashboard_not_started_count = ${notStartedCount}")
     println(s"dashboard_started_count = ${startedCount}")
     println(s"dashboard_in_progress_count = ${inProgressCount}")
     println(s"dashboard_completed_count = ${completedCount}")
+    println(s"lp_completed_count = ${landingPageCompletedCount}")
+    println(s"lp_completed_yesterday_count = ${landingPageCompletedYesterdayCount}")
 
     // mdo-wise enrollment/not-started/started/in-progress/completion counts
     val liveRetiredCourseEnrolmentByMDODF = liveRetiredCourseEnrolmentDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
