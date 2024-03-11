@@ -13,6 +13,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 object NpsModel extends AbsDashboardModel {
   implicit val className: String = "org.ekstep.analytics.dashboard.survey.nps.NpsModel"
 
+  override def name() = "NpsModel"
   def processData(timestamp: Long) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val druidData1 = npsTriggerC1DataFrame() //gives data from druid for users who have submitted the survey form in last 3 months
