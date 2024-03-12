@@ -263,7 +263,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
 
     // mdo wise
     val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "contentid")
-    generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
+    generateReport(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
 
     // cbp wise
     val cbpReportDF = reportDF
@@ -273,7 +273,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
       .withColumnRenamed("maskedPhone", "Phone_Number")
 
     show(cbpReportDF, "cbpReportDF")
-    generateAndSyncReports(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
+    generateReport(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
