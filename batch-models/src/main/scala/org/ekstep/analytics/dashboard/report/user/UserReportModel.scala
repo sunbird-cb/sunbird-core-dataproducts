@@ -68,7 +68,7 @@ object UserReportModel extends AbsDashboardModel {
     // generateReport(fullReportDF, s"${reportPath}-full")
     val mdoWiseReportDF = fullReportDF.drop("userID", "userOrgID", "userCreatedBy")
 
-    generateAndSyncReports(mdoWiseReportDF, "mdoid", reportPath, "UserReport")
+    generateReport(mdoWiseReportDF, "mdoid", reportPath, "UserReport")
 
     val df_warehouse = userData
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
