@@ -71,6 +71,15 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     df = df.distinct().dropDuplicates("userID", "courseID")
 
+    // read acbp report csv and filter the cbp plan based on status or date
+    val CBPlanDetails = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
+      .select(col("content_id").alias("courseID"))
+      .withColumn("liveCBPlan", lit(true))
+    // join with acbp report for course ids,
+    df = df.join(CBPlanDetails, Seq("courseID"), "left")
+      .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
+
     val fullReportDF = df.select(
       col("userID"),
       col("userOrgID"),
@@ -112,7 +121,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
       col("courseProgress").alias("resourcesConsumed"),
       round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
       col("Certificate_ID"),
-      col("Report_Last_Generated_On")
+      col("Report_Last_Generated_On"),
+      col("live_cbp_plan_mandate").alias("Live_CBP_Plan_Mandate")
     )
       .coalesce(1)
 
@@ -141,7 +151,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
         col("enrolledOn").alias("enrolled_on"),
         col("userCourseCompletionStatus").alias("user_consumption_status"),
         col("Certificate_ID").alias("certificate_id"),
-        col("data_last_generated_on")
+        col("data_last_generated_on"),
+        col("live_cbp_plan_mandate")
       )
     generateReport(warehouseDF.coalesce(1), s"${reportPath}-warehouse")
 

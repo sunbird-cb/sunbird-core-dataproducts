@@ -59,6 +59,7 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
       .withColumn("certificate_generated_on", to_date(col("certificate_generated_on"), "yyyy-MM-dd"))
       .withColumn("enrolled_on", to_date(col("enrolled_on"), "yyyy-MM-dd"))
+      .withColumn("live_cbp_plan_mandate", col("live_cbp_plan_mandate").cast("boolean"))
       .filter(col("content_id").isNotNull)
 
     truncateWarehouseTable(conf.dwEnrollmentsTable)
