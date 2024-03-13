@@ -12,7 +12,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 object KCMModel extends AbsDashboardModel {
 
   implicit val className: String = "org.ekstep.analytics.dashboard.report.kcm.KCMModel"
-
+  override def name() = "KCMModel"
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
@@ -92,7 +92,8 @@ object KCMModel extends AbsDashboardModel {
     show(competencyReporting, "Competency reporting dataframe")
 
     generateReport(competencyReporting, reportPath, fileName=fileName)
-    syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    // removing sync from zip feature
+    //syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 
   }
 }
