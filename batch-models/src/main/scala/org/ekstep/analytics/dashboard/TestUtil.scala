@@ -48,18 +48,15 @@ object TestUtil extends Serializable {
       "redisDB" -> "12",
 
       "sparkCassandraConnectionHost" -> "192.168.3.211",
-      //TODO revert back sparkDruidRouterHost to 192.168.3.91
-      "sparkDruidRouterHost" -> "127.0.0.1",
+      "sparkDruidRouterHost" -> "192.168.3.91",
       "sparkElasticsearchConnectionHost" -> "192.168.3.211",
       "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
-      //TODO revert back sparkMongoConnectionHost to 192.168.3.178
-      "sparkMongoConnectionHost" -> "127.0.0.1",
+      "sparkMongoConnectionHost" -> "192.168.3.178",
 
-      "solutionIDs" -> "", //pass user defined solutionIDs
-      //TODO change mlMongoDatabase to ml-survey when working in dev
+      "solutionIDs" -> "",
       "mlMongoDatabase" -> "sl-pre-prod",
       "surveyCollection" -> "solutions",
-      "gracePeriod" -> "2", //This grace period is used to generate reports after solution end date
+      "gracePeriod" -> "2",
       "baseUrlForEvidences" -> "www.https://igotkarmayogi.gov.in/",
       "mlReportPath" -> "standalone-reports/ml-report",
 
