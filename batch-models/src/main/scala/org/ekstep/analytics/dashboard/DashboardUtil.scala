@@ -11,7 +11,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+import org.apache.spark.sql.types.{DateType, IntegerType, StringType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.framework.conf.AppConf
@@ -128,6 +128,13 @@ case class DashboardConfig (
     acbpMdoEnrolmentReportPath: String,
     acbpMdoSummaryReportPath: String,
     kcmReportPath: String,
+    //ml report config
+    gracePeriod: String,
+    solutionIDs: String,
+    baseUrlForEvidences: String,
+    mlMongoDatabase: String,
+    surveyCollection: String,
+    mlReportPath: String,
 
     commsConsolePrarambhEmailSuffix: String,
     commsConsoleNumDaysToConsider: Int,
@@ -275,6 +282,13 @@ object DashboardConfigParser extends Serializable {
       acbpMdoEnrolmentReportPath = getConfigModelParam(config, "acbpMdoEnrolmentReportPath"),
       acbpMdoSummaryReportPath = getConfigModelParam(config, "acbpMdoSummaryReportPath"),
       kcmReportPath = getConfigModelParam(config, "kcmReportPath"),
+      //ml report config
+      gracePeriod = getConfigModelParam(config, "gracePeriod"),
+      solutionIDs = getConfigModelParam(config, "solutionIDs"),
+      baseUrlForEvidences = getConfigModelParam(config, "baseUrlForEvidences"),
+      mlMongoDatabase = getConfigModelParam(config, "mlMongoDatabase"),
+      surveyCollection = getConfigModelParam(config, "surveyCollection"),
+      mlReportPath = getConfigModelParam(config, "mlReportPath"),
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
@@ -738,6 +752,23 @@ object DashboardUtil extends Serializable {
     val filterDf = df.select("sunbird-oidcId").where(col("username").isNotNull or col("topiccount") > 0 and (col("postcount") > 0))
     val renamedDF = filterDf.withColumnRenamed("sunbird-oidcId", "userid")
     renamedDF
+  }
+
+  def mongodbSolutionsTableAsDataFrame(url: String, mongoDatabase: String, collection: String, solutionIdsDF: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    val schema = new StructType()
+      .add("_id", StringType, true)
+      .add("endDate", DateType, true)
+    val df = spark.read.schema(schema)
+      .format("com.mongodb.spark.sql.DefaultSource")
+      .option("uri", url)
+      .option("database", mongoDatabase)
+      .option("collection", collection)
+      .load()
+    val cleanedDf = df.withColumn("_id_cleaned", regexp_replace(col("_id"), "[^0-9a-zA-Z]", ""))
+    val solutionIds = solutionIdsDF.select("solutionIds").collect.map(_.getString(0))
+    val filteredDf = cleanedDf.filter(col("_id_cleaned").isin(solutionIds: _*)).select(col("_id").alias("solutionIds"), col("endDate"))
+    filteredDf.show(false)
+    filteredDf
   }
 
   def writeToCassandra(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession): Unit = {

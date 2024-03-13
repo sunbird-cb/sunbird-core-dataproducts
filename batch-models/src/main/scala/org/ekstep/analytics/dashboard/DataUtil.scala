@@ -235,6 +235,39 @@ object DataUtil extends Serializable {
       StructField("userOrgID", StringType),
       StructField("totalLearningHours", StringType)
     ))
+
+    val solutionDataSchema: StructType = StructType(Seq(
+      StructField("createdBy", StringType, nullable = true),
+      StructField("user_type", StringType, nullable = true),
+      StructField("user_subtype", StringType, nullable = true),
+      StructField("state_name", StringType, nullable = true),
+      StructField("district_name", StringType, nullable = true),
+      StructField("block_name", StringType, nullable = true),
+      StructField("school_code", StringType, nullable = true),
+      StructField("school_name", StringType, nullable = true),
+      StructField("board_name", StringType, nullable = true),
+      StructField("organisation_name", StringType, nullable = true),
+      StructField("programName", StringType, nullable = true),
+      StructField("programExternalId", StringType, nullable = true),
+      StructField("solutionName", StringType, nullable = true),
+      StructField("solutionExternalId", StringType, nullable = true),
+      StructField("surveySubmissionId", StringType, nullable = true),
+      StructField("questionExternalId", StringType, nullable = true),
+      StructField("questionName", StringType, nullable = true),
+      StructField("questionResponseLabel", StringType, nullable = true),
+      StructField("evidences", StringType, nullable = true),
+      StructField("remarks", StringType, nullable = true)
+    ))
+
+    val uniqueSolutionIdsDataSchema: StructType = StructType(Seq(
+      StructField("solutionIds", StringType, nullable = true)
+    ))
+
+    val solutionsEndDateDataSchema: StructType = StructType(Seq(
+      StructField("_id", StringType, nullable = true),
+      StructField("endDate", DateType, nullable = true)
+    ))
+
   }
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1578,6 +1611,85 @@ object DataUtil extends Serializable {
     val reportTempPath = s"${conf.localReportDir}/${reportPath}"
     generateReport(df, reportPath, partitionKey, fileName)
     syncReports(reportTempPath, reportPath)
+  }
+
+  def getSolutionIdsAsDF(solutionIds: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
+    val mdoIDs = solutionIds.split(",").map(_.toString).distinct
+    val rdd = sc.parallelize(mdoIDs)
+    val rowRDD: RDD[Row] = rdd.map(t => Row(t))
+    val schema = new StructType()
+      .add(StructField("solutionIds", StringType, nullable = false))
+    val df = spark.createDataFrame(rowRDD, schema)
+    df
+  }
+
+//  def getSolutionData(solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+//    //val query = raw"""SELECT createdBy AS UUID, user_type AS User_Type, user_subtype AS User_Sub_Type FROM \"sl-survey\" WHERE solutionId='$solutionId'"""
+//    val query = raw"""SELECT createdBy, user_type, user_subtype, state_name, district_name, block_name, school_code, school_name, board_name, organisation_name, programName, programExternalId, solutionName, solutionExternalId, surveySubmissionId, questionExternalId, questionName, questionResponseLabel, evidences, remarks FROM \"sl-survey\" WHERE solutionId='$solutionId'"""
+//    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+//    if (df == null) return emptySchemaDataFrame(Schema.solutionDataSchema)
+//    df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+//    df = df.select(col("createdBy").alias("UUID"),
+//      col("user_type").alias("User Type"),
+//      col("user_subtype").alias("User Sub Type"),
+//      col("state_name").alias("Declared State"),
+//      col("district_name").alias("District"),
+//      col("block_name").alias("Block"),
+//      col("school_code").alias("School ID"),
+//      col("school_name").alias("School Name"),
+//      col("board_name").alias("Declared Board"),
+//      col("organisation_name").alias("Organisation Name"),
+//      col("programName").alias("Program Name"),
+//      col("programExternalId").alias("Program ID"),
+//      col("solutionName").alias("Survey Name"),
+//      col("solutionExternalId").alias("Survey ID"),
+//      col("surveySubmissionId").alias("survey_submission_id"),
+//      col("questionExternalId").alias("Question_external_id"),
+//      col("questionName").alias("Question"),
+//      col("questionResponseLabel").alias("Question_response_label"),
+//      col("evidences").alias("Evidences"),
+//      col("remarks").alias("Remarks")
+//    )
+//    df
+//  }
+
+
+  def getSolutionData(solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT createdBy, organisation_name, solutionName, solutionExternalId, surveySubmissionId, questionExternalId, questionName, questionResponseLabel FROM \"sl-survey\" WHERE solutionId='$solutionId'"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (df == null) return emptySchemaDataFrame(Schema.solutionDataSchema)
+    df = df.select(col("createdBy").alias("UUID"),
+      col("organisation_name").alias("Organisation Name"),
+      col("solutionName").alias("Survey Name"),
+      col("solutionExternalId").alias("Survey ID"),
+      col("surveySubmissionId").alias("survey_submission_id"),
+      col("questionExternalId").alias("Question_external_id"),
+      col("questionName").alias("Question"),
+      col("questionResponseLabel").alias("Question_response_label")
+    )
+    df
+  }
+
+  def loadAllUniqueSolutionIds(dataSource: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    //    val query1 = """SELECT DISTINCT solutionId AS solutionIds FROM \"sl-survey\" """
+    //    println(query1)
+    println("printing datasource = " + dataSource)
+    //TODO change surveyId to solutionId
+    val query = raw"""SELECT DISTINCT solutionId AS solutionIds FROM \"$dataSource\" """
+    println(query)
+    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    println("DF count before dropping duplicates " + df.count())
+    if (df == null) return emptySchemaDataFrame(Schema.uniqueSolutionIdsDataSchema)
+    df = df.dropDuplicates("solutionIds")
+    println("DF count after dropping duplicates " + df.count())
+    df
+  }
+
+  def getSolutionsEndDate(solutionIdsDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val completeUrl = s"mongodb://${conf.sparkMongoConnectionHost}:27017"
+    val df = mongodbSolutionsTableAsDataFrame(completeUrl, conf.slMongoDatabase, conf.surveyCollection, solutionIdsDF)
+    if (df == null) return emptySchemaDataFrame(Schema.solutionsEndDateDataSchema)
+    df
   }
 
 }
