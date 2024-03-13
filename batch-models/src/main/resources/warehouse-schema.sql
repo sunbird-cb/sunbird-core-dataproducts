@@ -121,6 +121,19 @@ CREATE TABLE bp_enrollments(
    data_last_generated_on VARCHAR(255)
 );
 
+CREATE TABLE cb_plan(
+   cb_plan_id VARCHAR(255) NOT NULL,
+   org_id VARCHAR(255) NOT NULL,
+   created_by  VARCHAR(255) NOT NULL,
+   plan_name VARCHAR(255),
+   allotment_type VARCHAR(255),
+   allotment_to VARCHAR(255),
+   content_id VARCHAR(255),
+   allocated_on VARCHAR(255),
+   due_by VARCHAR(255),
+   status VARCHAR(255)
+);
+
 -- Create PostgreSQL user and grant privileges
 CREATE USER postgres WITH PASSWORD 'Password@12345678';
 
@@ -130,3 +143,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON user_enrolment TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON cbp TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON assessment_detail TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON bp_enrollments TO postgres;
+GRANT SELECT, INSERT, UPDATE, DELETE ON cb_plan TO postgres;

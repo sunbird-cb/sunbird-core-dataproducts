@@ -232,6 +232,13 @@ object DataUtil extends Serializable {
       StructField("userOrgID", StringType),
       StructField("totalLearningHours", StringType)
     ))
+    val cbplanDraftDataSchema: StructType = StructType(Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("assignmentType", StringType, nullable = true),
+      StructField("assignmentTypeInfo", ArrayType(StringType), nullable = true),
+      StructField("endDate", StringType, nullable = true),
+      StructField("contentList", ArrayType(StringType), nullable = true)
+    ))
   }
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1540,19 +1547,37 @@ object DataUtil extends Serializable {
 
   def acbpDetailsDF()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val df = cache.load("acbp")
-      .where(col("status") === "Live")
       .select(
         col("id").alias("acbpID"),
         col("orgid").alias("userOrgID"),
+        col("draftdata"),
+        col("status").alias("acbpStatus"),
+        col("createdby").alias("acbpCreatedBy"),
+        col("name").alias("cbPlanName"),
         col("assignmenttype").alias("assignmentType"),
         col("assignmenttypeinfo").alias("assignmentTypeInfo"),
         col("enddate").alias("completionDueDate"),
         col("publishedat").alias("allocatedOn"),
         col("contentlist").alias("acbpCourseIDList")
-      )
+      ).na.fill("", Seq("cbPlanName"))
     show(df, "acbpDetails")
-    df
 
+    var draftCBPData = df.filter(col("acbpStatus") === "DRAFT" && col("draftdata").isNotNull)
+    draftCBPData = draftCBPData.select(col("acbpID"),col("userOrgID"),col("draftdata"),col("acbpStatus"),col("acbpCreatedBy"))
+        .withColumn("draftData", from_json(col("draftdata"), Schema.cbplanDraftDataSchema))
+        .withColumn("cbPlanName", col("draftData.name"))
+        .withColumn("assignmentType", col("draftData.assignmentType"))
+        .withColumn("assignmentTypeInfo", col("draftData.assignmentTypeInfo"))
+        .withColumn("completionDueDate", col("draftData.endDate"))
+        .withColumn("allocatedOn", lit("not published"))
+        .withColumn("acbpCourseIDList", col("draftData.contentList"))
+      .drop("draftData")
+// get the live and retire ACBP data
+    val nonDraftCBPData = df.filter(col("acbpStatus") =!= "DRAFT")
+// union draft and non-draft
+    val result = nonDraftCBPData.union(draftCBPData)
+    show(result, "allACBPDetails")
+    result
   }
 
   /* report generation stuff

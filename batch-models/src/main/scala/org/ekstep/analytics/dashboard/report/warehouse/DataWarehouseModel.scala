@@ -97,6 +97,10 @@ object DataWarehouseModel extends AbsDashboardModel {
     truncateWarehouseTable(conf.dwBPEnrollmentsTable)
     saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
+    val cb_plan = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse")
+    truncateWarehouseTable(conf.dwCBPlanTable)
+    saveDataframeToPostgresTable_With_Append(cb_plan, dwPostgresUrl, conf.dwCBPlanTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     val orgDwDf = cache.load("orgHierarchy")
       .withColumn("mdo_created_on", to_date(col("mdo_created_on")))

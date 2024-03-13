@@ -94,6 +94,7 @@ case class DashboardConfig (
     dwBPEnrollmentsTable: String,
     dwKcmDictionaryTable: String,
     dwKcmContentTable: String,
+    dwCBPlanTable: String,
     postgresCompetencyTable: String,
     postgresCompetencyHierarchyTable: String,
 
@@ -208,6 +209,7 @@ object DashboardConfigParser extends Serializable {
       dwBPEnrollmentsTable = getConfigModelParam(config, "dwBPEnrollmentsTable"),
       dwKcmDictionaryTable = getConfigModelParam(config, "dwKcmDictionaryTable"),
       dwKcmContentTable = getConfigModelParam(config, "dwKcmContentTable"),
+      dwCBPlanTable = getConfigModelParam(config, "dwCBPlanTable"),
       postgresCompetencyTable = getConfigModelParam(config, "postgresCompetencyTable"),
       postgresCompetencyHierarchyTable = getConfigModelParam(config, "postgresCompetencyHierarchyTable"),
 
