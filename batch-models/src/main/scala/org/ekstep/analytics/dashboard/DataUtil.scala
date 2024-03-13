@@ -90,6 +90,9 @@ object DataUtil extends Serializable {
       StructField("orgID",  StringType, nullable = true),
       StructField("activeCount",  LongType, nullable = true)
     ))
+    val monthlyActiveUsersSchema: StructType = StructType(Seq(
+      StructField("DAUOutput",  LongType, nullable = true)
+    ))
     val timeSpentSchema: StructType = StructType(Seq(
       StructField("orgID",  StringType, nullable = true),
       StructField("timeSpent",  FloatType, nullable = true)
