@@ -54,7 +54,7 @@ object TestUtil extends Serializable {
       "sparkMongoConnectionHost" -> "192.168.3.178",
 
       "solutionIDs" -> "",
-      "mlMongoDatabase" -> "sl-pre-prod",
+      "mlMongoDatabase" -> "ml-survey",
       "surveyCollection" -> "solutions",
       "gracePeriod" -> "2",
       "baseUrlForEvidences" -> "www.https://igotkarmayogi.gov.in/",
