@@ -105,7 +105,7 @@ object CourseReportModel extends AbsDashboardModel {
     val reportPath = s"${conf.courseReportPath}/${today}"
     // generateReport(fullReportDF, s"${reportPath}-full")
     val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
-    generateReport(mdoReportDF, "mdoid", reportPath, "ContentReport")
+    generateReport(mdoReportDF,  reportPath,"mdoid", "ContentReport")
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
