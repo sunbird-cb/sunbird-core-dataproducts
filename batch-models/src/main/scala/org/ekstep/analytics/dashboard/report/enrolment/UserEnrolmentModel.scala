@@ -122,7 +122,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
     // generateReport(fullReportDF, s"${reportPath}-full")
 
     val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseOrgID", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
-    generateReport(mdoReportDF, "mdoid", reportPath, "ConsumptionReport")
+    generateReport(mdoReportDF, reportPath, "mdoid","ConsumptionReport")
 
     val warehouseDF = df
       .withColumn("certificate_generated_on",to_date(from_utc_timestamp(to_utc_timestamp(to_timestamp(
