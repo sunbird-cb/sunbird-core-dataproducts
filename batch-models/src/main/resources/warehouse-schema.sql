@@ -39,7 +39,7 @@ CREATE TABLE org_hierarchy(
 );
 
 -- Table: user_enrolment
-CREATE TABLE user_enrolment(
+CREATE TABLE user_enrolments(
    user_id VARCHAR(255) NOT NULL,
    batch_id VARCHAR(255) NOT NULL,
    cbp_id  VARCHAR(255)  NOT NULL,
@@ -144,3 +144,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON cbp TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON assessment_detail TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON bp_enrollments TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON cb_plan TO postgres;
+
+ALTER TABLE user_enrolments ADD COLUMN live_cbp_plan_mandate boolean;

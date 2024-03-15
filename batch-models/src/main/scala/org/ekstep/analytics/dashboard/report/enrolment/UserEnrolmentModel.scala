@@ -75,7 +75,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
     val CBPlanDetails = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
       .select(col("content_id").alias("courseID"))
-      .withColumn("liveCBPlan", lit(true))
+      .withColumn("liveCBPlan", lit(true)).distinct()
     // join with acbp report for course ids,
     df = df.join(CBPlanDetails, Seq("courseID"), "left")
       .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
@@ -153,7 +153,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
         col("Certificate_ID").alias("certificate_id"),
         col("data_last_generated_on"),
         col("live_cbp_plan_mandate")
-      )
+      ).dropDuplicates("user_id","batch_id","content_id")
     generateReport(warehouseDF.coalesce(1), s"${reportPath}-warehouse")
 
     Redis.closeRedisConnect()
