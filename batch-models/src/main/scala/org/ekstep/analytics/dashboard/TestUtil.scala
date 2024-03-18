@@ -112,6 +112,7 @@ object TestUtil extends Serializable {
 
       "platformRatingSurveyId" -> "1696404440829",
       "cutoffTime" -> "60.0",
+      "reportSyncEnable" -> "true",
       "mdoIDs" -> "",
 
       "userReportPath" -> "standalone-reports/user-report",

@@ -123,6 +123,10 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     val mdoReportDF = fullReportDF.drop("userID", "userOrgID", "courseID", "courseOrgID", "issuedCertificateCount", "courseStatus", "resourceCount", "resourcesConsumed", "rawCompletionPercentage")
     generateReport(mdoReportDF, reportPath, "mdoid","ConsumptionReport")
+    // to be removed once new security job is created
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    }
 
     val warehouseDF = df
       .withColumn("certificate_generated_on",to_date(from_utc_timestamp(to_utc_timestamp(to_timestamp(

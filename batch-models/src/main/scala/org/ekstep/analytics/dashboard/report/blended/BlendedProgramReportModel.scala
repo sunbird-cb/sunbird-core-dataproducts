@@ -264,7 +264,10 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     // mdo wise
     val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "contentid")
     generateReport(mdoReportDF,  reportPathMDO,"mdoid", "BlendedProgramReport")
-
+    // to be removed once new security job is created
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", reportPathMDO)
+    }
     // cbp wise
     val cbpReportDF = reportDF
       .drop("Email", "Phone_Number", "mdoid")

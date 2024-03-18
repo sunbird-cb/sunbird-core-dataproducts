@@ -136,7 +136,9 @@ case class DashboardConfig (
     commsConsolePrarambhNCount: Int,
     commsConsolePrarambhCbpIds: String,
     // for weekly claps
-    cutoffTime: Float
+    cutoffTime: Float,
+    // to enable/disable report sync
+    reportSyncEnable: Boolean
 ) extends Serializable
 
 object DashboardConfigParser extends Serializable {

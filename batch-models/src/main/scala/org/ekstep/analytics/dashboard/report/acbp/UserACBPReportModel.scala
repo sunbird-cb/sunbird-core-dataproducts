@@ -114,6 +114,10 @@ object UserACBPReportModel extends AbsDashboardModel {
     val reportPath = s"${conf.acbpReportPath}/${today}"
     generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
     generateReport(enrolmentReportDF,  s"${conf.acbpMdoEnrolmentReportPath}/${today}","mdoid", "CBPEnrollmentReport")
+    // to be removed once new security job is created
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", s"${conf.acbpMdoEnrolmentReportPath}/${today}")
+    }
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
@@ -146,7 +150,10 @@ object UserACBPReportModel extends AbsDashboardModel {
     show(userSummaryReportDF, "userSummaryReportDF")
     generateReport(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", fileName="CBPUserSummaryReport")
     generateReport(userSummaryReportDF.coalesce(1),  s"${conf.acbpMdoSummaryReportPath}/${today}","mdoid", "CBPUserSummaryReport")
-
+    // to be removed once new security job is created
+    if(conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", s"${conf.acbpMdoSummaryReportPath}/${today}")
+    }
     syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 
     Redis.closeRedisConnect()

@@ -69,7 +69,10 @@ object UserReportModel extends AbsDashboardModel {
     val mdoWiseReportDF = fullReportDF.drop("userID", "userOrgID", "userCreatedBy")
 
     generateReport(mdoWiseReportDF, reportPath,"mdoid", "UserReport")
-
+    // to be removed once new security job is created
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    }
     val df_warehouse = userData
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
