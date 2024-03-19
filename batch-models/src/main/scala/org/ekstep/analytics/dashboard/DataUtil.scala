@@ -50,6 +50,7 @@ object DataUtil extends Serializable {
       val fields = ListBuffer(
         StructField("verifiedKarmayogi", BooleanType, nullable = true),
         StructField("mandatoryFieldsExists", BooleanType, nullable = true),
+        StructField("profileImageUrl", StringType, nullable = true),
         StructField("personalDetails", personalDetailsSchema, nullable = true)
       )
       if (competencies) {
@@ -328,6 +329,7 @@ object DataUtil extends Serializable {
       .withColumn("professionalDetails", explode_outer(col("profileDetails.professionalDetails")))
       .withColumn("userVerified", when(col("profileDetails.verifiedKarmayogi").isNull, false).otherwise(col("profileDetails.verifiedKarmayogi")))
       .withColumn("userMandatoryFieldsExists", col("profileDetails.mandatoryFieldsExists"))
+      .withColumn("userProfileImgUrl", col("profileDetails.profileImageUrl"))
       .withColumn("userPhoneVerified", expr("LOWER(personalDetails.phoneVerified) = 'true'"))
       .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
 
@@ -895,7 +897,7 @@ object DataUtil extends Serializable {
         col("rating").alias("userRating"),
         col("activitytype").alias("cbpType"),
         col("createdon").alias("createdOn")
-    )
+      )
     show(df, "Rating given by user")
     df
   }
@@ -1060,7 +1062,9 @@ object DataUtil extends Serializable {
     show(df, "userAllCourseProgramCompletionDataFrame s=0")
 
     val categoryList = allCourseProgramDetailsDF.select("category").distinct().map(_.getString(0)).filter(_.nonEmpty).collectAsList()
+    println("This is the categoryList from allCourseProgramDetailsDF:"+ categoryList)
     df = df.filter(col("category").isInCollection(categoryList))
+    println("This is the categoryList :"+ categoryList)
     show(df, "userAllCourseProgramCompletionDataFrame s=1")
 
     df = df.join(userOrgDF, Seq("userID"), "left")
@@ -1580,4 +1584,9 @@ object DataUtil extends Serializable {
     syncReports(reportTempPath, reportPath)
   }
 
+    def learnerLeaderBoardDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+      val df = cache.load("learnerLeaderBoard")
+      show(df, "learnerLeaderBoard")
+      df
+    }
 }
