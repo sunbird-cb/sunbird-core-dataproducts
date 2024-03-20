@@ -59,6 +59,7 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("completed_on", to_date(col("completed_on"), "yyyy-MM-dd"))
       .withColumn("certificate_generated_on", to_date(col("certificate_generated_on"), "yyyy-MM-dd"))
       .withColumn("enrolled_on", to_date(col("enrolled_on"), "yyyy-MM-dd"))
+      .withColumn("live_cbp_plan_mandate", col("live_cbp_plan_mandate").cast("boolean"))
       .filter(col("content_id").isNotNull)
 
     truncateWarehouseTable(conf.dwEnrollmentsTable)
@@ -97,6 +98,10 @@ object DataWarehouseModel extends AbsDashboardModel {
     truncateWarehouseTable(conf.dwBPEnrollmentsTable)
     saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
+    val cb_plan = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse")
+    truncateWarehouseTable(conf.dwCBPlanTable)
+    saveDataframeToPostgresTable_With_Append(cb_plan, dwPostgresUrl, conf.dwCBPlanTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
     val orgDwDf = cache.load("orgHierarchy")
       .withColumn("mdo_created_on", to_date(col("mdo_created_on")))

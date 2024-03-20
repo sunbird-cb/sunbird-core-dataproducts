@@ -62,7 +62,7 @@ object UserACBPReportModel extends AbsDashboardModel {
 
     // union of all the response dfs
     val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
-      df.select("userID", "fullName", "userPrimaryEmail", "userMobile", "designation", "group", "userOrgID", "ministry_name", "dept_name", "userOrgName", "acbpID", "assignmentType", "completionDueDate", "allocatedOn", "acbpCourseIDList")
+      df.select("userID", "fullName", "userPrimaryEmail", "userMobile", "designation", "group", "userOrgID", "ministry_name", "dept_name", "userOrgName", "acbpID", "assignmentType", "completionDueDate", "allocatedOn", "acbpCourseIDList","acbpStatus", "acbpCreatedBy","cbPlanName"))
     }).reduce((a, b) => a.union(b))
     show(acbpAllotmentDF, "acbpAllotmentDF")
 
@@ -75,8 +75,25 @@ object UserACBPReportModel extends AbsDashboardModel {
       .drop("acbpCourseIDList")
     show(acbpAllEnrolmentDF, "acbpAllEnrolmentDF")
 
+    // get cbplan data for warehouse
+    val cbPlanWarehouseDF = acbpAllEnrolmentDF
+      .withColumn("allotment_to", expr("CASE WHEN assignmentType='CustomUser' THEN userID WHEN assignmentType= 'Designation' THEN designation WHEN assignmentType = 'AllUser' THEN 'All Users' ELSE 'No Records' END"))
+      .select(
+        col("userOrgID").alias("org_id"),
+        col("acbpCreatedBy").alias("created_by"),
+        col("acbpID").alias("cb_plan_id"),
+        col("cbPlanName").alias("plan_name"),
+        col("assignmentType").alias("allotment_type"),
+        col("allotment_to"),
+        col("courseID").alias("content_id"),
+        col("allocatedOn").alias("allocated_on"),
+        col("completionDueDate").alias("due_by"),
+        col("acbpStatus").alias("status"))
+      .distinct().orderBy("org_id","created_by","cbPlanName")
+    show(cbPlanWarehouseDF, "cbPlanWarehouseDF")
+
     // for particular userID and course ID, choose allotment entries based on priority rules
-    val acbpEnrolmentDF = acbpAllEnrolmentDF
+    val acbpEnrolmentDF = acbpAllEnrolmentDF.where(col("acbpStatus") === "Live")
       .groupByLimit(Seq("userID", "courseID"), "completionDueDate", 1, desc = true)
     show(acbpEnrolmentDF, "acbpEnrolmentDF")
     kafkaDispatch(withTimestamp(acbpEnrolmentDF, timestamp), conf.acbpEnrolmentTopic)
@@ -118,6 +135,7 @@ object UserACBPReportModel extends AbsDashboardModel {
     if (conf.reportSyncEnable) {
       syncReports(s"${conf.localReportDir}/${reportPath}", s"${conf.acbpMdoEnrolmentReportPath}/${today}")
     }
+    generateReport(cbPlanWarehouseDF.coalesce(1), s"${reportPath}-warehouse")
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
