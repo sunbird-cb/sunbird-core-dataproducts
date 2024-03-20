@@ -263,7 +263,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
 
     // mdo wise
     val mdoReportDF = reportDF.drop("maskedEmail", "maskedPhone", "contentid")
-    generateAndSyncReports(mdoReportDF, "mdoid", reportPathMDO, "BlendedProgramReport")
+    generateReport(mdoReportDF,  reportPathMDO,"mdoid", "BlendedProgramReport")
 
     // cbp wise
     val cbpReportDF = reportDF

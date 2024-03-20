@@ -35,116 +35,117 @@ case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are
 case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
 
 case class DashboardConfig (
-    debug: String,
-    validation: String,
-    // kafka connection config
-    broker: String,
-    compression: String,
-    // redis connection config
-    redisHost: String,
-    redisPort: Int,
-    redisDB: Int,
-    // for blob storage
-    store: String,
-    container: String,
-    key: String,
-    secret: String,
-    // other hosts connection config
-    sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
-    sparkElasticsearchConnectionHost: String, fracBackendHost: String,
-    sparkMongoConnectionHost: String,
-    // kafka topics
-    roleUserCountTopic: String, orgRoleUserCountTopic: String,
-    allCourseTopic: String, userCourseProgramProgressTopic: String,
-    fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
-    declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
-    userAssessmentTopic: String, assessmentTopic: String, acbpEnrolmentTopic: String,
-    // cassandra key spaces
-    cassandraUserKeyspace: String,
-    cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
-    cassandraUserFeedKeyspace: String,
-    // cassandra table details
-    cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
-    cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
-    cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
-    cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
-    cassandraUserFeedTable: String, cassandraAcbpTable: String,
-    cassandraCourseBatchTable: String,
-    cassandraLearnerStatsTable: String,
-    cassandraKarmaPointsTable: String,
-    cassandraHallOfFameTable: String,
-    cassandraKarmaPointsLookupTable: String,
-    cassandraKarmaPointsSummaryTable: String,
+   debug: String,
+   validation: String,
+   // kafka connection config
+   broker: String,
+   compression: String,
+   // redis connection config
+   redisHost: String,
+   redisPort: Int,
+   redisDB: Int,
+   // for blob storage
+   store: String,
+   container: String,
+   key: String,
+   secret: String,
+   // other hosts connection config
+   sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
+   sparkElasticsearchConnectionHost: String, fracBackendHost: String,
+   sparkMongoConnectionHost: String,
+   // kafka topics
+   roleUserCountTopic: String, orgRoleUserCountTopic: String,
+   allCourseTopic: String, userCourseProgramProgressTopic: String,
+   fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
+   declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
+   userAssessmentTopic: String, assessmentTopic: String, acbpEnrolmentTopic: String,
+   // cassandra key spaces
+   cassandraUserKeyspace: String,
+   cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+   cassandraUserFeedKeyspace: String,
+   // cassandra table details
+   cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
+   cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
+   cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
+   cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
+   cassandraUserFeedTable: String, cassandraAcbpTable: String,
+   cassandraCourseBatchTable: String,
+   cassandraLearnerStatsTable: String,
+   cassandraKarmaPointsTable: String,
+   cassandraHallOfFameTable: String,
+   cassandraKarmaPointsLookupTable: String,
+   cassandraKarmaPointsSummaryTable: String,
+   cassandraLearnerLeaderBoardTable: String,
+   cassandraLearnerLeaderBoardLookupTable: String,
 
-    //warehouse tables;
-    appPostgresHost: String,
-    appPostgresSchema: String,
-    appPostgresUsername: String,
-    appPostgresCredential: String,
-    appOrgHierarchyTable: String,
-    dwPostgresHost: String,
-    dwPostgresSchema: String,
-    dwPostgresUsername: String,
-    dwPostgresCredential: String,
-    dwUserTable: String,
-    dwCourseTable: String,
-    dwEnrollmentsTable: String,
-    dwOrgTable: String,
-    dwAssessmentTable: String,
-    dwBPEnrollmentsTable: String,
-    dwKcmDictionaryTable: String,
-    dwKcmContentTable: String,
-    postgresCompetencyTable: String,
-    postgresCompetencyHierarchyTable: String,
+   //warehouse tables;
+   appPostgresHost: String,
+   appPostgresSchema: String,
+   appPostgresUsername: String,
+   appPostgresCredential: String,
+   appOrgHierarchyTable: String,
+   dwPostgresHost: String,
+   dwPostgresSchema: String,
+   dwPostgresUsername: String,
+   dwPostgresCredential: String,
+   dwUserTable: String,
+   dwCourseTable: String,
+   dwEnrollmentsTable: String,
+   dwOrgTable: String,
+   dwAssessmentTable: String,
+   dwBPEnrollmentsTable: String,
+   dwKcmDictionaryTable: String,
+   dwKcmContentTable: String,
+   postgresCompetencyTable: String,
+   postgresCompetencyHierarchyTable: String,
 
-    // redis keys
-    redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
-    redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
-    redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
-    redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
-    redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
-    redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
-    redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
-    redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+   // redis keys
+   redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
+   redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
+   redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
+   redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
+   redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
+   redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
+   redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
+   redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
-    // mongoDB configurations
-    mongoDBCollection: String,
-    mongoDatabase: String,
-    platformRatingSurveyId: String,
+   // mongoDB configurations
+   mongoDBCollection: String,
+   mongoDatabase: String,
+   platformRatingSurveyId: String,
 
-    // for reports
-    mdoIDs: String,
-    localReportDir: String,
-    standaloneAssessmentReportPath: String,
-    userReportPath: String,
-    userEnrolmentReportPath: String,
-    courseReportPath: String,
-    taggedUsersPath: String,
-    cbaReportPath: String,
-    blendedReportPath: String,
-    orgHierarchyReportPath: String,
-    commsConsoleReportPath: String,
-    acbpReportPath: String,
-    acbpMdoEnrolmentReportPath: String,
-    acbpMdoSummaryReportPath: String,
-    kcmReportPath: String,
-    //ml report config
-    gracePeriod: String,
-    solutionIDs: String,
-    baseUrlForEvidences: String,
-    mlMongoDatabase: String,
-    surveyCollection: String,
-    mlReportPath: String,
+   // for reports
+   mdoIDs: String,
+   localReportDir: String,
+   standaloneAssessmentReportPath: String,
+   userReportPath: String,
+   userEnrolmentReportPath: String,
+   courseReportPath: String,
+   taggedUsersPath: String,
+   cbaReportPath: String,
+   blendedReportPath: String,
+   orgHierarchyReportPath: String,
+   commsConsoleReportPath: String,
+   acbpReportPath: String,
+   acbpMdoEnrolmentReportPath: String,
+   acbpMdoSummaryReportPath: String,
+   kcmReportPath: String,
 
-    commsConsolePrarambhEmailSuffix: String,
-    commsConsoleNumDaysToConsider: Int,
-    commsConsoleNumTopLearnersToConsider: Int,
-    commsConsolePrarambhTags: String,
-    commsConsolePrarambhNCount: Int,
-    commsConsolePrarambhCbpIds: String,
-    // for weekly claps
-    cutoffTime: Float
-) extends Serializable
+   commsConsolePrarambhEmailSuffix: String,
+   commsConsoleNumDaysToConsider: Int,
+   commsConsoleNumTopLearnersToConsider: Int,
+   commsConsolePrarambhTags: String,
+   commsConsolePrarambhNCount: Int,
+   commsConsolePrarambhCbpIds: String,
+
+
+   prefixDirectoryPath: String,
+   destinationDirectoryPath: String,
+   directoriesToSelect: String,
+   password: String,
+   // for weekly claps
+   cutoffTime: Float
+   ) extends Serializable
 
 object DashboardConfigParser extends Serializable {
   /* Config functions */
@@ -241,6 +242,8 @@ object DashboardConfigParser extends Serializable {
       cassandraHallOfFameTable = getConfigModelParam(config, "cassandraHallOfFameTable"),
       cassandraKarmaPointsLookupTable = getConfigModelParam(config, "cassandraKarmaPointsLookupTable"),
       cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
+      cassandraLearnerLeaderBoardTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardTable"),
+      cassandraLearnerLeaderBoardLookupTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardLookupTable"),
 
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
@@ -297,6 +300,11 @@ object DashboardConfigParser extends Serializable {
       commsConsolePrarambhTags = getConfigModelParam(config, "commsConsolePrarambhTags", "rojgaar,rozgaar,rozgar"),
       commsConsolePrarambhNCount = getConfigModelParam(config, "commsConsolePrarambhNCount", "6").toInt,
       commsConsolePrarambhCbpIds = getConfigModelParam(config, "commsConsolePrarambhCbpIds", "do_11359618144357580811,do_113569878939262976132,do_113474579909279744117,do_113651330692145152128,do_1134122937914327041177,do_113473120005832704152,do_1136364244148060161889,do_1136364937253437441916"),
+
+      prefixDirectoryPath = getConfigModelParam(config, "prefixDirectoryPath"),
+      destinationDirectoryPath = getConfigModelParam(config, "destinationDirectoryPath"),
+      directoriesToSelect = getConfigModelParam(config, "directoriesToSelect"),
+      password = getConfigModelParam(config, "password"),
 
       // for weekly claps
       cutoffTime = getConfigModelParam(config, "cutoffTime", "60.0").toFloat

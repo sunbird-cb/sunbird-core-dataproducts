@@ -113,7 +113,7 @@ object UserACBPReportModel extends AbsDashboardModel {
 
     val reportPath = s"${conf.acbpReportPath}/${today}"
     generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
-    generateAndSyncReports(enrolmentReportDF, "mdoid", s"${conf.acbpMdoEnrolmentReportPath}/${today}", "CBPEnrollmentReport")
+    generateReport(enrolmentReportDF,  s"${conf.acbpMdoEnrolmentReportPath}/${today}","mdoid", "CBPEnrollmentReport")
 
     // for user summary report
     val userSummaryDataDF = acbpEnrolmentDF
@@ -145,7 +145,7 @@ object UserACBPReportModel extends AbsDashboardModel {
       )
     show(userSummaryReportDF, "userSummaryReportDF")
     generateReport(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", fileName="CBPUserSummaryReport")
-    generateAndSyncReports(userSummaryReportDF.coalesce(1), "mdoid", s"${conf.acbpMdoSummaryReportPath}/${today}", "CBPUserSummaryReport")
+    generateReport(userSummaryReportDF.coalesce(1),  s"${conf.acbpMdoSummaryReportPath}/${today}","mdoid", "CBPUserSummaryReport")
 
     syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
 

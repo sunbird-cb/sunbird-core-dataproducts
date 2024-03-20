@@ -113,7 +113,7 @@ object CourseBasedAssessmentModel extends AbsDashboardModel {
     // generateReport(fullReportDF, s"${reportPath}-full")
 
     val mdoReportDF = fullReportDF.drop("assessID", "assessOrgID", "assessChildID", "userOrgID")
-    generateAndSyncReports(mdoReportDF, "mdoid", reportPath, "UserAssessmentReport")
+    generateReport(mdoReportDF, reportPath,"mdoid", "UserAssessmentReport")
 
     val warehouseDF = finalDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
