@@ -57,7 +57,7 @@ object DashboardSyncModel extends AbsDashboardModel {
       "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
-      allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
+    allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
 
     kafkaDispatch(withTimestamp(allCourseProgramDetailsWithRatingDF, timestamp), conf.allCourseTopic)
 
@@ -152,6 +152,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     // enrollment/not-started/started/in-progress/completion count, live and retired courses
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveRetiredCourseProgramEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveCourseProgramEnrolmentDF = liveRetiredCourseProgramEnrolmentDF.where(expr("courseStatus = 'Live'"))
     val currentDate = LocalDate.now()
     // Calculate twenty four hours ago
     val twentyFourHoursAgo = currentDate.minusDays(1)
@@ -187,6 +188,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     val landingPageCompletedCountDF = liveRetiredCourseProgramCompletedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     val landingPageCompletedYesterdayCountDF = liveRetiredCourseProgramCompletedYesterdayDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
 
+    // group by courseID to get enrolment counts of each course/program
+    val liveCourseProgramEnrollmentCountsDF = liveCourseProgramEnrolmentDF.groupBy("courseID").agg(count("*").alias("enrolmentCount"))
     // unique user counts
     val enrolmentUniqueUserCount = enrolmentCountDF.select("uniqueUserCount").first().getLong(0)
     val notStartedUniqueUserCount = notStartedCountDF.select("uniqueUserCount").first().getLong(0)
@@ -214,6 +217,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     val landingPageCompletedCount = landingPageCompletedCountDF.select("count").first().getLong(0)
     val landingPageCompletedYesterdayCount = landingPageCompletedYesterdayCountDF.select("count").first().getLong(0)
 
+
     Redis.update("dashboard_enrolment_count", enrolmentCount.toString)
     Redis.update("dashboard_not_started_count", notStartedCount.toString)
     Redis.update("dashboard_started_count", startedCount.toString)
@@ -221,6 +225,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     Redis.update("dashboard_completed_count", completedCount.toString)
     Redis.update("lp_completed_count", landingPageCompletedCount.toString)
     Redis.update("lp_completed_yesterday_count", landingPageCompletedYesterdayCount.toString)
+    Redis.dispatchDataFrame[Long]("live_course_program_enrolment_count", liveCourseProgramEnrolmentCountsDF, "courseID", "enrolmentCount")
+    show(liveCourseProgramEnrolmentCountsDF, "EnrolmentCounts")
     println(s"dashboard_enrolment_count = ${enrolmentCount}")
     println(s"dashboard_not_started_count = ${notStartedCount}")
     println(s"dashboard_started_count = ${startedCount}")
@@ -228,6 +234,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     println(s"dashboard_completed_count = ${completedCount}")
     println(s"lp_completed_count = ${landingPageCompletedCount}")
     println(s"lp_completed_yesterday_count = ${landingPageCompletedYesterdayCount}")
+
 
     // mdo-wise enrollment/not-started/started/in-progress/completion counts
     val liveRetiredCourseEnrolmentByMDODF = liveRetiredCourseEnrolmentDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
@@ -590,7 +597,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     Redis.dispatchDataFrame[String]("lhp_trending", trendingCoursesListByOrg, "userOrgID:courses", "trendingCourseList", replace = false)
     show(trendingProgramsListByOrg, "trendingProgramsListByOrg")
     Redis.dispatchDataFrame[String]("lhp_trending", trendingProgramsListByOrg, "userOrgID:programs", "trendingProgramList", replace = false)
-//
+    //
     print("most enrolled tag :" + mostEnrolledTag)
     Redis.update("lhp_mostEnrolledTag", mostEnrolledTag + "\n")
   }

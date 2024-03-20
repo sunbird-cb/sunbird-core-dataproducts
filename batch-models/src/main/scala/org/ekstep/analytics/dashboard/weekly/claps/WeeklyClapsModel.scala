@@ -48,7 +48,8 @@ object WeeklyClapsModel extends AbsDashboardModel {
         col("userid"),
         col("platformEngagementTime"),
         col("sessionCount"),
-        col("claps_updated_this_week")
+        col("claps_updated_this_week"),
+        col("last_claps_updated_on")
       )
       df = df.withColumn("total_claps", when(col("w4")("timespent") < conf.cutoffTime, 0).otherwise(col("total_claps")))
         .withColumn("total_claps", when(condition, col("total_claps") + 1).otherwise(col("total_claps")))
@@ -65,6 +66,7 @@ object WeeklyClapsModel extends AbsDashboardModel {
 
     df = df.withColumn("total_claps", when(col("total_claps").isNull, 0).otherwise(col("total_claps")))
       .withColumn("claps_updated_this_week", when(col("claps_updated_this_week").isNull, false).otherwise(col("claps_updated_this_week")))
+      .withColumn("last_claps_updated_on", when(condition, date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a")).otherwise(col("last_claps_updated_on")))
 
     df = df.drop("platformEngagementTime","sessionCount")
 
