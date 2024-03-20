@@ -92,8 +92,10 @@ object KCMModel extends AbsDashboardModel {
     show(competencyReporting, "Competency reporting dataframe")
 
     generateReport(competencyReporting, reportPath, fileName=fileName)
-    // removing sync from zip feature
-    //syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    // making report sync configurable
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    }
 
   }
 }

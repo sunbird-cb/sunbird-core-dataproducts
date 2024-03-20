@@ -106,6 +106,10 @@ object CourseReportModel extends AbsDashboardModel {
     // generateReport(fullReportDF, s"${reportPath}-full")
     val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
     generateReport(mdoReportDF,  reportPath,"mdoid", "ContentReport")
+    // to be removed once new security job is created
+    if (conf.reportSyncEnable) {
+      syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    }
 
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))

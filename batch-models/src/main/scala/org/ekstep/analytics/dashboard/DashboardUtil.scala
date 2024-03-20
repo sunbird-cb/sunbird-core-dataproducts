@@ -144,7 +144,9 @@ case class DashboardConfig (
    directoriesToSelect: String,
    password: String,
    // for weekly claps
-   cutoffTime: Float
+   cutoffTime: Float,
+   // to enable/disable report sync
+   reportSyncEnable: Boolean
    ) extends Serializable
 
 object DashboardConfigParser extends Serializable {
