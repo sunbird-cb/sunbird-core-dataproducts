@@ -189,7 +189,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     val landingPageCompletedYesterdayCountDF = liveRetiredCourseProgramCompletedYesterdayDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
 
     // group by courseID to get enrolment counts of each course/program
-    val liveCourseProgramEnrollmentCountsDF = liveCourseProgramEnrolmentDF.groupBy("courseID").agg(count("*").alias("enrolmentCount"))
+    val liveCourseProgramEnrolmentCountsDF = liveCourseProgramEnrolmentDF.groupBy("courseID").agg(count("*").alias("enrolmentCount"))
     // unique user counts
     val enrolmentUniqueUserCount = enrolmentCountDF.select("uniqueUserCount").first().getLong(0)
     val notStartedUniqueUserCount = notStartedCountDF.select("uniqueUserCount").first().getLong(0)
