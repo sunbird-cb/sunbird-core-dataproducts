@@ -95,9 +95,9 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Start of zipping the reports and syncing to blob store
     // Define variables for source, blobStorage directories and password.
     val password = conf.password
-
+    val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     // Traverse through source directory to create individual zip files (mdo-wise)
-    val mdoidFolders = new File(destinationDirectoryPath).listFiles()
+    val mdoidFolders = new File(destinationDirectoryPath).listFiles().filter(file => directoriesToSelect.contains(file.getName))
     if (mdoidFolders != null) {
       mdoidFolders.foreach { mdoidFolder =>
         if (mdoidFolder.isDirectory) { // Check if it's a directory
