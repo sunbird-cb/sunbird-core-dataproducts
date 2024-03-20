@@ -53,6 +53,13 @@ object TestUtil extends Serializable {
       "fracBackendHost" -> "frac-dictionary.karmayogi.nic.in",
       "sparkMongoConnectionHost" -> "192.168.3.178",
 
+      "solutionIDs" -> "",
+      "mlMongoDatabase" -> "ml-survey",
+      "surveyCollection" -> "solutions",
+      "gracePeriod" -> "2",
+      "baseUrlForEvidences" -> "www.https://igotkarmayogi.gov.in/",
+      "mlReportPath" -> "standalone-reports/ml-report",
+
       "appPostgresHost" -> "192.168.3.178:5432",
       "appPostgresUsername" -> "sunbird",
       "appPostgresCredential" -> "sunbird",
