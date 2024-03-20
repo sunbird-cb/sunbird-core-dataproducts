@@ -131,13 +131,6 @@ case class DashboardConfig (
    acbpMdoEnrolmentReportPath: String,
    acbpMdoSummaryReportPath: String,
    kcmReportPath: String,
-   //ml report config
-   gracePeriod: String,
-   solutionIDs: String,
-   baseUrlForEvidences: String,
-   mlMongoDatabase: String,
-   surveyCollection: String,
-   mlReportPath: String,
 
    commsConsolePrarambhEmailSuffix: String,
    commsConsoleNumDaysToConsider: Int,
@@ -145,6 +138,14 @@ case class DashboardConfig (
    commsConsolePrarambhTags: String,
    commsConsolePrarambhNCount: Int,
    commsConsolePrarambhCbpIds: String,
+
+    //ml report config
+   gracePeriod: String,
+   solutionIDs: String,
+   baseUrlForEvidences: String,
+   mlMongoDatabase: String,
+   surveyCollection: String,
+   mlReportPath: String,
 
 
    prefixDirectoryPath: String,
