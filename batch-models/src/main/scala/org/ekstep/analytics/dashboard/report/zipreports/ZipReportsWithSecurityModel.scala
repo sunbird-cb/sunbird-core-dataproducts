@@ -18,7 +18,7 @@ import java.nio.file.{Files, Paths, StandardCopyOption}
  */
 object ZipReportsWithSecurityModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.ZipReportsWithSecurityModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.zipreports.ZipReportsWithSecurityModel"
   override def name() = "ZipReportsWithSecurityModel"
 
   /**
@@ -94,11 +94,10 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
 
     // Start of zipping the reports and syncing to blob store
     // Define variables for source, blobStorage directories and password.
-    val mdoidDirectoryPath = conf.mdoidDirectoryPath
     val password = conf.password
 
     // Traverse through source directory to create individual zip files (mdo-wise)
-    val mdoidFolders = new File(mdoidDirectoryPath).listFiles()
+    val mdoidFolders = new File(destinationDirectoryPath).listFiles()
     if (mdoidFolders != null) {
       mdoidFolders.foreach { mdoidFolder =>
         if (mdoidFolder.isDirectory) { // Check if it's a directory

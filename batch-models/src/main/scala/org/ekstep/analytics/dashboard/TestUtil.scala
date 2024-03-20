@@ -139,7 +139,6 @@ object TestUtil extends Serializable {
 
       "prefixDirectoryPath" -> "/mount/data/analytics/reports/standalone-reports",
       "destinationDirectoryPath" -> "/mount/data/analytics/reports/standalone-reports/merged",
-      "mdoidDirectoryPath" -> "/mount/data/analytics/reports/standalone-reports/merged",
       "password" -> "123456",
 
       "sideOutput" -> sideOutput

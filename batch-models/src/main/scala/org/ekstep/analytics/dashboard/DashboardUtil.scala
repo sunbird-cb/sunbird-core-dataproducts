@@ -141,7 +141,6 @@ case class DashboardConfig (
 
    prefixDirectoryPath: String,
    destinationDirectoryPath: String,
-   mdoidDirectoryPath: String,
    password: String,
    // for weekly claps
    cutoffTime: Float
@@ -296,7 +295,6 @@ object DashboardConfigParser extends Serializable {
 
       prefixDirectoryPath = getConfigModelParam(config, "prefixDirectoryPath"),
       destinationDirectoryPath = getConfigModelParam(config, "destinationDirectoryPath"),
-      mdoidDirectoryPath = getConfigModelParam(config, "mdoidDirectoryPath"),
       password = getConfigModelParam(config, "password"),
 
       // for weekly claps
