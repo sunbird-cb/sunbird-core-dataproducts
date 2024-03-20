@@ -31,7 +31,7 @@ CREATE TABLE user_detail(
 CREATE TABLE org_hierarchy(
    mdo_id VARCHAR(255) PRIMARY KEY NOT NULL,
    mdo_name  VARCHAR(255),
-   is_cbp_provider VARCHAR(64),
+   is_content_provider VARCHAR(64),
    ministry VARCHAR(255),
    department VARCHAR(255),
    organization VARCHAR(255),
@@ -39,11 +39,11 @@ CREATE TABLE org_hierarchy(
 );
 
 -- Table: user_enrolment
-CREATE TABLE user_enrolment(
+CREATE TABLE user_enrolments(
    user_id VARCHAR(255) NOT NULL,
    batch_id VARCHAR(255) NOT NULL,
-   cbp_id  VARCHAR(255)  NOT NULL,
-   cbp_progress_percentage FLOAT,
+   content_id  VARCHAR(255)  NOT NULL,
+   content_progress_percentage FLOAT,
    completed_on DATE,
    certificate_generated VARCHAR(255),
    certificate_generated_on DATE,
@@ -52,35 +52,35 @@ CREATE TABLE user_enrolment(
    enrolled_on DATE,
    user_consumption_status VARCHAR(255),
    data_last_generated_on VARCHAR(255),
-   PRIMARY KEY (user_id, cbp_id, batch_id)
+   PRIMARY KEY (user_id, content_id, batch_id)
 );
 
--- Table: cbp
-CREATE TABLE cbp(
-   cbp_id VARCHAR(255) PRIMARY KEY NOT NULL,
-   cbp_provider_id VARCHAR(255),
-   cbp_provider_name VARCHAR(255),
-   cbp_name TEXT,
-   cbp_type VARCHAR(255),
+-- Table: content
+CREATE TABLE content(
+   content_id VARCHAR(255) PRIMARY KEY NOT NULL,
+   content_provider_id VARCHAR(255),
+   content_provider_name VARCHAR(255),
+   content_name TEXT,
+   content_type VARCHAR(255),
    batch_id VARCHAR(255),
    batch_name VARCHAR(255),
    batch_start_date DATE,
    batch_end_date DATE,
-   cbp_duration VARCHAR(255),
-   cbp_rating FLOAT,
+   content_duration VARCHAR(255),
+   content_rating FLOAT,
    last_published_on DATE,
-   cbp_retired_on DATE,
-   cbp_status VARCHAR(255),
+   content_retired_on DATE,
+   content_status VARCHAR(255),
    resource_count INTEGER,
    total_certificates_issued INTEGER,
-   cbp_substatus VARCHAR(255),
+   content_substatus VARCHAR(255),
    data_last_generated_on VARCHAR(255)
 );
 
 -- Table: assessment_detail
 CREATE TABLE assessment_detail(
    user_id VARCHAR(255)  NOT NULL,
-   cbp_id VARCHAR(255) NOT NULL,
+   content_id VARCHAR(255) NOT NULL,
    assessment_id VARCHAR(255) NOT NULL,
    assessment_name VARCHAR(255) ,
    assessment_type VARCHAR(255),
@@ -94,13 +94,13 @@ CREATE TABLE assessment_detail(
    number_of_incorrect_responses INTEGER,
    number_of_retakes INTEGER,
    data_last_generated_on VARCHAR(255),
-   PRIMARY KEY (assessment_id, cbp_id, user_id)
+   PRIMARY KEY (assessment_id, content_id, user_id)
 );
 
 -- Table: bp_enrollments
-CREATE TABLE bp_enrollments(
+CREATE TABLE bp_enrolments(
    user_id VARCHAR(255) NOT NULL,
-   cbp_id  VARCHAR(255) NOT NULL,
+   content_id  VARCHAR(255) NOT NULL,
    batch_id VARCHAR(255) NOT NULL,
    batch_location VARCHAR(255),
    component_name VARCHAR(255),
@@ -121,12 +121,28 @@ CREATE TABLE bp_enrollments(
    data_last_generated_on VARCHAR(255)
 );
 
+CREATE TABLE cb_plan(
+   cb_plan_id VARCHAR(255) NOT NULL,
+   org_id VARCHAR(255) NOT NULL,
+   created_by  VARCHAR(255) NOT NULL,
+   plan_name VARCHAR(255),
+   allotment_type VARCHAR(255),
+   allotment_to VARCHAR(255),
+   content_id VARCHAR(255),
+   allocated_on VARCHAR(255),
+   due_by VARCHAR(255),
+   status VARCHAR(255)
+);
+
 -- Create PostgreSQL user and grant privileges
 CREATE USER postgres WITH PASSWORD 'Password@12345678';
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON user_detail TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON org_hierarchy TO postgres;
-GRANT SELECT, INSERT, UPDATE, DELETE ON user_enrolment TO postgres;
-GRANT SELECT, INSERT, UPDATE, DELETE ON cbp TO postgres;
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_enrolments TO postgres;
+GRANT SELECT, INSERT, UPDATE, DELETE ON content TO postgres;
 GRANT SELECT, INSERT, UPDATE, DELETE ON assessment_detail TO postgres;
-GRANT SELECT, INSERT, UPDATE, DELETE ON bp_enrollments TO postgres;
+GRANT SELECT, INSERT, UPDATE, DELETE ON bp_enrolments TO postgres;
+GRANT SELECT, INSERT, UPDATE, DELETE ON cb_plan TO postgres;
+
+ALTER TABLE user_enrolments ADD COLUMN live_cbp_plan_mandate boolean;
