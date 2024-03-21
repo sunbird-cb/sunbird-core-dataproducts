@@ -3,7 +3,6 @@ package org.ekstep.analytics.dashboard.report.zipreports
 import org.apache.spark.SparkContext
 import org.ekstep.analytics.framework.{FrameworkContext, IJob, JobDriver}
 import org.ekstep.analytics.framework.util.JobLogger
-import org.ekstep.analytics.model.WorkFlowSummaryModel
 
 object ZipReportsWithSecurityJob extends optional.Application with IJob {
 

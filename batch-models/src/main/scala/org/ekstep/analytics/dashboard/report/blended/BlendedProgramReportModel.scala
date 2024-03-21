@@ -282,7 +282,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
-        col("contentid").alias("content_id"),
+        col("bpID").alias("content_id"),
         col("bpBatchID").alias("batch_id"),
         col("bpBatchLocation").alias("batch_location"),
         col("bpChildName").alias("component_name"),

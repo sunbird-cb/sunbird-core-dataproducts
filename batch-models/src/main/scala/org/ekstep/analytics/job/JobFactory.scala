@@ -16,6 +16,8 @@ import org.ekstep.analytics.dashboard.report.course.CourseReportJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.survey.question.QuestionReportJob
 import org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseJob
+import org.ekstep.analytics.dashboard.report.zipreports.ZipReportsWithSecurityJob
+import org.ekstep.analytics.dashboard.survey.inappreview.InAppReviewJob
 import org.ekstep.analytics.dashboard.telemetry.SummaryRedisSyncJob
 import org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsJob
 
@@ -93,6 +95,10 @@ object JobFactory {
         OnDemandDruidExhaustJob
       case "survey-nps" =>
         NpsJob
+      case "in-app-review-feed" =>
+        InAppReviewJob
+      case "zip-upload" =>
+        ZipReportsWithSecurityJob
       case "survey-question-report" =>
         QuestionReportJob
       case _ =>
