@@ -59,6 +59,7 @@ object TestUtil extends Serializable {
       "gracePeriod" -> "2",
       "baseUrlForEvidences" -> "www.https://igotkarmayogi.gov.in/",
       "mlReportPath" -> "standalone-reports/ml-report",
+      "surveyStatusReportColumnsConfig" -> """{"reportColumns":{"createdBy":"UUID","organisation_name":"Organisation Name","survey_name":"Survey Name","surveyId":"Survey Id","survey_submission_id":"Survey Submission Id"},"userProfileColumns":{"firstName":"First Name","lastName":"Last Name","identifier":"Identifier","last_login":"Last Login"},"sortingColumns":"UUID,First Name,Last Name,Identifier,Last Login,Organisation Name,Survey Name,Survey Id,Survey Submission Id, Status of Submission, Submission Date"}""",
 
       "appPostgresHost" -> "192.168.3.178:5432",
       "appPostgresUsername" -> "sunbird",

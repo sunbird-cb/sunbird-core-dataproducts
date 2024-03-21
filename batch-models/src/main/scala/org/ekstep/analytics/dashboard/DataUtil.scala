@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
@@ -244,7 +244,7 @@ object DataUtil extends Serializable {
       StructField("contentList", ArrayType(StringType), nullable = true)
     ))
 
-    val solutionDataSchema: StructType = StructType(Seq(
+    val solutionIdDataSchema: StructType = StructType(Seq(
       StructField("createdBy", StringType, nullable = true),
       StructField("user_type", StringType, nullable = true),
       StructField("user_subtype", StringType, nullable = true),
@@ -1658,20 +1658,26 @@ object DataUtil extends Serializable {
     df
   }
 
-  def getSolutionData(solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = raw"""SELECT createdBy, organisation_name, solutionName, solutionExternalId, surveySubmissionId, questionExternalId, questionName, questionResponseLabel FROM \"sl-survey\" WHERE solutionId='$solutionId'"""
+  def getSolutionIdData(columns: String, dataSource: String, solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT $columns FROM  \"$dataSource\" WHERE solutionId='$solutionId'"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.solutionDataSchema)
-    df = df.select(col("createdBy").alias("UUID"),
-      col("organisation_name").alias("Organisation Name"),
-      col("solutionName").alias("Survey Name"),
-      col("solutionExternalId").alias("Survey ID"),
-      col("surveySubmissionId").alias("survey_submission_id"),
-      col("questionExternalId").alias("Question_external_id"),
-      col("questionName").alias("Question"),
-      col("questionResponseLabel").alias("Question_response_label")
-    )
+    if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
+    if (df.columns.contains("evidences")) {
+      df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+    }
     df
+  }
+
+  def processProfileData(originalDf: DataFrame, profileSchema: StructType, requiredCsvColumns: List[Column])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val parsedDf = originalDf.withColumn("parsedProfile", from_json(col("userProfile"), profileSchema))
+    val finalDF = parsedDf.select(requiredCsvColumns: _*)
+    finalDF
+  }
+
+  def validateColumns(df: DataFrame, columns: Seq[String]): Boolean = {
+    val dfColumnsSet = df.columns.map(_.trim).toSet
+    val columnsSet = columns.map(_.trim).toSet
+    dfColumnsSet == columnsSet
   }
 
   def loadAllUniqueSolutionIds(dataSource: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
