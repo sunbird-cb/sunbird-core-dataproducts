@@ -13,6 +13,7 @@ import org.ekstep.analytics.framework.FrameworkContext
 object InAppReviewModel extends AbsDashboardModel {
   implicit val className: String = "org.ekstep.analytics.dashboard.survey.inappreview.InAppReviewModel"
 
+  override def name() = "InAppReviewModel"
   def processData(timestamp: Long) (implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
 
