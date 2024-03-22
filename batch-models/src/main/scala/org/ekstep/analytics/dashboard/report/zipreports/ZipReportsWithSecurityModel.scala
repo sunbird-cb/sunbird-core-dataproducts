@@ -33,12 +33,13 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Define variables for source, destination directories and date.
     val prefixDirectoryPath = conf.prefixDirectoryPath
     val destinationDirectoryPath = conf.destinationDirectoryPath
+    val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     val specificDate = getDate()
 
     // Method to traverse all the report folders within the source folder and check for specific date folder
     def traverseDirectory(directory: File): Unit = {
       // Get the list of files and directories in the current directory
-      val files = directory.listFiles()
+      val files = directory.listFiles().filter(file => directoriesToSelect.contains(file.getName))
       if (files != null) {
         // Iterate over each file or directory
         for (file <- files) {
@@ -95,9 +96,8 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Start of zipping the reports and syncing to blob store
     // Define variables for source, blobStorage directories and password.
     val password = conf.password
-    val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     // Traverse through source directory to create individual zip files (mdo-wise)
-    val mdoidFolders = new File(destinationDirectoryPath).listFiles().filter(file => directoriesToSelect.contains(file.getName))
+    val mdoidFolders = new File(destinationDirectoryPath).listFiles()
     if (mdoidFolders != null) {
       mdoidFolders.foreach { mdoidFolder =>
         if (mdoidFolder.isDirectory) { // Check if it's a directory
