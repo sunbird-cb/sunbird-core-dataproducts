@@ -31,8 +31,8 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Start of merging folders
 
     // Define variables for source, destination directories and date.
-    val prefixDirectoryPath = conf.prefixDirectoryPath
-    val destinationDirectoryPath = conf.destinationDirectoryPath
+    val prefixDirectoryPath = s"${conf.localReportDir}${conf.prefixDirectoryPath}"
+    val destinationPath = s"${conf.localReportDir}${conf.destinationDirectoryPath}"
     val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     val specificDate = getDate()
 
@@ -64,26 +64,25 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
         // Iterate over mdoid folders
         for (mdoidFolder <- files if mdoidFolder.isDirectory) {
           // Inside each mdoid folder, copy all CSV files to the destination directory
-          copyFiles(mdoidFolder, destinationDirectoryPath)
+          copyFiles(mdoidFolder, destinationPath)
         }
       }
     }
 
     // Method to copy all CSV files inside an mdoid folder to the destination directory
-    def copyFiles(mdoidFolder: File, destinationDirectoryPath: String): Unit = {
+    def copyFiles(mdoidFolder: File, destinationPath: String): Unit = {
       // Create destination directory if it does not exist
-      val destinationDirectory = Paths.get(destinationDirectoryPath, mdoidFolder.getName)
+      val destinationDirectory = Paths.get(destinationPath, mdoidFolder.getName)
       if (!Files.exists(destinationDirectory)) {
         Files.createDirectories(destinationDirectory)
       }
       // Get the list of CSV files in the mdoid folder
-      val csvFiles = mdoidFolder.listFiles()
+      val csvFiles = mdoidFolder.listFiles().filter(file => file.getName.endsWith(".csv"))
       if (csvFiles != null) {
         // Copy all CSV files to the destination directory
         for (csvFile <- csvFiles) {
           val destinationFile = Paths.get(destinationDirectory.toString, csvFile.getName)
           Files.copy(csvFile.toPath, destinationFile, StandardCopyOption.REPLACE_EXISTING)
-          println(s"File ${csvFile.getName} copied to ${destinationFile.toAbsolutePath}")
         }
       }
     }
@@ -97,14 +96,13 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Define variables for source, blobStorage directories and password.
     val password = conf.password
     // Traverse through source directory to create individual zip files (mdo-wise)
-    val mdoidFolders = new File(destinationDirectoryPath).listFiles()
+    val mdoidFolders = new File(destinationPath).listFiles()
     if (mdoidFolders != null) {
       mdoidFolders.foreach { mdoidFolder =>
         if (mdoidFolder.isDirectory) { // Check if it's a directory
-          val zipFilePath = s"${mdoidFolder.getAbsolutePath}/reports.zip"
-
+          val zipFilePath = s"${mdoidFolder}"
           // Create a password-protected zip file for the mdoid folder
-          val zipFile = new ZipFile(zipFilePath, password.toCharArray)
+          val zipFile = new ZipFile(zipFilePath+"/reports.zip", password.toCharArray)
           val parameters = new ZipParameters()                             
           parameters.setEncryptFiles(true)
           parameters.setEncryptionMethod(EncryptionMethod.ZIP_STANDARD)
@@ -114,6 +112,7 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           }
           // Delete the csvs keeping only the zip file from mdo folders
           mdoidFolder.listFiles().foreach { file =>
+            print("Deleting csvs withing this: " +mdoidFolder)
             if (file.getName.toLowerCase.endsWith(".csv")) {
               file.delete()
             }
@@ -121,7 +120,10 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           // Upload the zip file to blob storage
           val mdoid = mdoidFolder.getName
 
-          syncReports(zipFilePath, zipFilePath)
+          //sync reports
+          val zipReporthPath = s"${conf.destinationDirectoryPath}/$mdoid"
+          syncReports(zipFilePath, zipReporthPath)
+
           println(s"Password-protected ZIP file created and uploaded for $mdoid: $zipFilePath")
         }
       }

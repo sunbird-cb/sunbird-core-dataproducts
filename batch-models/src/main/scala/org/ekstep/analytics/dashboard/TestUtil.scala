@@ -148,8 +148,8 @@ object TestUtil extends Serializable {
       "commsConsolePrarambhCbpIds" -> "do_113882965067743232154,do_1137468666262241281756,do_1139032976499261441156",
       "commsConsolePrarambhNCount" -> "2",
 
-      "prefixDirectoryPath" -> "/mount/data/analytics/reports/standalone-reports",
-      "destinationDirectoryPath" -> "/mount/data/analytics/reports/standalone-reports/merged",
+      "prefixDirectoryPath" -> "standalone-reports",
+      "destinationDirectoryPath" -> "standalone-reports/merged",
       "directoriesToSelect" -> "blended-program-report-mdo,cbp-report-mdo-summary,course-report,cba-report,cbp-report-mdo-enrolment,user-report,user-enrollment-report,kcm-report",
       "password" -> "123456",
 
