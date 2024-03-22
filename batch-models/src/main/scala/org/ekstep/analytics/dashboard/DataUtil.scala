@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
@@ -244,7 +244,7 @@ object DataUtil extends Serializable {
       StructField("contentList", ArrayType(StringType), nullable = true)
     ))
 
-    val solutionDataSchema: StructType = StructType(Seq(
+    val solutionIdDataSchema: StructType = StructType(Seq(
       StructField("createdBy", StringType, nullable = true),
       StructField("user_type", StringType, nullable = true),
       StructField("user_subtype", StringType, nullable = true),
@@ -274,6 +274,21 @@ object DataUtil extends Serializable {
     val solutionsEndDateDataSchema: StructType = StructType(Seq(
       StructField("_id", StringType, nullable = true),
       StructField("endDate", DateType, nullable = true)
+    ))
+
+    val surveyStatusCompletedDataSchema: StructType = StructType(Seq(
+      StructField("completed_at", StringType, nullable = true),
+      StructField("survey_submission_id", DateType, nullable = true)
+    ))
+
+    val surveyStatusInProgressDataSchema: StructType = StructType(Seq(
+      StructField("inprogress_at", StringType, nullable = true),
+      StructField("survey_submission_id", DateType, nullable = true)
+    ))
+
+    val surveyStatusStartedDataSchema: StructType = StructType(Seq(
+      StructField("started_at", StringType, nullable = true),
+      StructField("survey_submission_id", DateType, nullable = true)
     ))
 
   }
@@ -1658,20 +1673,26 @@ object DataUtil extends Serializable {
     df
   }
 
-  def getSolutionData(solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = raw"""SELECT createdBy, organisation_name, solutionName, solutionExternalId, surveySubmissionId, questionExternalId, questionName, questionResponseLabel FROM \"sl-survey\" WHERE solutionId='$solutionId'"""
+  def getSolutionIdData(columns: String, dataSource: String, solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = raw"""SELECT $columns FROM  \"$dataSource\" WHERE solutionId='$solutionId'"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.solutionDataSchema)
-    df = df.select(col("createdBy").alias("UUID"),
-      col("organisation_name").alias("Organisation Name"),
-      col("solutionName").alias("Survey Name"),
-      col("solutionExternalId").alias("Survey ID"),
-      col("surveySubmissionId").alias("survey_submission_id"),
-      col("questionExternalId").alias("Question_external_id"),
-      col("questionName").alias("Question"),
-      col("questionResponseLabel").alias("Question_response_label")
-    )
+    if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
+    if (df.columns.contains("evidences")) {
+      df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+    }
     df
+  }
+
+  def processProfileData(originalDf: DataFrame, profileSchema: StructType, requiredCsvColumns: List[Column])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val parsedDf = originalDf.withColumn("parsedProfile", from_json(col("userProfile"), profileSchema))
+    val finalDF = parsedDf.select(requiredCsvColumns: _*)
+    finalDF
+  }
+
+  def validateColumns(df: DataFrame, columns: Seq[String]): Boolean = {
+    val dfColumnsSet = df.columns.map(_.trim).toSet
+    val columnsSet = columns.map(_.trim).toSet
+    dfColumnsSet == columnsSet
   }
 
   def loadAllUniqueSolutionIds(dataSource: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1687,6 +1708,51 @@ object DataUtil extends Serializable {
     val df = mongodbSolutionsTableAsDataFrame(completeUrl, conf.mlMongoDatabase, conf.surveyCollection, solutionIdsDF)
     if (df == null) return emptySchemaDataFrame(Schema.solutionsEndDateDataSchema)
     df
+  }
+
+  def getSurveyStatusCompletedData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val modifiedSolutionDf = solutionDf
+      .withColumn("Status of Submission", lit(null).cast(StringType))
+      .withColumn("Submission Date", lit(null).cast(StringType))
+    val query = """SELECT completed_at, survey_submission_id FROM \"sl-survey-status-completed\" """
+    val statusCompletedQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (statusCompletedQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusCompletedDataSchema)
+    statusCompletedQueryDf.dropDuplicates()
+
+    val statusCompletedJoinDf = modifiedSolutionDf.join(statusCompletedQueryDf, modifiedSolutionDf("Survey Submission Id") === statusCompletedQueryDf("survey_submission_id"), "left")
+    val statusCompletedFinalDf = statusCompletedJoinDf
+      .withColumn("Status of Submission", when(col("survey_submission_id").isNotNull, lit("completed")).otherwise(col("Status of Submission")))
+      .withColumn("Submission Date", when(col("survey_submission_id").isNotNull, col("completed_at")).otherwise(col("Submission Date")))
+      .drop("completed_at", "survey_submission_id")
+    statusCompletedFinalDf
+  }
+
+  def getSurveyStatusInProgressData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT inprogress_at, survey_submission_id FROM \"sl-survey-status-inprogress\" """
+    val statusInProgressQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (statusInProgressQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusInProgressDataSchema)
+    statusInProgressQueryDf.dropDuplicates()
+
+    val statusInProgressJoinDf = solutionDf.join(statusInProgressQueryDf, solutionDf("Survey Submission Id") === statusInProgressQueryDf("survey_submission_id"), "left")
+    val statusInProgressFinalDf = statusInProgressJoinDf
+      .withColumn("Status of Submission", when(col("survey_submission_id").isNotNull, lit("started")).otherwise(col("Status of Submission")))
+      .withColumn("Submission Date", when(col("survey_submission_id").isNotNull, col("started_at")).otherwise(col("Submission Date")))
+      .drop("inprogress_at", "survey_submission_id")
+    statusInProgressFinalDf
+  }
+
+  def getSurveyStatusStartedData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT started_at, survey_submission_id FROM \"sl-survey-status-started\" """
+    val statusStartedQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    if (statusStartedQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusStartedDataSchema)
+    statusStartedQueryDf.dropDuplicates()
+
+    val statusStartedJoinDf = solutionDf.join(statusStartedQueryDf, solutionDf("Survey Submission Id") === statusStartedQueryDf("survey_submission_id"), "left")
+    val statusStartedFinalDf = statusStartedJoinDf
+      .withColumn("Status of Submission", when(col("survey_submission_id").isNotNull, lit("in progres")).otherwise(col("Status of Submission")))
+      .withColumn("Submission Date", when(col("survey_submission_id").isNotNull, col("inprogress_at")).otherwise(col("Submission Date")))
+      .drop("started_at", "survey_submission_id")
+    statusStartedFinalDf
   }
 
 }

@@ -146,6 +146,8 @@ case class DashboardConfig (
    mlMongoDatabase: String,
    surveyCollection: String,
    mlReportPath: String,
+   surveyQuestionReportColumnsConfig: String,
+   surveyStatusReportColumnsConfig: String,
 
 
    prefixDirectoryPath: String,
@@ -304,6 +306,8 @@ object DashboardConfigParser extends Serializable {
       mlMongoDatabase = getConfigModelParam(config, "mlMongoDatabase"),
       surveyCollection = getConfigModelParam(config, "surveyCollection"),
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
+      surveyQuestionReportColumnsConfig = getConfigModelParam(config, "surveyQuestionReportColumnsConfig"),
+      surveyStatusReportColumnsConfig = getConfigModelParam(config, "surveyStatusReportColumnsConfig"),
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),

@@ -1,11 +1,11 @@
-package org.ekstep.analytics.dashboard.report.survey.question
+package org.ekstep.analytics.dashboard.report.survey.status
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
@@ -16,44 +16,45 @@ import org.joda.time.format.DateTimeFormat
 
 import java.text.SimpleDateFormat
 
-object QuestionReportModel extends AbsDashboardModel {
+object StatusReportModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.survey.question.QuestionReportModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.survey.status.StatusReportModel"
 
-  override def name() = "QuestionReportModel"
+  override def name() = "StatusReportModel"
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+
     val today = getDate()
-    val surveyQuestionReportColumnsConfig = conf.surveyQuestionReportColumnsConfig
+    val surveyStatusReportColumnsConfig = conf.surveyStatusReportColumnsConfig
     val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
-    val surveyQuestionReportColumnsConfigMap = mapper.readValue(surveyQuestionReportColumnsConfig, classOf[Map[String, String]])
-    val reportColumnsMap = surveyQuestionReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
-    val userProfileColumnsMap = surveyQuestionReportColumnsConfigMap("userProfileColumns").asInstanceOf[Map[String, String]]
-    val sortingColumns = surveyQuestionReportColumnsConfigMap("sortingColumns")
+    val surveyStatusReportColumnsConfigMap = mapper.readValue(surveyStatusReportColumnsConfig, classOf[Map[String, String]])
+    val reportColumnsMap = surveyStatusReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
+    val userProfileColumnsMap = surveyStatusReportColumnsConfigMap("userProfileColumns").asInstanceOf[Map[String, String]]
+    val sortingColumns = surveyStatusReportColumnsConfigMap("sortingColumns")
     val columnsToBeQueried = reportColumnsMap.keys.mkString(",") + ",userProfile"
     val userProfileSchema = StructType(userProfileColumnsMap.keys.toSeq.map(key => StructField(key, StringType, nullable = true)))
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
     val requiredCsvColumns = reportColumns ++ userProfileColumns
-    val reportPath = s"${conf.mlReportPath}/SurveyQuestionsReport"
+    val reportPath = s"${conf.mlReportPath}/SurveyStatusReport"
 
     /**
      * Check to see if there is any solutionId are passed from config if Yes generate report only for those ID's
-     * If not generate report for all unique solutionId's from druid sl-survey datasource.
+     * If not generate report for all unique solutionId's from druid sl-survey-meta datasource.
      */
     val solutionIds = conf.solutionIDs
     if (solutionIds != null && solutionIds.trim.nonEmpty) {
-      JobLogger.log("Processing report requests for specified solutionId's")
+      JobLogger.log("Processing report requests from the configurations")
       val solutionIdsDF = getSolutionIdsAsDF(solutionIds)
 
       solutionIdsDF.collect().foreach { row =>
         val solutionId = row.getString(0)
         JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-        generateSurveyQuestionReport(solutionId)
+        generateSurveyStatusReport(solutionId)
       }
     } else {
       JobLogger.log("Querying druid to get all the unique solutionId's")
-      val solutionIdsDF = loadAllUniqueSolutionIds("sl-survey")
+      val solutionIdsDF = loadAllUniqueSolutionIds("sl-survey-meta")
 
       /**
        * Query mongodb to get solution end-date for all solutionIdsDF
@@ -62,7 +63,7 @@ object QuestionReportModel extends AbsDashboardModel {
       val solutionsEndDateDF = getSolutionsEndDate(solutionIdsDF)
 
       /**
-       * Process each solutionId and generate survey question report
+       * Process each solutionId and generate survey status report
        */
       solutionsEndDateDF.collect().foreach { row =>
         val solutionId = row.getString(0)
@@ -71,7 +72,7 @@ object QuestionReportModel extends AbsDashboardModel {
           JobLogger.log(s"Started processing report request for solutionId: $solutionId")
           if (isSolutionWithinReportDate(endDate)) {
             JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
-            generateSurveyQuestionReport(solutionId)
+            generateSurveyStatusReport(solutionId)
           } else {
             JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
           }
@@ -95,16 +96,20 @@ object QuestionReportModel extends AbsDashboardModel {
     }
 
     /**
-     * This method takes solutionId to query, parse userProfile JSON and sort the CSV
+     * This method takes solutionId to query, parse userProfile JSON, append status data and sort the CSV
      * @param solutionId
      */
-    def generateSurveyQuestionReport(solutionId: String) = {
-      val dataSource = "sl-survey"
+    def generateSurveyStatusReport(solutionId: String) = {
+
+      val dataSource = "sl-survey-meta"
       val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
       JobLogger.log(s"Successfully executed druid query for solutionId: $solutionId")
-      val finalSolutionDf = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
+      val solutionWithUserProfileDF = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
       JobLogger.log(s"Successfully parsed userProfile key for solutionId: $solutionId")
+      val finalSolutionDf = appendSurveyStatusData(solutionWithUserProfileDF)
+      JobLogger.log(s"Successfully added survey status details for solutionId: $solutionId")
       val columnsMatch = validateColumns(finalSolutionDf, sortingColumns.split(",").map(_.trim))
+
 
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
@@ -114,8 +119,16 @@ object QuestionReportModel extends AbsDashboardModel {
         syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
         JobLogger.log(s"Successfully synced report to blob storage for solutionId: $solutionId")
       } else {
-        JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")
+        JobLogger.log(s"Error occurred while matching the dataframe columns with config sort columns for solutionId: $solutionId")
       }
+    }
+
+    def appendSurveyStatusData(solutionDf: DataFrame): DataFrame = {
+      val completedStatus = getSurveyStatusCompletedData(solutionDf)
+      //val inProgressStatus = getSurveyStatusInProgressData(completedStatus)
+      //val startedStatus = getSurveyStatusStartedData(inProgressStatus)
+      //startedStatus
+      completedStatus
     }
 
   }
