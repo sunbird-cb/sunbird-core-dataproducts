@@ -53,31 +53,34 @@ object StatusReportModel extends AbsDashboardModel {
         generateSurveyStatusReport(solutionId)
       }
     } else {
+      JobLogger.log("Processing report requests for all solutionId's")
       JobLogger.log("Querying druid to get all the unique solutionId's")
       val solutionIdsDF = loadAllUniqueSolutionIds("sl-survey-meta")
 
-      /**
-       * Query mongodb to get solution end-date for all solutionIdsDF
-       */
-      JobLogger.log("Query mongodb to get solution end-date for all the unique solutionId's")
-      val solutionsEndDateDF = getSolutionsEndDate(solutionIdsDF)
-
-      /**
-       * Process each solutionId and generate survey status report
-       */
-      solutionsEndDateDF.collect().foreach { row =>
-        val solutionId = row.getString(0)
-        val endDate = new SimpleDateFormat("yyyy-MM-dd").format(row.getDate(1))
-        if (endDate != null) {
+      if (conf.includeExpiredSolutionIDs) {
+        JobLogger.log("Generating report for all the expired solutionId's also")
+        solutionIdsDF.collect().foreach { row =>
+          val solutionId = row.getString(0)
           JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-          if (isSolutionWithinReportDate(endDate)) {
-            JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
-            generateSurveyStatusReport(solutionId)
+          generateSurveyStatusReport(solutionId)
+        }
+      } else {
+        JobLogger.log("Query mongodb to get solution end-date for all the unique solutionId's")
+        val solutionsEndDateDF = getSolutionsEndDate(solutionIdsDF)
+        solutionsEndDateDF.collect().foreach { row =>
+          val solutionId = row.getString(0)
+          val endDate = new SimpleDateFormat("yyyy-MM-dd").format(row.getDate(1))
+          if (endDate != null) {
+            JobLogger.log(s"Started processing report request for solutionId: $solutionId")
+            if (isSolutionWithinReportDate(endDate)) {
+              JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
+              generateSurveyStatusReport(solutionId)
+            } else {
+              JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
+            }
           } else {
-            JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
+            JobLogger.log(s"End Date for solutionId: $solutionId is NULL, Hence skipping generating the report for this ID ")
           }
-        } else {
-          JobLogger.log(s"End Date for solutionId: $solutionId is NULL, Hence skipping generating the report for this ID ")
         }
       }
 

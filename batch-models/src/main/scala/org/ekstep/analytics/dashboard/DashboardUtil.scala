@@ -148,6 +148,7 @@ case class DashboardConfig (
    mlReportPath: String,
    surveyQuestionReportColumnsConfig: String,
    surveyStatusReportColumnsConfig: String,
+   includeExpiredSolutionIDs: Boolean,
 
 
    prefixDirectoryPath: String,
@@ -308,6 +309,7 @@ object DashboardConfigParser extends Serializable {
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
       surveyQuestionReportColumnsConfig = getConfigModelParam(config, "surveyQuestionReportColumnsConfig"),
       surveyStatusReportColumnsConfig = getConfigModelParam(config, "surveyStatusReportColumnsConfig"),
+      includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs").toBoolean,
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
