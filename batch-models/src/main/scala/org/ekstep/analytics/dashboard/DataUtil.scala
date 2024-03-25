@@ -1675,7 +1675,7 @@ object DataUtil extends Serializable {
 
   def getSolutionIdData(columns: String, dataSource: String, solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = raw"""SELECT $columns FROM  \"$dataSource\" WHERE solutionId='$solutionId'"""
-    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
     if (df.columns.contains("evidences")) {
       df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
@@ -1697,14 +1697,14 @@ object DataUtil extends Serializable {
 
   def loadAllUniqueSolutionIds(dataSource: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = raw"""SELECT DISTINCT solutionId AS solutionIds FROM \"$dataSource\" """
-    var df = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.uniqueSolutionIdsDataSchema)
     df = df.dropDuplicates("solutionIds")
     df
   }
 
   def getSolutionsEndDate(solutionIdsDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val completeUrl = s"mongodb://${conf.sparkMongoConnectionHost}:27017"
+    val completeUrl = s"mongodb://${conf.mlSparkMongoConnectionHost}:27017"
     val df = mongodbSolutionsTableAsDataFrame(completeUrl, conf.mlMongoDatabase, conf.surveyCollection, solutionIdsDF)
     if (df == null) return emptySchemaDataFrame(Schema.solutionsEndDateDataSchema)
     df
@@ -1715,7 +1715,7 @@ object DataUtil extends Serializable {
       .withColumn("Status of Submission", lit(null).cast(StringType))
       .withColumn("Submission Date", lit(null).cast(StringType))
     val query = """SELECT completed_at, survey_submission_id FROM \"sl-survey-status-completed\" """
-    val statusCompletedQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    val statusCompletedQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (statusCompletedQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusCompletedDataSchema)
     statusCompletedQueryDf.dropDuplicates()
 
@@ -1729,7 +1729,7 @@ object DataUtil extends Serializable {
 
   def getSurveyStatusInProgressData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = """SELECT inprogress_at, survey_submission_id FROM \"sl-survey-status-inprogress\" """
-    val statusInProgressQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    val statusInProgressQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (statusInProgressQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusInProgressDataSchema)
     statusInProgressQueryDf.dropDuplicates()
 
@@ -1743,7 +1743,7 @@ object DataUtil extends Serializable {
 
   def getSurveyStatusStartedData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
     val query = """SELECT started_at, survey_submission_id FROM \"sl-survey-status-started\" """
-    val statusStartedQueryDf = druidDFOption(query, conf.sparkDruidRouterHost, limit = 1000000).orNull
+    val statusStartedQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (statusStartedQueryDf == null) return emptySchemaDataFrame(Schema.surveyStatusStartedDataSchema)
     statusStartedQueryDf.dropDuplicates()
 

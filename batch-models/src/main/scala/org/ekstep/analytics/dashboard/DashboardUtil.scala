@@ -52,7 +52,8 @@ case class DashboardConfig (
    // other hosts connection config
    sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
    sparkElasticsearchConnectionHost: String, fracBackendHost: String,
-   sparkMongoConnectionHost: String,
+   sparkMongoConnectionHost: String, mlSparkDruidRouterHost: String,
+   mlSparkMongoConnectionHost: String,
    // kafka topics
    roleUserCountTopic: String, orgRoleUserCountTopic: String,
    allCourseTopic: String, userCourseProgramProgressTopic: String,
@@ -196,6 +197,8 @@ object DashboardConfigParser extends Serializable {
       sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
       sparkMongoConnectionHost =  getConfigModelParam(config, "sparkMongoConnectionHost"),
       fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
+      mlSparkDruidRouterHost = getConfigModelParam(config, "mlSparkDruidRouterHost"),
+      mlSparkMongoConnectionHost = getConfigModelParam(config, "mlSparkMongoConnectionHost"),
       // kafka topics
       roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
       orgRoleUserCountTopic = getConfigSideTopic(config, "orgRoleUserCount"),
