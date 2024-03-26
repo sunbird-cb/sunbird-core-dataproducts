@@ -36,7 +36,7 @@ object StatusReportModel extends AbsDashboardModel {
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
     val requiredCsvColumns = reportColumns ++ userProfileColumns
-    val reportPath = s"${conf.mlReportPath}/SurveyStatusReport"
+    val reportPath = s"${conf.mlReportPath}/${today}/SurveyStatusReport"
 
     /**
      * Check to see if there is any solutionId are passed from config if Yes generate report only for those ID's
@@ -49,8 +49,9 @@ object StatusReportModel extends AbsDashboardModel {
 
       solutionIdsDF.collect().foreach { row =>
         val solutionId = row.getString(0)
+        val solutionName = row.getString(1)
         JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-        generateSurveyStatusReport(solutionId)
+        generateSurveyStatusReport(solutionId, solutionName)
       }
     } else {
       JobLogger.log("Processing report requests for all solutionId's")
@@ -61,20 +62,22 @@ object StatusReportModel extends AbsDashboardModel {
         JobLogger.log("Generating report for all the expired solutionId's also")
         solutionIdsDF.collect().foreach { row =>
           val solutionId = row.getString(0)
+          val solutionName = row.getString(1)
           JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-          generateSurveyStatusReport(solutionId)
+          generateSurveyStatusReport(solutionId, solutionName)
         }
       } else {
         JobLogger.log("Query mongodb to get solution end-date for all the unique solutionId's")
         val solutionsEndDateDF = getSolutionsEndDate(solutionIdsDF)
         solutionsEndDateDF.collect().foreach { row =>
           val solutionId = row.getString(0)
+          val solutionName = row.getString(1)
           val endDate = new SimpleDateFormat("yyyy-MM-dd").format(row.getDate(1))
           if (endDate != null) {
             JobLogger.log(s"Started processing report request for solutionId: $solutionId")
             if (isSolutionWithinReportDate(endDate)) {
               JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
-              generateSurveyStatusReport(solutionId)
+              generateSurveyStatusReport(solutionId, solutionName)
             } else {
               JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
             }
@@ -97,12 +100,15 @@ object StatusReportModel extends AbsDashboardModel {
         endDateOfSolution.isEqual(today) || (endDateOfSolution.isAfter(today) || endDateOfSolution.isAfter(updatedDate)) || endDateOfSolution.isEqual(updatedDate)
       }
     }
+    JobLogger.log("Zipping the csv content folder and syncing to blob storage")
+    zipAndSyncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+    JobLogger.log("Successfully zipped folder and synced to blob storage")
 
     /**
      * This method takes solutionId to query, parse userProfile JSON, append status data and sort the CSV
      * @param solutionId
      */
-    def generateSurveyStatusReport(solutionId: String) = {
+    def generateSurveyStatusReport(solutionId: String, solutionName: String) = {
 
       val dataSource = "sl-survey-meta"
       val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
@@ -117,10 +123,8 @@ object StatusReportModel extends AbsDashboardModel {
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
-        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionId}-${today}")
-        JobLogger.log(s"Successfully generated survey question report for solutionId: $solutionId")
-        syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
-        JobLogger.log(s"Successfully synced report to blob storage for solutionId: $solutionId")
+        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}")
+        JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the dataframe columns with config sort columns for solutionId: $solutionId")
       }

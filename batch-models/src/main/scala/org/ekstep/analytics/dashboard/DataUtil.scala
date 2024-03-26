@@ -8,8 +8,12 @@ import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 import DashboardUtil._
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.{CompressionLevel, CompressionMethod}
+import org.apache.commons.io.FileUtils
 
-import java.io.Serializable
+import java.io.{File, Serializable}
 import java.util
 import scala.collection.mutable.ListBuffer
 
@@ -1696,7 +1700,7 @@ object DataUtil extends Serializable {
   }
 
   def loadAllUniqueSolutionIds(dataSource: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = raw"""SELECT DISTINCT solutionId AS solutionIds FROM \"$dataSource\" """
+    val query = raw"""SELECT DISTINCT solutionId AS solutionIds, solutionName FROM \"$dataSource\" """
     var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.uniqueSolutionIdsDataSchema)
     df = df.dropDuplicates("solutionIds")
@@ -1753,6 +1757,25 @@ object DataUtil extends Serializable {
       .withColumn("Submission Date", when(col("survey_submission_id").isNotNull, col("inprogress_at")).otherwise(col("Submission Date")))
       .drop("started_at", "survey_submission_id")
     statusStartedFinalDf
+  }
+
+  def zipAndSyncReports(completePath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    val folder = new File(completePath)
+    val zipFilePath = completePath + ".zip"
+    val zipFile = new ZipFile(zipFilePath)
+    val parameters = new ZipParameters()
+    parameters.setCompressionMethod(CompressionMethod.DEFLATE)
+    parameters.setCompressionLevel(CompressionLevel.NORMAL)
+    /** Zip the folder */
+    zipFile.addFolder(folder, parameters)
+    /** Delete original file after zipping */
+    FileUtils.deleteDirectory(folder)
+    /** Upload file to blob storage */
+    val lastSeparatorIndex = completePath.lastIndexOf('/')
+    val fromReportPath = if (lastSeparatorIndex >= 0) completePath.substring(0, lastSeparatorIndex) else completePath
+    val lastSeparator = reportPath.lastIndexOf('/')
+    val toReportPath = if (lastSeparator >= 0) reportPath.substring(0, lastSeparator) else reportPath
+    syncReports(fromReportPath, toReportPath)
   }
 
 }
