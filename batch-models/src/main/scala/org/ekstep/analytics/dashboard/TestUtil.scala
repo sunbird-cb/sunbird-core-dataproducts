@@ -150,6 +150,7 @@ object TestUtil extends Serializable {
 
       "prefixDirectoryPath" -> "standalone-reports",
       "destinationDirectoryPath" -> "standalone-reports/merged",
+      "localReportDir" -> "/mount/data/analytics/reports",
       "directoriesToSelect" -> "blended-program-report-mdo,cbp-report-mdo-summary,course-report,cba-report,cbp-report-mdo-enrolment,user-report,user-enrollment-report,kcm-report",
       "password" -> "123456",
 

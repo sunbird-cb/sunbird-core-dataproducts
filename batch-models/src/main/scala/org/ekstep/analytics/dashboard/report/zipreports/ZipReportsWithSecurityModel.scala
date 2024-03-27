@@ -35,6 +35,7 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     val destinationPath = s"${conf.localReportDir}${conf.destinationDirectoryPath}"
     val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     val specificDate = getDate()
+    val kcmFolderPath = s"${conf.localReportDir}${conf.kcmReportPath}/${specificDate}/ContentCompetencyMapping"
 
     // Method to traverse all the report folders within the source folder and check for specific date folder
     def traverseDirectory(directory: File): Unit = {
@@ -65,6 +66,8 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
         for (mdoidFolder <- files if mdoidFolder.isDirectory) {
           // Inside each mdoid folder, copy all CSV files to the destination directory
           copyFiles(mdoidFolder, destinationPath)
+          // Copy the competencyMapping file from kcm-report folder to the destination mdoid folder
+          copyKCMFile(mdoidFolder)
         }
       }
     }
@@ -84,6 +87,16 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           val destinationFile = Paths.get(destinationDirectory.toString, csvFile.getName)
           Files.copy(csvFile.toPath, destinationFile, StandardCopyOption.REPLACE_EXISTING)
         }
+      }
+    }
+
+    // Method to copy the desired file from kcm-report folder to the destination mdoid folder
+    def copyKCMFile(mdoidFolder: File): Unit = {
+      val kcmFile = new File(kcmFolderPath, "ContentCompetencyMapping.csv")
+      val destinationDirectory = Paths.get(destinationPath, mdoidFolder.getName)
+      if (kcmFile.exists() && destinationDirectory.toFile.exists()) {
+        val destinationFile = Paths.get(destinationDirectory.toString, kcmFile.getName)
+        Files.copy(kcmFile.toPath, destinationFile, StandardCopyOption.REPLACE_EXISTING)
       }
     }
 
