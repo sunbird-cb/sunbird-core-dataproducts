@@ -32,11 +32,11 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     // Start of merging folders
 
     // Define variables for source, destination directories and date.
-    val prefixDirectoryPath = s"${conf.localReportDir}${conf.prefixDirectoryPath}"
-    val destinationPath = s"${conf.localReportDir}${conf.destinationDirectoryPath}"
+    val prefixDirectoryPath = s"${conf.localReportDir}/${conf.prefixDirectoryPath}"
+    val destinationPath = s"${conf.localReportDir}/${conf.destinationDirectoryPath}"
     val directoriesToSelect = conf.directoriesToSelect.split(",").toSet
     val specificDate = getDate()
-    val kcmFolderPath = s"${conf.localReportDir}${conf.kcmReportPath}/${specificDate}/ContentCompetencyMapping"
+    val kcmFolderPath = s"${conf.localReportDir}/${conf.kcmReportPath}/${specificDate}/ContentCompetencyMapping"
 
     // Method to traverse all the report folders within the source folder and check for specific date folder
     def traverseDirectory(directory: File): Unit = {
