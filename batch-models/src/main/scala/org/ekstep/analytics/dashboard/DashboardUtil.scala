@@ -577,31 +577,31 @@ object DashboardUtil extends Serializable {
   }
 
   /* Util functions */
-  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
+  def csvWrite(df: DataFrame, path: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
     // spark 2.4.x has a bug where the csv does not get written with header row if the data frame is empty, this is a workaround
     if (df.isEmpty) {
       StorageUtil.simulateSparkOverwrite(path, "part-0000-XXX.csv", df.columns.mkString(",") + "\n")
     } else {
-      df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
+      df.write.mode(saveMode).format("csv").option("header", header.toString).save(path)
     }
   }
 
-  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
+    df.write.mode(saveMode).format("csv").option("header", header.toString)
       .partitionBy(partitionKey).save(path)
   }
 
-  def generateReport(df: DataFrame, reportPath: String, partitionKey: String = null, fileName: String = null)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def generateReport(df: DataFrame, reportPath: String, partitionKey: String = null, fileName: String = null, fileSaveMode: SaveMode = SaveMode.Overwrite)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val reportFullPath = s"${conf.localReportDir}/${reportPath}"
     println(s"REPORT: Writing report to ${reportFullPath} ...")
     if (partitionKey == null) {
-      csvWrite(df.coalesce(1), reportFullPath)
+      csvWrite(df.coalesce(1), reportFullPath, saveMode = fileSaveMode)
       if (fileName != null) StorageUtil.renameCSVWithoutPartitions(reportFullPath, fileName)
     } else {
       val ids = df.select(partitionKey).distinct().map(_.getString(0)).filter(_.nonEmpty).collectAsList()
       // generate partitioned report
-      csvWritePartition(df, reportFullPath, partitionKey)
+      csvWritePartition(df, reportFullPath, partitionKey, saveMode = fileSaveMode)
       if (fileName != null) StorageUtil.renameCSV(ids, reportFullPath, fileName, partitionKey) // rename part-*.csv files to provided name
     }
     StorageUtil.removeFile(s"${reportFullPath}/_SUCCESS") // remove success file
