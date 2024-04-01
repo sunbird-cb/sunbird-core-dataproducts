@@ -6,6 +6,7 @@ import org.ekstep.analytics.framework._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import net.lingala.zip4j.ZipFile
+import org.apache.commons.io.FileUtils
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.EncryptionMethod
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
@@ -144,5 +145,11 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
       println("No mdoid folders found in the given directory.")
     }
     // End of zipping the reports and syncing to blob store
+    //deleting the tmp merged folder
+    try {
+      FileUtils.deleteDirectory(new File(destinationPath))
+    } catch {
+      case e: Exception => println(s"Error deleting directory: ${e.getMessage}")
+    }
   }
 }
