@@ -36,7 +36,7 @@ object StatusReportModel extends AbsDashboardModel {
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
     val requiredCsvColumns = reportColumns ++ userProfileColumns
-    val reportPath = s"${conf.mlReportPath}/${today}/SurveyStatusReport"
+    val reportPath = s"${conf.mlReportPath}/${today}/SurveyCompletedSubmissionsReport"
 
     /**
      * Check to see if there is any solutionId are passed from config if Yes generate report only for those ID's
