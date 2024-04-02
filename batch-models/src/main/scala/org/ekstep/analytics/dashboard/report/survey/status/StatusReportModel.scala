@@ -5,7 +5,7 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
@@ -36,7 +36,7 @@ object StatusReportModel extends AbsDashboardModel {
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
     val requiredCsvColumns = reportColumns ++ userProfileColumns
-    val reportPath = s"${conf.mlReportPath}/${today}/SurveyStatusReport"
+    val reportPath = s"${conf.mlReportPath}/${today}/SurveyCompletedSubmissionsReport"
 
     /**
      * Check to see if there is any solutionId are passed from config if Yes generate report only for those ID's
@@ -109,33 +109,21 @@ object StatusReportModel extends AbsDashboardModel {
      * @param solutionId
      */
     def generateSurveyStatusReport(solutionId: String, solutionName: String) = {
-
       val dataSource = "sl-survey-meta"
       val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
       JobLogger.log(s"Successfully executed druid query for solutionId: $solutionId")
-      val solutionWithUserProfileDF = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
+      val finalSolutionDf = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
       JobLogger.log(s"Successfully parsed userProfile key for solutionId: $solutionId")
-      val finalSolutionDf = appendSurveyStatusData(solutionWithUserProfileDF)
-      JobLogger.log(s"Successfully added survey status details for solutionId: $solutionId")
       val columnsMatch = validateColumns(finalSolutionDf, sortingColumns.split(",").map(_.trim))
-
 
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
-        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}")
+        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}", fileSaveMode = SaveMode.Append)
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the dataframe columns with config sort columns for solutionId: $solutionId")
       }
-    }
-
-    def appendSurveyStatusData(solutionDf: DataFrame): DataFrame = {
-      val completedStatus = getSurveyStatusCompletedData(solutionDf)
-      //val inProgressStatus = getSurveyStatusInProgressData(completedStatus)
-      //val startedStatus = getSurveyStatusStartedData(inProgressStatus)
-      //startedStatus
-      completedStatus
     }
 
   }

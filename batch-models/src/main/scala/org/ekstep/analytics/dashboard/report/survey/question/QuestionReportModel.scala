@@ -3,7 +3,7 @@ package org.ekstep.analytics.dashboard.report.survey.question
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.ekstep.analytics.dashboard.DashboardUtil._
@@ -118,7 +118,7 @@ object QuestionReportModel extends AbsDashboardModel {
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
-        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}")
+        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}", fileSaveMode = SaveMode.Append)
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")
