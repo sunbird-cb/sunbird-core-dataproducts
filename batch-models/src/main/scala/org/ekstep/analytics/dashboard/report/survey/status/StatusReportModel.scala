@@ -25,7 +25,10 @@ object StatusReportModel extends AbsDashboardModel {
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val today = getDate()
-    val surveyStatusReportColumnsConfig = conf.surveyStatusReportColumnsConfig
+    //println("Querying mongo database to get report configurations")
+    //val surveyStatusReportColumnsConfig = getReportConfig("surveyStatusReport")
+    println("config from script")
+    val surveyStatusReportColumnsConfig = """{"reportColumns":{"createdBy":"UUID","completedDate":"Submission Date","createdAt":"Survey Started Date","organisationName":"Organisation Name","solutionExternalId":"Solution External Id","solutionId":"Solution Id","solutionName":"Solution Name","surveyName":"Survey Name","surveyId":"Survey Id","surveySubmissionId":"Survey Submission Id","isAPrivateProgram":"Private Program"},"userProfileColumns":{"firstName":"First Name"},"sortingColumns":"UUID,First Name,Organisation Name,Solution External Id,Solution Id,Solution Name,Survey Id,Survey Name,Survey Submission Id,Private Program,Survey Started Date,Submission Date"}"""
     val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
     val surveyStatusReportColumnsConfigMap = mapper.readValue(surveyStatusReportColumnsConfig, classOf[Map[String, String]])
     val reportColumnsMap = surveyStatusReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]

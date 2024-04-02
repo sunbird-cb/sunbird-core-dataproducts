@@ -1699,6 +1699,12 @@ object DataUtil extends Serializable {
     df
   }
 
+  def getReportConfig(filter: String)(implicit spark: SparkSession, conf: DashboardConfig): String = {
+    val completeUrl = s"mongodb://${conf.mlSparkMongoConnectionHost}:27017"
+    val reportConfig = mongodbReportConfigAsString(completeUrl, conf.mlMongoDatabase, conf.reportConfigCollection, filter)
+    reportConfig
+  }
+
   def zipAndSyncReports(completePath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val folder = new File(completePath)
     val zipFilePath = completePath + ".zip"

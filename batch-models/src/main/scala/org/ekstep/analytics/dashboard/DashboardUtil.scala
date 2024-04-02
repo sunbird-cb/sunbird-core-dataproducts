@@ -146,9 +146,8 @@ case class DashboardConfig (
    baseUrlForEvidences: String,
    mlMongoDatabase: String,
    surveyCollection: String,
+   reportConfigCollection: String,
    mlReportPath: String,
-   surveyQuestionReportColumnsConfig: String,
-   surveyStatusReportColumnsConfig: String,
    includeExpiredSolutionIDs: Boolean,
 
 
@@ -309,9 +308,8 @@ object DashboardConfigParser extends Serializable {
       baseUrlForEvidences = getConfigModelParam(config, "baseUrlForEvidences"),
       mlMongoDatabase = getConfigModelParam(config, "mlMongoDatabase"),
       surveyCollection = getConfigModelParam(config, "surveyCollection"),
+      reportConfigCollection = getConfigModelParam(config, "reportConfigCollection"),
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
-      surveyQuestionReportColumnsConfig = getConfigModelParam(config, "surveyQuestionReportColumnsConfig"),
-      surveyStatusReportColumnsConfig = getConfigModelParam(config, "surveyStatusReportColumnsConfig"),
       includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs").toBoolean,
 
       // comms-console
@@ -800,6 +798,22 @@ object DashboardUtil extends Serializable {
     val filteredDf = cleanedDf.filter(col("_id_cleaned").isin(solutionIds: _*)).select(col("_id").alias("solutionIds"), col("endDate"))
     filteredDf.show(false)
     filteredDf
+  }
+
+  def mongodbReportConfigAsString(url: String, mongoDatabase: String, collection: String, filter: String)(implicit spark: SparkSession): String = {
+    val schema = new StructType()
+      .add("report", StringType, true)
+      .add("config", StringType, true)
+    val df = spark.read.schema(schema)
+      .format("com.mongodb.spark.sql.DefaultSource")
+      .option("uri", url)
+      .option("database", mongoDatabase)
+      .option("collection", collection)
+      .load()
+    val filteredDf = df.filter(col("report") === filter)
+    val configAsString = filteredDf.select("config").first().getString(0)
+    println(s"Report config for $filter \n " + configAsString)
+    configAsString
   }
 
   def writeToCassandra(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession): Unit = {

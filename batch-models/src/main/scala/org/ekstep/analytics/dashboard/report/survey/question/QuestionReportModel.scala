@@ -24,7 +24,10 @@ object QuestionReportModel extends AbsDashboardModel {
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val today = getDate()
-    val surveyQuestionReportColumnsConfig = conf.surveyQuestionReportColumnsConfig
+    //println("Querying mongo database to get report configurations")
+    //val surveyQuestionReportColumnsConfig = getReportConfig("surveyQuestionReport")
+    println("config from script")
+    val surveyQuestionReportColumnsConfig = """{"reportColumns":{"createdBy":"UUID","createdAt":"Start Date","updatedAt":"Updated Date","completedDate":"Completed Date","organisationName":"Organisation Name","organisationId":"Organisation Id","surveyName":"Survey Name","surveyId":"Survey Id","surveySubmissionId":"Survey Submission Id","criteriaExternalId":"Criteria External Id","criteriaId":"Criteria Id","criteriaName":"Criteria Name","evidenceCount":"Evidence Count","isAPrivateProgram":"Private Program","questionExternalId":"Question External Id","questionName":"Question","questionResponseLabel":"Answer","questionECM":"Question ECM","questionId":"Question Id","questionResponseType":"Question Response Type","solutionExternalId":"Solution External Id","solutionId":"Solution Id","solutionName":"Solution Name","totalEvidences":"Total Evidences"},"userProfileColumns":{"firstName":"First Name"},"sortingColumns":"UUID,First Name,Start Date,Updated Date,Completed Date,Organisation Id,Organisation Name,Survey Id,Survey Name,Survey Submission Id,Criteria External Id,Criteria Id,Criteria Name,Private Program,Question External Id,Question Id,Question,Answer,Question ECM,Question Response Type,Evidence Count,Solution External Id,Solution Id,Solution Name,Total Evidences"}"""
     val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
     val surveyQuestionReportColumnsConfigMap = mapper.readValue(surveyQuestionReportColumnsConfig, classOf[Map[String, String]])
     val reportColumnsMap = surveyQuestionReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
