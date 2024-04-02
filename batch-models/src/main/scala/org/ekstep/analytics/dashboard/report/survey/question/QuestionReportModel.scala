@@ -43,45 +43,45 @@ object QuestionReportModel extends AbsDashboardModel {
      */
     val solutionIds = conf.solutionIDs
     if (solutionIds != null && solutionIds.trim.nonEmpty) {
-      println("Processing report requests for specified solutionId's")
+      JobLogger.log("Processing report requests for specified solutionId's")
       val solutionIdsDF = getSolutionIdsAsDF(solutionIds)
 
       solutionIdsDF.collect().foreach { row =>
         val solutionId = row.getString(0)
         val solutionName = row.getString(1)
-        println(s"Started processing report request for solutionId: $solutionId")
+        JobLogger.log(s"Started processing report request for solutionId: $solutionId")
         generateSurveyQuestionReport(solutionId, solutionName)
       }
     } else {
-      println("Processing report requests for all solutionId's")
-      println("Querying druid to get all the unique solutionId's")
+      JobLogger.log("Processing report requests for all solutionId's")
+      JobLogger.log("Querying druid to get all the unique solutionId's")
       val solutionIdsDF = loadAllUniqueSolutionIds("sl-survey")
 
       if (conf.includeExpiredSolutionIDs) {
-        println("Generating report for all the expired solutionId's also")
+        JobLogger.log("Generating report for all the expired solutionId's also")
         solutionIdsDF.collect().foreach { row =>
           val solutionId = row.getString(0)
           val solutionName = row.getString(1)
-          println(s"Started processing report request for solutionId: $solutionId")
+          JobLogger.log(s"Started processing report request for solutionId: $solutionId")
           generateSurveyQuestionReport(solutionId, solutionName)
         }
       } else {
-        println("Query mongodb to get solution end-date for all the unique solutionId's")
+        JobLogger.log("Query mongodb to get solution end-date for all the unique solutionId's")
         val solutionsEndDateDF = getSolutionsEndDate(solutionIdsDF)
         solutionsEndDateDF.collect().foreach { row =>
           val solutionId = row.getString(0)
           val solutionName = row.getString(1)
           val endDate = new SimpleDateFormat("yyyy-MM-dd").format(row.getDate(1))
           if (endDate != null) {
-            println(s"Started processing report request for solutionId: $solutionId")
+            JobLogger.log(s"Started processing report request for solutionId: $solutionId")
             if (isSolutionWithinReportDate(endDate)) {
-              println(s"Solution with Id $solutionId will ends on $endDate")
+              JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
               generateSurveyQuestionReport(solutionId, solutionName)
             } else {
-              println(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
+              JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
             }
           } else {
-            println(s"End Date for solutionId: $solutionId is NULL, Hence skipping generating the report for this ID ")
+            JobLogger.log(s"End Date for solutionId: $solutionId is NULL, Hence skipping generating the report for this ID ")
           }
         }
       }
@@ -99,9 +99,9 @@ object QuestionReportModel extends AbsDashboardModel {
         endDateOfSolution.isEqual(today) || (endDateOfSolution.isAfter(today) || endDateOfSolution.isAfter(updatedDate)) || endDateOfSolution.isEqual(updatedDate)
       }
     }
-    println("Zipping the csv content folder and syncing to blob storage")
+    JobLogger.log("Zipping the csv content folder and syncing to blob storage")
     zipAndSyncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
-    println("Successfully zipped folder and synced to blob storage")
+    JobLogger.log("Successfully zipped folder and synced to blob storage")
 
     /**
      * This method takes solutionId to query, parse userProfile JSON and sort the CSV
@@ -110,18 +110,18 @@ object QuestionReportModel extends AbsDashboardModel {
     def generateSurveyQuestionReport(solutionId: String, solutionName: String) = {
       val dataSource = "sl-survey"
       val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
-      println(s"Successfully executed druid query for solutionId: $solutionId")
+      JobLogger.log(s"Successfully executed druid query for solutionId: $solutionId")
       val finalSolutionDf = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
-      println(s"Successfully parsed userProfile key for solutionId: $solutionId")
+      JobLogger.log(s"Successfully parsed userProfile key for solutionId: $solutionId")
       val columnsMatch = validateColumns(finalSolutionDf, sortingColumns.split(",").map(_.trim))
 
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
         generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}", fileSaveMode = SaveMode.Append)
-        println(s"Successfully generated survey question csv report for solutionId: $solutionId")
+        JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
-        println(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")
+        JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")
       }
     }
 
