@@ -1729,7 +1729,6 @@ object DataUtil extends Serializable {
     val zipFileName = new File(zipFilePath).getName()
     val destinationFolderPath = completePath
     val destinationZipFilePath = destinationFolderPath + File.separator + zipFileName
-    println(destinationZipFilePath)
     new File(zipFilePath).renameTo(new File(destinationZipFilePath))
     /** Upload file to blob storage */
     syncReports(completePath, reportPath)
