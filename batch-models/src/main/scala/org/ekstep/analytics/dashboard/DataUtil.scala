@@ -1701,8 +1701,6 @@ object DataUtil extends Serializable {
 
   def getReportConfig(filter: String)(implicit spark: SparkSession, conf: DashboardConfig): String = {
     val completeUrl = s"mongodb://${conf.mlSparkMongoConnectionHost}:27017"
-    println("inside getReportConfig with filter = " + filter)
-    println("complete Url = " + completeUrl)
     val reportConfig = mongodbReportConfigAsString(completeUrl, conf.mlMongoDatabase, conf.reportConfigCollection, filter)
     reportConfig
   }
