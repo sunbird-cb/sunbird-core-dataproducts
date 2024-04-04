@@ -52,7 +52,8 @@ case class DashboardConfig (
    // other hosts connection config
    sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
    sparkElasticsearchConnectionHost: String, fracBackendHost: String,
-   sparkMongoConnectionHost: String,
+   sparkMongoConnectionHost: String, mlSparkDruidRouterHost: String,
+   mlSparkMongoConnectionHost: String,
    // kafka topics
    roleUserCountTopic: String, orgRoleUserCountTopic: String,
    allCourseTopic: String, userCourseProgramProgressTopic: String,
@@ -145,9 +146,9 @@ case class DashboardConfig (
    baseUrlForEvidences: String,
    mlMongoDatabase: String,
    surveyCollection: String,
+   reportConfigCollection: String,
    mlReportPath: String,
-   surveyQuestionReportColumnsConfig: String,
-   surveyStatusReportColumnsConfig: String,
+   includeExpiredSolutionIDs: Boolean,
 
 
    prefixDirectoryPath: String,
@@ -195,6 +196,8 @@ object DashboardConfigParser extends Serializable {
       sparkElasticsearchConnectionHost = getConfigModelParam(config, "sparkElasticsearchConnectionHost"),
       sparkMongoConnectionHost =  getConfigModelParam(config, "sparkMongoConnectionHost"),
       fracBackendHost = getConfigModelParam(config, "fracBackendHost"),
+      mlSparkDruidRouterHost = getConfigModelParam(config, "mlSparkDruidRouterHost"),
+      mlSparkMongoConnectionHost = getConfigModelParam(config, "mlSparkMongoConnectionHost"),
       // kafka topics
       roleUserCountTopic = getConfigSideTopic(config, "roleUserCount"),
       orgRoleUserCountTopic = getConfigSideTopic(config, "orgRoleUserCount"),
@@ -305,9 +308,9 @@ object DashboardConfigParser extends Serializable {
       baseUrlForEvidences = getConfigModelParam(config, "baseUrlForEvidences"),
       mlMongoDatabase = getConfigModelParam(config, "mlMongoDatabase"),
       surveyCollection = getConfigModelParam(config, "surveyCollection"),
+      reportConfigCollection = getConfigModelParam(config, "reportConfigCollection"),
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
-      surveyQuestionReportColumnsConfig = getConfigModelParam(config, "surveyQuestionReportColumnsConfig"),
-      surveyStatusReportColumnsConfig = getConfigModelParam(config, "surveyStatusReportColumnsConfig"),
+      includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs", "true").toBoolean,
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
@@ -572,26 +575,26 @@ object DashboardUtil extends Serializable {
   }
 
   /* Util functions */
-  def csvWrite(df: DataFrame, path: String, header: Boolean = true): Unit = {
+  def csvWrite(df: DataFrame, path: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
     // spark 2.4.x has a bug where the csv does not get written with header row if the data frame is empty, this is a workaround
     if (df.isEmpty) {
       StorageUtil.simulateSparkOverwrite(path, "part-0000-XXX.csv", df.columns.mkString(",") + "\n")
     } else {
-      df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString).save(path)
+      df.write.mode(saveMode).format("csv").option("header", header.toString).save(path)
     }
   }
 
-  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true): Unit = {
-    df.write.mode(SaveMode.Overwrite).format("csv").option("header", header.toString)
+  def csvWritePartition(df: DataFrame, path: String, partitionKey: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
+    df.write.mode(saveMode).format("csv").option("header", header.toString)
       .partitionBy(partitionKey).save(path)
   }
 
-  def generateReport(df: DataFrame, reportPath: String, partitionKey: String = null, fileName: String = null)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+  def generateReport(df: DataFrame, reportPath: String, partitionKey: String = null, fileName: String = null, fileSaveMode: SaveMode = SaveMode.Overwrite)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     val reportFullPath = s"${conf.localReportDir}/${reportPath}"
     println(s"REPORT: Writing report to ${reportFullPath} ...")
     if (partitionKey == null) {
-      csvWrite(df.coalesce(1), reportFullPath)
+      csvWrite(df.coalesce(1), reportFullPath, saveMode = fileSaveMode)
       if (fileName != null) StorageUtil.renameCSVWithoutPartitions(reportFullPath, fileName)
     } else {
       val ids = df.select(partitionKey).distinct().map(_.getString(0)).filter(_.nonEmpty).collectAsList()
@@ -795,6 +798,22 @@ object DashboardUtil extends Serializable {
     val filteredDf = cleanedDf.filter(col("_id_cleaned").isin(solutionIds: _*)).select(col("_id").alias("solutionIds"), col("endDate"))
     filteredDf.show(false)
     filteredDf
+  }
+
+  def mongodbReportConfigAsString(url: String, mongoDatabase: String, collection: String, filter: String)(implicit spark: SparkSession): String = {
+    val schema = new StructType()
+      .add("report", StringType, true)
+      .add("config", StringType, true)
+    val df = spark.read.schema(schema)
+      .format("com.mongodb.spark.sql.DefaultSource")
+      .option("uri", url)
+      .option("database", mongoDatabase)
+      .option("collection", collection)
+      .load()
+    val filteredDf = df.filter(col("report") === filter)
+    val configAsString = filteredDf.select("config").first().getString(0)
+    println(s"Report config for $filter \n " + configAsString)
+    configAsString
   }
 
   def writeToCassandra(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession): Unit = {
