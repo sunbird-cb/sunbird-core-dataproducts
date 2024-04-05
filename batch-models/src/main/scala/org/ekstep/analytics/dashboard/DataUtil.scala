@@ -1718,11 +1718,15 @@ object DataUtil extends Serializable {
   def zipAndSyncReports(completePath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val folder = new File(completePath)
     val zipFilePath = completePath + ".zip"
+    /** Delete the existing .zip file if it exists */
+    val reportName = completePath.split("/").last
+    val existingZipFile = new File(completePath + s"/$reportName.zip")
+    if (existingZipFile.exists()) existingZipFile.delete()
+    /** Zip the folder */
     val zipFile = new ZipFile(zipFilePath)
     val parameters = new ZipParameters()
     parameters.setCompressionMethod(CompressionMethod.DEFLATE)
     parameters.setCompressionLevel(CompressionLevel.NORMAL)
-    /** Zip the folder */
     zipFile.addFolder(folder, parameters)
     /** Delete all files inside parent directory */
     if (folder.isDirectory) FileUtils.cleanDirectory(folder)
