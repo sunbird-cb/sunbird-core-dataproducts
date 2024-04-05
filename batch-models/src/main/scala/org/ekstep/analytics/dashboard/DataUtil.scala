@@ -1667,7 +1667,17 @@ object DataUtil extends Serializable {
     var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
     if (df.columns.contains("evidences")) {
-      df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+      val baseUrl = conf.baseUrlForEvidences
+      val addBaseUrl = udf((evidences: String) => {
+        if (evidences != null && evidences.trim.nonEmpty) {
+          evidences.split(", ")
+            .map(url => s"$baseUrl$url")
+            .mkString(",")
+        } else {
+          evidences
+        }
+      })
+      df = df.withColumn("evidences", addBaseUrl(col("evidences")))
     }
     df
   }
