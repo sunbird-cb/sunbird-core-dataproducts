@@ -1727,6 +1727,7 @@ object DataUtil extends Serializable {
     val parameters = new ZipParameters()
     parameters.setCompressionMethod(CompressionMethod.DEFLATE)
     parameters.setCompressionLevel(CompressionLevel.NORMAL)
+    parameters.setIncludeRootFolder(false)
     zipFile.addFolder(folder, parameters)
     /** Delete all files inside parent directory */
     if (folder.isDirectory) FileUtils.cleanDirectory(folder)
