@@ -1667,7 +1667,17 @@ object DataUtil extends Serializable {
     var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
     if (df.columns.contains("evidences")) {
-      df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+      val baseUrl = conf.baseUrlForEvidences
+      val addBaseUrl = udf((evidences: String) => {
+        if (evidences != null && evidences.trim.nonEmpty) {
+          evidences.split(", ")
+            .map(url => s"$baseUrl$url")
+            .mkString(",")
+        } else {
+          evidences
+        }
+      })
+      df = df.withColumn("evidences", addBaseUrl(col("evidences")))
     }
     df
   }
@@ -1708,11 +1718,15 @@ object DataUtil extends Serializable {
   def zipAndSyncReports(completePath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val folder = new File(completePath)
     val zipFilePath = completePath + ".zip"
+    /** Delete the existing .zip file if it exists */
+    val reportName = completePath.split("/").last
+    val existingZipFile = new File(completePath + s"/$reportName.zip")
+    if (existingZipFile.exists()) existingZipFile.delete()
+    /** Zip the folder */
     val zipFile = new ZipFile(zipFilePath)
     val parameters = new ZipParameters()
     parameters.setCompressionMethod(CompressionMethod.DEFLATE)
     parameters.setCompressionLevel(CompressionLevel.NORMAL)
-    /** Zip the folder */
     zipFile.addFolder(folder, parameters)
     /** Delete all files inside parent directory */
     if (folder.isDirectory) FileUtils.cleanDirectory(folder)
