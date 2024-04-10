@@ -1722,6 +1722,9 @@ object DataUtil extends Serializable {
     val reportName = completePath.split("/").last
     val existingZipFile = new File(completePath + s"/$reportName.zip")
     if (existingZipFile.exists()) existingZipFile.delete()
+    /** Delete .crc files */
+    val crcFiles = folder.listFiles.filter(_.getName.endsWith(".crc"))
+    crcFiles.foreach(_.delete())
     /** Zip the folder */
     val zipFile = new ZipFile(zipFilePath)
     val parameters = new ZipParameters()
