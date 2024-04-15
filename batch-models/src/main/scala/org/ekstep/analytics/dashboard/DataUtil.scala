@@ -1726,10 +1726,12 @@ object DataUtil extends Serializable {
     val crcFiles = folder.listFiles.filter(_.getName.endsWith(".crc"))
     crcFiles.foreach(_.delete())
     /** Zip the folder */
+
     val zipFile = new ZipFile(zipFilePath)
     val parameters = new ZipParameters()
     parameters.setCompressionMethod(CompressionMethod.DEFLATE)
     parameters.setCompressionLevel(CompressionLevel.NORMAL)
+
     zipFile.addFolder(folder, parameters)
     /** Delete all files inside parent directory */
     if (folder.isDirectory) FileUtils.cleanDirectory(folder)

@@ -121,6 +121,7 @@ object QuestionReportModel extends AbsDashboardModel {
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
         val solutionsName = solutionName.replace(" ", "_")
         generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionsName}-${solutionId}", fileSaveMode = SaveMode.Append)
+
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")

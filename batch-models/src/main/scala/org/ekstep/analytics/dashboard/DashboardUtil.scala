@@ -312,6 +312,7 @@ object DashboardConfigParser extends Serializable {
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
       includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs", "true").toBoolean,
 
+
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
       commsConsoleNumDaysToConsider = getConfigModelParam(config, "commsConsoleNumDaysToConsider", "15").toInt,
