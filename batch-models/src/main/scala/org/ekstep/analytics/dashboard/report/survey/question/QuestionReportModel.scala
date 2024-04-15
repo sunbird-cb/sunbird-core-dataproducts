@@ -119,7 +119,10 @@ object QuestionReportModel extends AbsDashboardModel {
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
-        val solutionsName = solutionName.replace(" ", "_")
+        val solutionsName = solutionName
+          .replaceAll("[^a-zA-Z0-9\\s]", "")
+          .replaceAll("\\s+", " ")
+          .trim()
         generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionsName}-${solutionId}", fileSaveMode = SaveMode.Append)
 
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
