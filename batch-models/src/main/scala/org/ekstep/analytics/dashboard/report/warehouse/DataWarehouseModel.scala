@@ -26,7 +26,7 @@ object DataWarehouseModel extends AbsDashboardModel {
     var user_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
     //user_details = user_details.withColumn("user_registration_date", to_date(col("user_registration_date"), "dd/MM/yyyy"))
-    user_details = user_details.withColumn("user_registration_date", date_format(col("userCreatedTimestamp"), "dd/MM/yyyy HH:mm:ss a"))
+    user_details = user_details.withColumn("user_registration_date", date_format(col("user_registration_date"), "dd/MM/yyyy HH:mm:ss a"))
 
 
     truncateWarehouseTable(conf.dwUserTable)

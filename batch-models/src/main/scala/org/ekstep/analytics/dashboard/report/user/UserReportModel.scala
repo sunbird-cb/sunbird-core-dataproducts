@@ -86,7 +86,7 @@ object UserReportModel extends AbsDashboardModel {
         col("Tag").alias("tag"),
         col("userVerified").alias("is_verified_karmayogi"),
         //from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
-        date_format(col("userCreatedTimestamp"), "dd/MM/yyyy HH:mm:ss a").alias("user_registration_date"),
+        date_format(from_unixtime(col("userCreatedTimestamp")), "dd/MM/yyyy HH:mm:ss a").alias("user_registration_date"),
         col("role").alias("roles"),
         col("personalDetails.gender").alias("gender"),
         col("personalDetails.category").alias("category"),
