@@ -86,8 +86,10 @@ object UserACBPReportModel extends AbsDashboardModel {
         col("assignmentType").alias("allotment_type"),
         col("allotment_to"),
         col("courseID").alias("content_id"),
-        col("allocatedOn").alias("allocated_on"),
-        col("completionDueDate").alias("due_by"),
+        date_format(col("allocatedOn"), "dd/MM/yyyy HH:mm:ss a").alias("allocated_on"),
+        date_format(col("completionDueDate"), "dd/MM/yyyy HH:mm:ss a").alias("due_by"),
+        //col("allocatedOn").alias("allocated_on"),
+        //col("completionDueDate").alias("due_by"),
         col("acbpStatus").alias("status"))
       .distinct().orderBy("org_id","created_by","cbPlanName")
     show(cbPlanWarehouseDF, "cbPlanWarehouseDF")
