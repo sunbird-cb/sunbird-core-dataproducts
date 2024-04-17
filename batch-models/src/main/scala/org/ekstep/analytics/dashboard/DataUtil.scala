@@ -1006,6 +1006,7 @@ object DataUtil extends Serializable {
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
       .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
+      .withColumn("firstCompletedOn", when(col("issued_certificates").isNull, "").otherwise(when(size(col("issued_certificates")) > 0, col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("lastIssuedOn")).otherwise("")))
       .withColumn("certificateID", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("identifier")))
       .withColumnRenamed("userid", "userID")
       .withColumnRenamed("courseid", "courseID")
@@ -1499,6 +1500,15 @@ object DataUtil extends Serializable {
   def learnerStatsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
     val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerStatsTable)
     show(df, "Learner stats data")
+    df
+  }
+
+  /**
+   * Reading karma points details
+   */
+  def userKarmaPointsSummaryDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    val df = cache.load("userKarmaPointsSummary")
+    show(df, "Karma Points Summary data")
     df
   }
 
