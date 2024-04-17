@@ -43,10 +43,6 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("content_rating", col("content_rating").cast("float"))
       .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd"))
       .withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
-      //.withColumn("last_published_on", to_date(col("last_published_on"), "yyyy-MM-dd"))
-      //.withColumn("content_retired_on", to_date(col("content_retired_on"), "yyyy-MM-dd"))
-      //.withColumn("batch_start_date", date_format(col("batch_start_date").cast("string"), "dd/MM/yyyy HH:mm:ss a"))
-      //.withColumn("batch_end_date", date_format(col("batch_end_date").cast("string"), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("last_published_on", date_format(col("last_published_on"), "dd/MM/yyyy HH:mm:ss a"))
       .withColumn("content_retired_on", date_format(col("content_retired_on"), "dd/MM/yyyy HH:mm:ss a"))
 
