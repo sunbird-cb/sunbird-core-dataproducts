@@ -29,12 +29,13 @@ object UserReportModel extends AbsDashboardModel {
 
     // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
+    var karmaPointsDF = userKarmaPointsSummaryDataFrame()
     val userData = userOrgDF
       .join(userRolesDF, Seq("userID"), "left")
+      .join(karmaPointsDF.select("userID", "total_points"), Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgID"), "left")
       .dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-      .where(expr("userStatus=1"))
 
     val fullReportDF = userData
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
@@ -78,6 +79,8 @@ object UserReportModel extends AbsDashboardModel {
       .select(
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),
+        col("userStatus").alias("status"),
+        col("total_points").alias("total_kp"),
         col("fullName").alias("full_name"),
         col("professionalDetails.designation").alias("designation"),
         col("personalDetails.primaryEmail").alias("email"),
