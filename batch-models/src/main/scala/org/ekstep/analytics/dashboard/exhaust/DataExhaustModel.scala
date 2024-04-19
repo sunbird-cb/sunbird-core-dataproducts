@@ -112,7 +112,4 @@ object DataExhaustModel extends AbsDashboardModel {
     show(userKarmaPointsSummaryDF, "userKarmaPointsSummaryDF")
     cache.write(userKarmaPointsSummaryDF, "userKarmaPointsSummary")
   }
-
-
-
 }

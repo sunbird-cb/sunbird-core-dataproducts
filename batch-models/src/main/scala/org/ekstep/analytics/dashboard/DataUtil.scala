@@ -1656,11 +1656,11 @@ object DataUtil extends Serializable {
     syncReports(reportTempPath, reportPath)
   }
 
-    def learnerLeaderBoardDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-      val df = cache.load("learnerLeaderBoard")
-      show(df, "learnerLeaderBoard")
-      df
-    }
+  def learnerLeaderBoardDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cache.load("learnerLeaderBoard")
+    show(df, "learnerLeaderBoard")
+    df
+  }
 
   def getSolutionIdsAsDF(solutionIds: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
     val mdoIDs = solutionIds.split(",").map(_.toString).distinct

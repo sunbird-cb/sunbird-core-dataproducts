@@ -125,10 +125,8 @@ object CourseReportModel extends AbsDashboardModel {
         col("courseBatchEndDate").alias("batch_end_date"),
         col("courseDuration").alias("content_duration"),
         col("rating").alias("content_rating"),
-        //col("courseLastPublishedOn").alias("last_published_on"),
         date_format(col("courseLastPublishedOn"), "dd/MM/yyyy HH:mm:ss").alias("last_published_on"),
-        //col("ArchivedOn").alias("content_retired_on"),
-        date_format(col("ArchivedOn"), "dd/MM/yyyy HH:mm:ss").alias("content_retired_on"),
+        col("ArchivedOn").alias("content_retired_on"),
         col("courseStatus").alias("content_status"),
         col("courseResourceCount").alias("resource_count"),
         col("totalCertificatesIssued").alias("total_certificates_issued"),
@@ -141,3 +139,4 @@ object CourseReportModel extends AbsDashboardModel {
   }
 
 }
+

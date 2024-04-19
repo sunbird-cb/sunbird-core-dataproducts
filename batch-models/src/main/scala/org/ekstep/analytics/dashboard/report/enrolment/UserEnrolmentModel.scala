@@ -56,8 +56,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     var df = allCourseProgramCompletionWithDetailsDFWithRating
       .durationFormat("courseDuration")
-      .withColumn("completedOn", to_date(col("courseCompletedTimestamp"), "dd/MM/yyyy"))
-      .withColumn("enrolledOn", to_date(col("courseEnrolledTimestamp"), "dd/MM/yyyy"))
+      .withColumn("completedOn", date_format(col("courseCompletedTimestamp"), "dd/MM/yyyy HH:mm:ss"))
+      .withColumn("enrolledOn", date_format(col("courseEnrolledTimestamp"), "dd/MM/yyyy HH:mm:ss"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
@@ -81,49 +81,49 @@ object UserEnrolmentModel extends AbsDashboardModel {
       .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
 
     val fullReportDF = df.select(
-      col("userID"),
-      col("userOrgID"),
-      col("courseID"),
-      col("courseOrgID"),
-      col("fullName").alias("Full_Name"),
-      col("professionalDetails.designation").alias("Designation"),
-      col("personalDetails.primaryEmail").alias("Email"),
-      col("personalDetails.mobile").alias("Phone_Number"),
-      col("professionalDetails.group").alias("Group"),
-      col("Tag"),
-      col("ministry_name").alias("Ministry"),
-      col("dept_name").alias("Department"),
-      col("userOrgName").alias("Organization"),
-      col("courseOrgName").alias("Content_Provider"),
-      col("courseName").alias("Content_Name"),
-      col("category").alias("Content_Type"),
-      col("courseDuration").alias("Content_Duration"),
-      col("batchID").alias("Batch_Id"),
-      col("courseBatchName").alias("Batch_Name"),
-      col("courseBatchStartDate").alias("Batch_Start_Date"),
-      col("courseBatchEndDate").alias("Batch_End_Date"),
-      col("enrolledOn").alias("Enrolled_On"),
-      col("userCourseCompletionStatus").alias("Status"),
-      col("completionPercentage").alias("Content_Progress_Percentage"),
-      col("courseLastPublishedOn").alias("Last_Published_On"),
-      col("ArchivedOn").alias("Content_Retired_On"),
-      col("completedOn").alias("Completed_On"),
-      col("Certificate_Generated"),
-      col("userRating").alias("User_Rating"),
-      col("personalDetails.gender").alias("Gender"),
-      col("personalDetails.category").alias("Category"),
-      col("additionalProperties.externalSystem").alias("External_System"),
-      col("additionalProperties.externalSystemId").alias("External_System_Id"),
-      col("userOrgID").alias("mdoid"),
-      col("issuedCertificateCount"),
-      col("courseStatus"),
-      col("courseResourceCount").alias("resourceCount"),
-      col("courseProgress").alias("resourcesConsumed"),
-      round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
-      col("Certificate_ID"),
-      col("Report_Last_Generated_On"),
-      col("live_cbp_plan_mandate").alias("Live_CBP_Plan_Mandate")
-    )
+        col("userID"),
+        col("userOrgID"),
+        col("courseID"),
+        col("courseOrgID"),
+        col("fullName").alias("Full_Name"),
+        col("professionalDetails.designation").alias("Designation"),
+        col("personalDetails.primaryEmail").alias("Email"),
+        col("personalDetails.mobile").alias("Phone_Number"),
+        col("professionalDetails.group").alias("Group"),
+        col("Tag"),
+        col("ministry_name").alias("Ministry"),
+        col("dept_name").alias("Department"),
+        col("userOrgName").alias("Organization"),
+        col("courseOrgName").alias("Content_Provider"),
+        col("courseName").alias("Content_Name"),
+        col("category").alias("Content_Type"),
+        col("courseDuration").alias("Content_Duration"),
+        col("batchID").alias("Batch_Id"),
+        col("courseBatchName").alias("Batch_Name"),
+        col("courseBatchStartDate").alias("Batch_Start_Date"),
+        col("courseBatchEndDate").alias("Batch_End_Date"),
+        col("enrolledOn").alias("Enrolled_On"),
+        col("userCourseCompletionStatus").alias("Status"),
+        col("completionPercentage").alias("Content_Progress_Percentage"),
+        col("courseLastPublishedOn").alias("Last_Published_On"),
+        col("ArchivedOn").alias("Content_Retired_On"),
+        col("completedOn").alias("Completed_On"),
+        col("Certificate_Generated"),
+        col("userRating").alias("User_Rating"),
+        col("personalDetails.gender").alias("Gender"),
+        col("personalDetails.category").alias("Category"),
+        col("additionalProperties.externalSystem").alias("External_System"),
+        col("additionalProperties.externalSystemId").alias("External_System_Id"),
+        col("userOrgID").alias("mdoid"),
+        col("issuedCertificateCount"),
+        col("courseStatus"),
+        col("courseResourceCount").alias("resourceCount"),
+        col("courseProgress").alias("resourcesConsumed"),
+        round(expr("CASE WHEN courseResourceCount=0 THEN 0.0 ELSE 100.0 * courseProgress / courseResourceCount END"), 2).alias("rawCompletionPercentage"),
+        col("Certificate_ID"),
+        col("Report_Last_Generated_On"),
+        col("live_cbp_plan_mandate").alias("Live_CBP_Plan_Mandate")
+      )
       .coalesce(1)
 
     show(df, "df")
@@ -139,21 +139,21 @@ object UserEnrolmentModel extends AbsDashboardModel {
     }
 
     val warehouseDF = df
-      .withColumn("certificate_generated_on",to_date(from_utc_timestamp(to_utc_timestamp(to_timestamp(
-        col("certificateGeneratedOn"), "yyyy-MM-dd'T'HH:mm:ss.SSS"), "UTC"), "IST"), "yyyy-MM-dd"))
+      .withColumn("certificate_generated_on",date_format(from_utc_timestamp(to_utc_timestamp(to_timestamp(
+        col("certificateGeneratedOn"), "yyyy-MM-dd'T'HH:mm:ss.SSS"), "UTC"), "IST"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
         col("userID").alias("user_id"),
         col("batchID").alias("batch_id"),
         col("courseID").alias("content_id"),
         col("completionPercentage").alias("content_progress_percentage"),
-        date_format(col("completedOn"), "dd/MM/yyyy HH:mm:ss").alias("last_accessed_on"),
-        date_format(col("firstCompletedOn"), "dd/MM/yyyy HH:mm:ss").alias("first_completed_on"),
+        col("completedOn").alias("completed_on"),
+        //date_format(col("firstCompletedOn"), "dd/MM/yyyy HH:mm:ss").alias("first_completed_on"),
         col("Certificate_Generated").alias("certificate_generated"),
-        date_format(col("certificate_generated_on"), "dd/MM/yyyy HH:mm:ss"),
+        col("certificate_generated_on").alias("certificate_generated_on"),
         col("userRating").alias("user_rating"),
         col("courseProgress").alias("resource_count_consumed"),
-        date_format(col("enrolledOn"), "dd/MM/yyyy HH:mm:ss").alias("enrolled_on"),
+        col("enrolledOn").alias("enrolled_on"),
         col("userCourseCompletionStatus").alias("user_consumption_status"),
         col("Certificate_ID").alias("certificate_id"),
         col("data_last_generated_on"),
@@ -165,3 +165,4 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
   }
 }
+

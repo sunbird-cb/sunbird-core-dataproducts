@@ -25,12 +25,9 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     var user_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
-    user_details = user_details.withColumn("user_registration_date", date_format(col("user_registration_date"), "dd/MM/yyyy HH:mm:ss"))
-
-
+    // user_details = user_details.withColumn("user_registration_date", col("user_registration_date"))
     truncateWarehouseTable(conf.dwUserTable)
     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
-
 
     var content_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-warehouse")
@@ -39,10 +36,10 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("resource_count", col("resource_count").cast("int"))
       .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
       .withColumn("content_rating", col("content_rating").cast("float"))
-      .withColumn("batch_start_date",to_date(col("batch_start_date"), "yyyy-MM-dd"))
-      .withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy-MM-dd"))
-      .withColumn("last_published_on", date_format(col("last_published_on"), "dd/MM/yyyy HH:mm:ss"))
-      .withColumn("content_retired_on", date_format(col("content_retired_on"), "dd/MM/yyyy HH:mm:ss"))
+    //.withColumn("batch_start_date", to_date(col("batch_start_date"), "yyyy/mm/dd"))
+    //.withColumn("batch_end_date", to_date(col("batch_end_date"), "yyyy/mm/dd"))
+    //.withColumn("last_published_on", to_date(col("last_published_on"), "yyyy/mm/dd"))
+    //.withColumn("content_retired_on", date_format(col("content_retired_on"), "dd/MM/yyyy HH:mm:ss"))
 
     content_details = content_details.dropDuplicates(Seq("content_id"))
 
@@ -56,9 +53,9 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("content_progress_percentage", col("content_progress_percentage").cast("float"))
       .withColumn("user_rating", col("user_rating").cast("float"))
       .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
-      .withColumn("completed_on", date_format(col("completed_on"), "dd/MM/yyyy HH:mm:ss"))
-      .withColumn("certificate_generated_on", date_format(col("certificate_generated_on"), "dd/MM/yyyy HH:mm:ss"))
-      .withColumn("enrolled_on", date_format(col("enrolled_on"), "dd/MM/yyyy HH:mm:ss"))
+      // .withColumn("completed_on", col("completed_on"))
+      // .withColumn("certificate_generated_on, col("certificate_generated_on"))
+      // .withColumn("enrolled_on", col("enrolled_on"))
       .withColumn("live_cbp_plan_mandate", col("live_cbp_plan_mandate").cast("boolean"))
       .filter(col("content_id").isNotNull)
 
@@ -75,7 +72,7 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("total_question", col("total_question").cast("int"))
       .withColumn("number_of_incorrect_responses", col("number_of_incorrect_responses").cast("int"))
       .withColumn("number_of_retakes", col("number_of_retakes").cast("int"))
-      .withColumn("completion_date", date_format(col("completion_date"), "dd/MM/yyyy HH:mm:ss"))
+      //.withColumn("completion_date", date_format(col("completion_date"), "dd/MM/yyyy HH:mm:ss"))
       .filter(col("content_id").isNotNull)
 
     truncateWarehouseTable(conf.dwAssessmentTable)
@@ -88,7 +85,7 @@ object DataWarehouseModel extends AbsDashboardModel {
     bp_enrollments = bp_enrollments
       .withColumn("component_progress_percentage", col("component_progress_percentage").cast("float"))
       .withColumn("offline_session_date", to_date(col("offline_session_date"), "yyyy-MM-dd"))
-      .withColumn("component_completed_on", date_format(col("component_completed_on"), "dd/MM/yyyy HH:mm:ss"))
+      .withColumn("component_completed_on", to_date(col("component_completed_on"), "yyyy-mm-dd"))
       .withColumn("last_accessed_on", to_date(col("last_accessed_on"), "yyyy-MM-dd"))
       .withColumnRenamed("instructor(s)_name", "instructors_name")
       .filter(col("content_id").isNotNull)

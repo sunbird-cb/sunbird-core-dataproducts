@@ -278,6 +278,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
 
+
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
@@ -292,9 +293,8 @@ object BlendedProgramReportModel extends AbsDashboardModel {
         col("bpChildUserStatus").alias("component_status"),
         col("bpChildDuration").alias("component_duration"),
         col("bpChildProgressPercentage").alias("component_progress_percentage"),
-        //col("bpChildCompletedOn").alias("component_completed_on"),
+        col("bpChildCompletedOn").alias("component_completed_on"),
         col("bpChildLastAccessedOn").alias("last_accessed_on"),
-        date_format(col("bpChildCompletedOn"), "dd/MM/yyyy HH:mm:ss").alias("component_completed_on"),
         col("bpChildOfflineStartDate").alias("offline_session_date"),
         col("bpChildOfflineStartTime").alias("offline_session_start_time"),
         col("bpChildOfflineEndTime").alias("offline_session_end_time"),
@@ -312,14 +312,14 @@ object BlendedProgramReportModel extends AbsDashboardModel {
   def bpBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame) = {
     val batchDF = courseBatchDataFrame()
     var bpBatchDF = batchDF.select(
-      col("courseID").alias("bpID"),
-      col("batchID").alias("bpBatchID"),
-      col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
-      col("courseBatchName").alias("bpBatchName"),
-      col("courseBatchStartDate").alias("bpBatchStartDate"),
-      col("courseBatchEndDate").alias("bpBatchEndDate"),
-      col("courseBatchAttrs").alias("bpBatchAttrs")
-    )
+        col("courseID").alias("bpID"),
+        col("batchID").alias("bpBatchID"),
+        col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
+        col("courseBatchName").alias("bpBatchName"),
+        col("courseBatchStartDate").alias("bpBatchStartDate"),
+        col("courseBatchEndDate").alias("bpBatchEndDate"),
+        col("courseBatchAttrs").alias("bpBatchAttrs")
+      )
       .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
       .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
       .withColumn("bpBatchCurrentSize", col("bpBatchAttrs.currentBatchSize"))
