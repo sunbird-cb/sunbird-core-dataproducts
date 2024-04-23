@@ -56,8 +56,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     var df = allCourseProgramCompletionWithDetailsDFWithRating
       .durationFormat("courseDuration")
-      .withColumn("completedOn", date_format(col("courseCompletedTimestamp"), "dd/MM/yyyy HH:mm:ss"))
-      .withColumn("enrolledOn", date_format(col("courseEnrolledTimestamp"), "dd/MM/yyyy HH:mm:ss"))
+      .withColumn("completedOn", date_format(col("courseCompletedTimestamp"), "yyyy-MM-dd HH:mm:ss"))
+      .withColumn("enrolledOn", date_format(col("courseEnrolledTimestamp"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
@@ -148,7 +148,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
         col("courseID").alias("content_id"),
         col("completionPercentage").alias("content_progress_percentage"),
         col("completedOn").alias("completed_on"),
-        //date_format(col("firstCompletedOn"), "dd/MM/yyyy HH:mm:ss").alias("first_completed_on"),
+        date_format(col("firstCompletedOn"), "yyyy-MM-dd HH:mm:ss").alias("first_completed_on"),
         col("Certificate_Generated").alias("certificate_generated"),
         col("certificate_generated_on").alias("certificate_generated_on"),
         col("userRating").alias("user_rating"),

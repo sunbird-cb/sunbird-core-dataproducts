@@ -130,7 +130,7 @@ object CourseBasedAssessmentModel extends AbsDashboardModel {
         col("totalAssessmentDuration").alias("assessment_duration"),
         col("totalAssessmentDuration").alias("time_spent_by_the_user"),
         //from_unixtime(col("assessEndTime"), "dd/MM/yyyy").alias("completion_date"),
-        date_format(from_unixtime(col("assessEndTime")), "dd/MM/yyyy HH:mm:ss").alias("completion_date"),
+        date_format(from_unixtime(col("assessEndTime")), "yyyy-MM-dd HH:mm:ss").alias("completion_date"),
         col("assessOverallResult").alias("score_achieved"),
         col("assessMaxQuestions").alias("overall_score"),
         col("assessPercentage").alias("cut_off_percentage"),

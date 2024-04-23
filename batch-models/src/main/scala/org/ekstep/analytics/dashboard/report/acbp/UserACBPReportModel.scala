@@ -40,7 +40,7 @@ object UserACBPReportModel extends AbsDashboardModel {
     // get ACBP details data frame
     val acbpDF = acbpDetailsDF()
 
-   // CustomUser
+    // CustomUser
     val acbpCustomUserAllotmentDF = acbpDF
       .filter(col("assignmentType") === "CustomUser")
       .withColumn("userID", explode(col("assignmentTypeInfo")))
@@ -86,8 +86,8 @@ object UserACBPReportModel extends AbsDashboardModel {
         col("assignmentType").alias("allotment_type"),
         col("allotment_to"),
         col("courseID").alias("content_id"),
-        date_format(col("allocatedOn"), "dd/MM/yyyy HH:mm:ss a").alias("allocated_on"),
-        date_format(col("completionDueDate"), "dd/MM/yyyy HH:mm:ss a").alias("due_by"),
+        date_format(col("allocatedOn"), "yyyy-MM-dd HH:mm:ss").alias("allocated_on"),
+        date_format(col("completionDueDate"), "yyyy-MM-dd").alias("due_by"),
         //col("allocatedOn").alias("allocated_on"),
         //col("completionDueDate").alias("due_by"),
         col("acbpStatus").alias("status"))
