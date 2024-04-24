@@ -24,7 +24,8 @@ object QuestionReportModel extends AbsDashboardModel {
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val today = getDate()
-    val surveyQuestionReportColumnsConfig = conf.surveyQuestionReportColumnsConfig
+    JobLogger.log("Querying mongo database to get report configurations")
+    val surveyQuestionReportColumnsConfig = getReportConfig("surveyQuestionReport")
     val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
     val surveyQuestionReportColumnsConfigMap = mapper.readValue(surveyQuestionReportColumnsConfig, classOf[Map[String, String]])
     val reportColumnsMap = surveyQuestionReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
@@ -118,7 +119,12 @@ object QuestionReportModel extends AbsDashboardModel {
       if (columnsMatch == true) {
         val columnsOrder = sortingColumns.split(",").map(_.trim)
         val sortedFinalDF = finalSolutionDf.select(columnsOrder.map(col): _*)
-        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionName}-${solutionId}", fileSaveMode = SaveMode.Append)
+        val solutionsName = solutionName
+          .replaceAll("[^a-zA-Z0-9\\s]", "")
+          .replaceAll("\\s+", " ")
+          .trim()
+        generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionsName}-${solutionId}", fileSaveMode = SaveMode.Append)
+
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")

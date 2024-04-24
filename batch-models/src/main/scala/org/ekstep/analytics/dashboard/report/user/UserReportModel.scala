@@ -29,12 +29,14 @@ object UserReportModel extends AbsDashboardModel {
 
     // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
 
+    var karmaPointsDF = userKarmaPointsSummaryDataFrame()
+    karmaPointsDF = karmaPointsDF.withColumnRenamed("userid", "userID")
     val userData = userOrgDF
       .join(userRolesDF, Seq("userID"), "left")
+      .join(karmaPointsDF.select("userID","total_points"), Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgID"), "left")
       .dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-      .where(expr("userStatus=1"))
 
     val fullReportDF = userData
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
@@ -78,6 +80,8 @@ object UserReportModel extends AbsDashboardModel {
       .select(
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),
+        col("userStatus").alias("status"),
+        col("total_points").alias("total_kp"),
         col("fullName").alias("full_name"),
         col("professionalDetails.designation").alias("designation"),
         col("personalDetails.primaryEmail").alias("email"),
@@ -85,7 +89,8 @@ object UserReportModel extends AbsDashboardModel {
         col("professionalDetails.group").alias("groups"),
         col("Tag").alias("tag"),
         col("userVerified").alias("is_verified_karmayogi"),
-        from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
+        //from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
+        date_format(from_unixtime(col("userCreatedTimestamp")), "yyyy-MM-dd HH:mm:ss").alias("user_registration_date"),
         col("role").alias("roles"),
         col("personalDetails.gender").alias("gender"),
         col("personalDetails.category").alias("category"),
@@ -101,3 +106,5 @@ object UserReportModel extends AbsDashboardModel {
 
   }
 }
+
+

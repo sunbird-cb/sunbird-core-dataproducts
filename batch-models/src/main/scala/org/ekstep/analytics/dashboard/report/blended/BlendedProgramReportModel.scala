@@ -278,6 +278,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     show(cbpReportDF, "cbpReportDF")
     generateAndSyncReports(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
 
+
     val df_warehouse = fullDF
       .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .select(
@@ -311,14 +312,14 @@ object BlendedProgramReportModel extends AbsDashboardModel {
   def bpBatchDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame) = {
     val batchDF = courseBatchDataFrame()
     var bpBatchDF = batchDF.select(
-      col("courseID").alias("bpID"),
-      col("batchID").alias("bpBatchID"),
-      col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
-      col("courseBatchName").alias("bpBatchName"),
-      col("courseBatchStartDate").alias("bpBatchStartDate"),
-      col("courseBatchEndDate").alias("bpBatchEndDate"),
-      col("courseBatchAttrs").alias("bpBatchAttrs")
-    )
+        col("courseID").alias("bpID"),
+        col("batchID").alias("bpBatchID"),
+        col("courseBatchCreatedBy").alias("bpBatchCreatedBy"),
+        col("courseBatchName").alias("bpBatchName"),
+        col("courseBatchStartDate").alias("bpBatchStartDate"),
+        col("courseBatchEndDate").alias("bpBatchEndDate"),
+        col("courseBatchAttrs").alias("bpBatchAttrs")
+      )
       .withColumn("bpBatchAttrs", from_json(col("bpBatchAttrs"), Schema.batchAttrsSchema))
       .withColumn("bpBatchLocation", col("bpBatchAttrs.batchLocationDetails"))
       .withColumn("bpBatchCurrentSize", col("bpBatchAttrs.currentBatchSize"))
@@ -379,3 +380,4 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     bpChildDF
   }
 }
+

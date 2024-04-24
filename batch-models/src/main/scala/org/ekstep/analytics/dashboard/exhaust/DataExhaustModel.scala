@@ -107,8 +107,9 @@ object DataExhaustModel extends AbsDashboardModel {
     val learnerLeaderboardDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraLearnerLeaderBoardTable)
     show(learnerLeaderboardDF, "learnerLeaderboardDF")
     cache.write(learnerLeaderboardDF, "learnerLeaderBoard")
+
+    val userKarmaPointsSummaryDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsSummaryTable)
+    show(userKarmaPointsSummaryDF, "userKarmaPointsSummaryDF")
+    cache.write(userKarmaPointsSummaryDF, "userKarmaPointsSummary")
   }
-
-
-
 }

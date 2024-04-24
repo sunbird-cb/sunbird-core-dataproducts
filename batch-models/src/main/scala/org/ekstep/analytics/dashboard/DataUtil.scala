@@ -280,19 +280,14 @@ object DataUtil extends Serializable {
       StructField("endDate", DateType, nullable = true)
     ))
 
-    val surveyStatusCompletedDataSchema: StructType = StructType(Seq(
-      StructField("completed_at", StringType, nullable = true),
-      StructField("survey_submission_id", DateType, nullable = true)
+    val observationStatusCompletedDataSchema: StructType = StructType(Seq(
+      StructField("completedAt", StringType, nullable = true),
+      StructField("observationSubmissionId", StringType, nullable = true)
     ))
 
-    val surveyStatusInProgressDataSchema: StructType = StructType(Seq(
-      StructField("inprogress_at", StringType, nullable = true),
-      StructField("survey_submission_id", DateType, nullable = true)
-    ))
-
-    val surveyStatusStartedDataSchema: StructType = StructType(Seq(
-      StructField("started_at", StringType, nullable = true),
-      StructField("survey_submission_id", DateType, nullable = true)
+    val observationStatusInProgressDataSchema: StructType = StructType(Seq(
+      StructField("inprogressAt", StringType, nullable = true),
+      StructField("observationSubmissionId", StringType, nullable = true)
     ))
 
   }
@@ -1012,7 +1007,7 @@ object DataUtil extends Serializable {
   def userCourseProgramCompletionDataFrame(extraCols: Seq[String] = Seq(), datesAsLong: Boolean = false)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
 
     val selectCols = Seq("userID", "courseID", "batchID", "courseProgress", "dbCompletionStatus", "courseCompletedTimestamp",
-      "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount", "certificateGeneratedOn", "certificateID") ++ extraCols
+      "courseEnrolledTimestamp", "lastContentAccessTimestamp", "issuedCertificateCount", "firstCompletedOn", "certificateGeneratedOn", "certificateID") ++ extraCols
 
     var df = cache.load("enrolment")
       .where(expr("active=true"))
@@ -1021,6 +1016,7 @@ object DataUtil extends Serializable {
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
       .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("lastIssuedOn")))
+      .withColumn("firstCompletedOn", when(col("issued_certificates").isNull, "").otherwise(when(size(col("issued_certificates")) > 0, col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("lastIssuedOn")).otherwise("")))
       .withColumn("certificateID", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(0).getItem("identifier")))
       .withColumnRenamed("userid", "userID")
       .withColumnRenamed("courseid", "courseID")
@@ -1518,6 +1514,15 @@ object DataUtil extends Serializable {
   }
 
   /**
+   * Reading karma points details
+   */
+  def userKarmaPointsSummaryDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
+    val df = cache.load("userKarmaPointsSummary")
+    show(df, "Karma Points Summary data")
+    df
+  }
+
+  /**
    * Reading user_karma_points data
    */
   def userKarmaPointsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
@@ -1661,11 +1666,11 @@ object DataUtil extends Serializable {
     syncReports(reportTempPath, reportPath)
   }
 
-    def learnerLeaderBoardDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-      val df = cache.load("learnerLeaderBoard")
-      show(df, "learnerLeaderBoard")
-      df
-    }
+  def learnerLeaderBoardDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cache.load("learnerLeaderBoard")
+    show(df, "learnerLeaderBoard")
+    df
+  }
 
   def getSolutionIdsAsDF(solutionIds: String)(implicit spark: SparkSession, sc: SparkContext): DataFrame = {
     val mdoIDs = solutionIds.split(",").map(_.toString).distinct
@@ -1682,7 +1687,17 @@ object DataUtil extends Serializable {
     var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
     if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
     if (df.columns.contains("evidences")) {
-      df = df.withColumn("evidences", when(col("evidences").isNotNull && col("evidences") =!= "", concat(lit(conf.baseUrlForEvidences), col("evidences"))).otherwise(col("evidences")))
+      val baseUrl = conf.baseUrlForEvidences
+      val addBaseUrl = udf((evidences: String) => {
+        if (evidences != null && evidences.trim.nonEmpty) {
+          evidences.split(", ")
+            .map(url => s"$baseUrl$url")
+            .mkString(",")
+        } else {
+          evidences
+        }
+      })
+      df = df.withColumn("evidences", addBaseUrl(col("evidences")))
     }
     df
   }
@@ -1714,14 +1729,29 @@ object DataUtil extends Serializable {
     df
   }
 
+  def getReportConfig(filter: String)(implicit spark: SparkSession, conf: DashboardConfig): String = {
+    val completeUrl = s"mongodb://${conf.mlSparkMongoConnectionHost}:27017"
+    val reportConfig = mongodbReportConfigAsString(completeUrl, conf.mlMongoDatabase, conf.reportConfigCollection, filter)
+    reportConfig
+  }
+
   def zipAndSyncReports(completePath: String, reportPath: String)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     val folder = new File(completePath)
     val zipFilePath = completePath + ".zip"
+    /** Delete the existing .zip file if it exists */
+    val reportName = completePath.split("/").last
+    val existingZipFile = new File(completePath + s"/$reportName.zip")
+    if (existingZipFile.exists()) existingZipFile.delete()
+    /** Delete .crc files */
+    val crcFiles = folder.listFiles.filter(_.getName.endsWith(".crc"))
+    crcFiles.foreach(_.delete())
+    /** Zip the folder */
+
     val zipFile = new ZipFile(zipFilePath)
     val parameters = new ZipParameters()
     parameters.setCompressionMethod(CompressionMethod.DEFLATE)
     parameters.setCompressionLevel(CompressionLevel.NORMAL)
-    /** Zip the folder */
+
     zipFile.addFolder(folder, parameters)
     /** Delete all files inside parent directory */
     if (folder.isDirectory) FileUtils.cleanDirectory(folder)
@@ -1732,6 +1762,36 @@ object DataUtil extends Serializable {
     new File(zipFilePath).renameTo(new File(destinationZipFilePath))
     /** Upload file to blob storage */
     syncReports(completePath, reportPath)
+  }
+
+  def getObservationStatusCompletedData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val modifiedSolutionDf = solutionDf
+      .withColumn("Status of Submission", lit(null).cast(StringType))
+      .withColumn("Submission Date", lit(null).cast(StringType))
+    val query = """SELECT completedAt, observationSubmissionId FROM \"sl-observation-status-completed\" """
+    val statusCompletedQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
+    if (statusCompletedQueryDf == null) return emptySchemaDataFrame(Schema.observationStatusCompletedDataSchema)
+    statusCompletedQueryDf.dropDuplicates()
+
+    val statusCompletedJoinDf = modifiedSolutionDf.join(statusCompletedQueryDf, modifiedSolutionDf("Observation Submission Id") === statusCompletedQueryDf("observationSubmissionId"), "left")
+    val statusCompletedFinalDf = statusCompletedJoinDf
+      .withColumn("Status of Submission", when(col("observationSubmissionId").isNotNull, lit("Completed")).otherwise(col("Status of Submission")))
+      .withColumn("Submission Date", when(col("observationSubmissionId").isNotNull, col("completedAt")).otherwise(col("Submission Date")))
+      .drop("completedAt", "observationSubmissionId")
+    statusCompletedFinalDf
+  }
+
+  def getObservationStatusInProgressData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT observationSubmissionId FROM \"sl-observation-status-inprogress\" """
+    val statusInProgressQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
+    if (statusInProgressQueryDf == null) return emptySchemaDataFrame(Schema.observationStatusInProgressDataSchema)
+    statusInProgressQueryDf.dropDuplicates()
+
+    val statusInProgressJoinDf = solutionDf.join(statusInProgressQueryDf, solutionDf("Observation Submission Id") === statusInProgressQueryDf("observationSubmissionId"), "left")
+    val statusInProgressFinalDf = statusInProgressJoinDf
+      .withColumn("Status of Submission", when(col("observationSubmissionId").isNotNull, lit("In Progress")).otherwise(col("Status of Submission")))
+      .drop("observationSubmissionId")
+    statusInProgressFinalDf
   }
 
 }

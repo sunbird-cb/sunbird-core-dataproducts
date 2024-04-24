@@ -1,12 +1,11 @@
-package org.ekstep.analytics.dashboard.report.survey.status
+package org.ekstep.analytics.dashboard.report.observation.status
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{coalesce, col}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import org.apache.spark.sql.{SaveMode, SparkSession}
-
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
@@ -17,32 +16,32 @@ import org.joda.time.format.DateTimeFormat
 
 import java.text.SimpleDateFormat
 
-object StatusReportModel extends AbsDashboardModel {
+object ObservationStatusReportModel extends AbsDashboardModel {
 
-  implicit val className: String = "org.ekstep.analytics.dashboard.report.survey.status.StatusReportModel"
+  implicit val className: String = "org.ekstep.analytics.dashboard.report.observation.status.ObservationStatusReportModel"
 
-  override def name() = "StatusReportModel"
+  override def name() = "ObservationStatusReportModel"
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val today = getDate()
     JobLogger.log("Querying mongo database to get report configurations")
-    val surveyStatusReportColumnsConfig = getReportConfig("surveyStatusReport")
+    val observationStatusReportColumnsConfig = getReportConfig("observationStatusReport")
     val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
-    val surveyStatusReportColumnsConfigMap = mapper.readValue(surveyStatusReportColumnsConfig, classOf[Map[String, String]])
-    val reportColumnsMap = surveyStatusReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
-    val userProfileColumnsMap = surveyStatusReportColumnsConfigMap("userProfileColumns").asInstanceOf[Map[String, String]]
-    val sortingColumns = surveyStatusReportColumnsConfigMap("sortingColumns")
+    val observationStatusReportColumnsConfigMap = mapper.readValue(observationStatusReportColumnsConfig, classOf[Map[String, String]])
+    val reportColumnsMap = observationStatusReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
+    val userProfileColumnsMap = observationStatusReportColumnsConfigMap("userProfileColumns").asInstanceOf[Map[String, String]]
+    val sortingColumns = observationStatusReportColumnsConfigMap("sortingColumns")
     val columnsToBeQueried = reportColumnsMap.keys.mkString(",") + ",userProfile"
     val userProfileSchema = StructType(userProfileColumnsMap.keys.toSeq.map(key => StructField(key, StringType, nullable = true)))
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
     val requiredCsvColumns = reportColumns ++ userProfileColumns
-    val reportPath = s"${conf.mlReportPath}/${today}/SurveyCompletedSubmissionsReport"
+    val reportPath = s"${conf.mlReportPath}/${today}/ObservationCompletedSubmissionsReport" 
 
     /**
      * Check to see if there is any solutionId are passed from config if Yes generate report only for those ID's
-     * If not generate report for all unique solutionId's from druid sl-survey-meta datasource.
+     * If not generate report for all unique solutionId's from druid sl-observation-meta datasource.
      */
     val solutionIds = conf.solutionIDs
     if (solutionIds != null && solutionIds.trim.nonEmpty) {
@@ -53,12 +52,12 @@ object StatusReportModel extends AbsDashboardModel {
         val solutionId = row.getString(0)
         val solutionName = row.getString(1)
         JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-        generateSurveyStatusReport(solutionId, solutionName)
+        generateObservationStatusReport(solutionId, solutionName)
       }
     } else {
       JobLogger.log("Processing report requests for all solutionId's")
       JobLogger.log("Querying druid to get all the unique solutionId's")
-      val solutionIdsDF = loadAllUniqueSolutionIds("sl-survey-meta")
+      val solutionIdsDF = loadAllUniqueSolutionIds("sl-observation-meta")
 
       if (conf.includeExpiredSolutionIDs) {
         JobLogger.log("Generating report for all the expired solutionId's also")
@@ -66,7 +65,7 @@ object StatusReportModel extends AbsDashboardModel {
           val solutionId = row.getString(0)
           val solutionName = row.getString(1)
           JobLogger.log(s"Started processing report request for solutionId: $solutionId")
-          generateSurveyStatusReport(solutionId, solutionName)
+          generateObservationStatusReport(solutionId, solutionName)
         }
       } else {
         JobLogger.log("Query mongodb to get solution end-date for all the unique solutionId's")
@@ -79,7 +78,7 @@ object StatusReportModel extends AbsDashboardModel {
             JobLogger.log(s"Started processing report request for solutionId: $solutionId")
             if (isSolutionWithinReportDate(endDate)) {
               JobLogger.log(s"Solution with Id $solutionId will ends on $endDate")
-              generateSurveyStatusReport(solutionId, solutionName)
+              generateObservationStatusReport(solutionId, solutionName)
             } else {
               JobLogger.log(s"Solution with Id $solutionId has ended on $endDate date, Hence not generating the report for this ID ")
             }
@@ -91,6 +90,7 @@ object StatusReportModel extends AbsDashboardModel {
 
       /**
        * This method takes the endDate and checks if that date is within the Report Date
+       *
        * @param endDate
        * @return
        */
@@ -108,14 +108,17 @@ object StatusReportModel extends AbsDashboardModel {
 
     /**
      * This method takes solutionId to query, parse userProfile JSON, append status data and sort the CSV
+     *
      * @param solutionId
      */
-    def generateSurveyStatusReport(solutionId: String, solutionName: String) = {
-      val dataSource = "sl-survey-meta"
+    def generateObservationStatusReport(solutionId: String, solutionName: String) = {
+      val dataSource = "sl-observation-meta"
       val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
       JobLogger.log(s"Successfully executed druid query for solutionId: $solutionId")
-      val finalSolutionDf = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
+      val solutionWithUserProfileDF = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
       JobLogger.log(s"Successfully parsed userProfile key for solutionId: $solutionId")
+      val finalSolutionDf = appendObservationStatusData(solutionWithUserProfileDF)
+      JobLogger.log(s"Successfully added observation status details for solutionId: $solutionId")
       val columnsMatch = validateColumns(finalSolutionDf, sortingColumns.split(",").map(_.trim))
 
       if (columnsMatch == true) {
@@ -126,10 +129,40 @@ object StatusReportModel extends AbsDashboardModel {
           .replaceAll("\\s+", " ")
           .trim()
         generateReport(sortedFinalDF, s"${reportPath}", fileName = s"${solutionsName}-${solutionId}", fileSaveMode = SaveMode.Append)
-        JobLogger.log(s"Successfully generated survey status csv report for solutionId: $solutionId")
+        JobLogger.log(s"Successfully generated observation status csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the dataframe columns with config sort columns for solutionId: $solutionId")
       }
+    }
+
+    def appendObservationStatusData(solutionDf: DataFrame): DataFrame = {
+      JobLogger.log("Processing for observation completed status")
+      val completedStatus = getObservationStatusCompletedData(solutionDf)
+      val filteredCompletedStatus = completedStatus.filter(col("Status of Submission").isNull || col("Status of Submission") === "")
+        .select("Observation Submission Id", "Status of Submission")
+
+      if (!filteredCompletedStatus.isEmpty) {
+        JobLogger.log("Processing for observation inprogress status")
+        val inProgressStatus = getObservationStatusInProgressData(filteredCompletedStatus)
+        val joinedCompletedAndInProgressDF = completedStatus
+          .join(inProgressStatus, Seq("Observation Submission Id"), "left")
+          .select(
+            completedStatus("*"),
+            coalesce(inProgressStatus("Status of Submission"), completedStatus("Status of Submission")).as("Updated Status of Submission")
+          ).drop("Status of Submission")
+          .withColumnRenamed("Updated Status of Submission", "Status of Submission")
+        val filteredInProgressStatus = joinedCompletedAndInProgressDF.filter(col("Status of Submission").isNull || col("Status of Submission") === "")
+          .select("Observation Submission Id", "Status of Submission")
+
+        if (!filteredInProgressStatus.isEmpty) {
+          JobLogger.log("Processing for observation started status")
+          val joinedStartedAndInProgressDF = joinedCompletedAndInProgressDF.na.fill("Started", Seq("Status of Submission"))
+          return joinedStartedAndInProgressDF
+        } else {
+          return joinedCompletedAndInProgressDF
+        }
+      }
+      completedStatus
     }
 
   }

@@ -35,132 +35,131 @@ case class DummyInput(timestamp: Long) extends AlgoInput  // no input, there are
 case class DummyOutput() extends Output with AlgoOutput  // no output as we take care of kafka dispatches ourself
 
 case class DashboardConfig (
-   debug: String,
-   validation: String,
-   // kafka connection config
-   broker: String,
-   compression: String,
-   // redis connection config
-   redisHost: String,
-   redisPort: Int,
-   redisDB: Int,
-   // for blob storage
-   store: String,
-   container: String,
-   key: String,
-   secret: String,
-   // other hosts connection config
-   sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
-   sparkElasticsearchConnectionHost: String, fracBackendHost: String,
-   sparkMongoConnectionHost: String, mlSparkDruidRouterHost: String,
-   mlSparkMongoConnectionHost: String,
-   // kafka topics
-   roleUserCountTopic: String, orgRoleUserCountTopic: String,
-   allCourseTopic: String, userCourseProgramProgressTopic: String,
-   fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
-   declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
-   userAssessmentTopic: String, assessmentTopic: String, acbpEnrolmentTopic: String,
-   // cassandra key spaces
-   cassandraUserKeyspace: String,
-   cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
-   cassandraUserFeedKeyspace: String,
-   // cassandra table details
-   cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
-   cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
-   cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
-   cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
-   cassandraUserFeedTable: String, cassandraAcbpTable: String,
-   cassandraCourseBatchTable: String,
-   cassandraLearnerStatsTable: String,
-   cassandraKarmaPointsTable: String,
-   cassandraHallOfFameTable: String,
-   cassandraKarmaPointsLookupTable: String,
-   cassandraKarmaPointsSummaryTable: String,
-   cassandraLearnerLeaderBoardTable: String,
-   cassandraLearnerLeaderBoardLookupTable: String,
+                             debug: String,
+                             validation: String,
+                             // kafka connection config
+                             broker: String,
+                             compression: String,
+                             // redis connection config
+                             redisHost: String,
+                             redisPort: Int,
+                             redisDB: Int,
+                             // for blob storage
+                             store: String,
+                             container: String,
+                             key: String,
+                             secret: String,
+                             // other hosts connection config
+                             sparkCassandraConnectionHost: String, sparkDruidRouterHost: String,
+                             sparkElasticsearchConnectionHost: String, fracBackendHost: String,
+                             sparkMongoConnectionHost: String, mlSparkDruidRouterHost: String,
+                             mlSparkMongoConnectionHost: String,
+                             // kafka topics
+                             roleUserCountTopic: String, orgRoleUserCountTopic: String,
+                             allCourseTopic: String, userCourseProgramProgressTopic: String,
+                             fracCompetencyTopic: String, courseCompetencyTopic: String, expectedCompetencyTopic: String,
+                             declaredCompetencyTopic: String, competencyGapTopic: String, userOrgTopic: String, orgTopic: String,
+                             userAssessmentTopic: String, assessmentTopic: String, acbpEnrolmentTopic: String,
+                             // cassandra key spaces
+                             cassandraUserKeyspace: String,
+                             cassandraCourseKeyspace: String, cassandraHierarchyStoreKeyspace: String,
+                             cassandraUserFeedKeyspace: String,
+                             // cassandra table details
+                             cassandraUserTable: String, cassandraUserRolesTable: String, cassandraOrgTable: String,
+                             cassandraUserEnrolmentsTable: String, cassandraContentHierarchyTable: String,
+                             cassandraRatingSummaryTable: String, cassandraUserAssessmentTable: String,
+                             cassandraRatingsTable: String, cassandraOrgHierarchyTable: String,
+                             cassandraUserFeedTable: String, cassandraAcbpTable: String,
+                             cassandraCourseBatchTable: String,
+                             cassandraLearnerStatsTable: String,
+                             cassandraKarmaPointsTable: String,
+                             cassandraHallOfFameTable: String,
+                             cassandraKarmaPointsLookupTable: String,
+                             cassandraKarmaPointsSummaryTable: String,
+                             cassandraLearnerLeaderBoardTable: String,
+                             cassandraLearnerLeaderBoardLookupTable: String,
 
-   //warehouse tables;
-   appPostgresHost: String,
-   appPostgresSchema: String,
-   appPostgresUsername: String,
-   appPostgresCredential: String,
-   appOrgHierarchyTable: String,
-   dwPostgresHost: String,
-   dwPostgresSchema: String,
-   dwPostgresUsername: String,
-   dwPostgresCredential: String,
-   dwUserTable: String,
-   dwCourseTable: String,
-   dwEnrollmentsTable: String,
-   dwOrgTable: String,
-   dwAssessmentTable: String,
-   dwBPEnrollmentsTable: String,
-   dwKcmDictionaryTable: String,
-   dwKcmContentTable: String,
-   dwCBPlanTable: String,
-   postgresCompetencyTable: String,
-   postgresCompetencyHierarchyTable: String,
+                             //warehouse tables;
+                             appPostgresHost: String,
+                             appPostgresSchema: String,
+                             appPostgresUsername: String,
+                             appPostgresCredential: String,
+                             appOrgHierarchyTable: String,
+                             dwPostgresHost: String,
+                             dwPostgresSchema: String,
+                             dwPostgresUsername: String,
+                             dwPostgresCredential: String,
+                             dwUserTable: String,
+                             dwCourseTable: String,
+                             dwEnrollmentsTable: String,
+                             dwOrgTable: String,
+                             dwAssessmentTable: String,
+                             dwBPEnrollmentsTable: String,
+                             dwKcmDictionaryTable: String,
+                             dwKcmContentTable: String,
+                             dwCBPlanTable: String,
+                             postgresCompetencyTable: String,
+                             postgresCompetencyHierarchyTable: String,
 
-   // redis keys
-   redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
-   redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
-   redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
-   redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
-   redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
-   redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
-   redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
-   redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
+                             // redis keys
+                             redisRegisteredOfficerCountKey: String, redisTotalOfficerCountKey: String, redisOrgNameKey: String,
+                             redisTotalRegisteredOfficerCountKey: String, redisTotalOrgCountKey: String,
+                             redisExpectedUserCompetencyCount: String, redisDeclaredUserCompetencyCount: String,
+                             redisUserCompetencyDeclarationRate: String, redisOrgCompetencyDeclarationRate: String,
+                             redisUserCompetencyGapCount: String, redisUserCourseEnrolmentCount: String,
+                             redisUserCompetencyGapEnrolmentRate: String, redisOrgCompetencyGapEnrolmentRate: String,
+                             redisUserCourseCompletionCount: String, redisUserCompetencyGapClosedCount: String,
+                             redisUserCompetencyGapClosedRate: String, redisOrgCompetencyGapClosedRate: String,
 
-   // mongoDB configurations
-   mongoDBCollection: String,
-   mongoDatabase: String,
-   platformRatingSurveyId: String,
+                             // mongoDB configurations
+                             mongoDBCollection: String,
+                             mongoDatabase: String,
+                             platformRatingSurveyId: String,
 
-   // for reports
-   mdoIDs: String,
-   localReportDir: String,
-   standaloneAssessmentReportPath: String,
-   userReportPath: String,
-   userEnrolmentReportPath: String,
-   courseReportPath: String,
-   taggedUsersPath: String,
-   cbaReportPath: String,
-   blendedReportPath: String,
-   orgHierarchyReportPath: String,
-   commsConsoleReportPath: String,
-   acbpReportPath: String,
-   acbpMdoEnrolmentReportPath: String,
-   acbpMdoSummaryReportPath: String,
-   kcmReportPath: String,
+                             // for reports
+                             mdoIDs: String,
+                             localReportDir: String,
+                             standaloneAssessmentReportPath: String,
+                             userReportPath: String,
+                             userEnrolmentReportPath: String,
+                             courseReportPath: String,
+                             taggedUsersPath: String,
+                             cbaReportPath: String,
+                             blendedReportPath: String,
+                             orgHierarchyReportPath: String,
+                             commsConsoleReportPath: String,
+                             acbpReportPath: String,
+                             acbpMdoEnrolmentReportPath: String,
+                             acbpMdoSummaryReportPath: String,
+                             kcmReportPath: String,
 
-   commsConsolePrarambhEmailSuffix: String,
-   commsConsoleNumDaysToConsider: Int,
-   commsConsoleNumTopLearnersToConsider: Int,
-   commsConsolePrarambhTags: String,
-   commsConsolePrarambhNCount: Int,
-   commsConsolePrarambhCbpIds: String,
+                             commsConsolePrarambhEmailSuffix: String,
+                             commsConsoleNumDaysToConsider: Int,
+                             commsConsoleNumTopLearnersToConsider: Int,
+                             commsConsolePrarambhTags: String,
+                             commsConsolePrarambhNCount: Int,
+                             commsConsolePrarambhCbpIds: String,
 
-    //ml report config
-   gracePeriod: String,
-   solutionIDs: String,
-   baseUrlForEvidences: String,
-   mlMongoDatabase: String,
-   surveyCollection: String,
-   mlReportPath: String,
-   surveyQuestionReportColumnsConfig: String,
-   surveyStatusReportColumnsConfig: String,
-   includeExpiredSolutionIDs: Boolean,
+                             //ml report config
+                             gracePeriod: String,
+                             solutionIDs: String,
+                             baseUrlForEvidences: String,
+                             mlMongoDatabase: String,
+                             surveyCollection: String,
+                             reportConfigCollection: String,
+                             mlReportPath: String,
+                             includeExpiredSolutionIDs: Boolean,
 
 
-   prefixDirectoryPath: String,
-   destinationDirectoryPath: String,
-   directoriesToSelect: String,
-   password: String,
-   // for weekly claps
-   cutoffTime: Float,
-   // to enable/disable report sync
-   reportSyncEnable: Boolean
-   ) extends Serializable
+                             prefixDirectoryPath: String,
+                             destinationDirectoryPath: String,
+                             directoriesToSelect: String,
+                             password: String,
+                             // for weekly claps
+                             cutoffTime: Float,
+                             // to enable/disable report sync
+                             reportSyncEnable: Boolean
+                           ) extends Serializable
 
 object DashboardConfigParser extends Serializable {
   /* Config functions */
@@ -309,10 +308,10 @@ object DashboardConfigParser extends Serializable {
       baseUrlForEvidences = getConfigModelParam(config, "baseUrlForEvidences"),
       mlMongoDatabase = getConfigModelParam(config, "mlMongoDatabase"),
       surveyCollection = getConfigModelParam(config, "surveyCollection"),
+      reportConfigCollection = getConfigModelParam(config, "reportConfigCollection"),
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
-      surveyQuestionReportColumnsConfig = getConfigModelParam(config, "surveyQuestionReportColumnsConfig"),
-      surveyStatusReportColumnsConfig = getConfigModelParam(config, "surveyStatusReportColumnsConfig"),
-      includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs").toBoolean,
+      includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs", "true").toBoolean,
+
 
       // comms-console
       commsConsolePrarambhEmailSuffix = getConfigModelParam(config, "commsConsolePrarambhEmailSuffix", ".kb@karmayogi.in"),
@@ -800,6 +799,22 @@ object DashboardUtil extends Serializable {
     val filteredDf = cleanedDf.filter(col("_id_cleaned").isin(solutionIds: _*)).select(col("_id").alias("solutionIds"), col("endDate"))
     filteredDf.show(false)
     filteredDf
+  }
+
+  def mongodbReportConfigAsString(url: String, mongoDatabase: String, collection: String, filter: String)(implicit spark: SparkSession): String = {
+    val schema = new StructType()
+      .add("report", StringType, true)
+      .add("config", StringType, true)
+    val df = spark.read.schema(schema)
+      .format("com.mongodb.spark.sql.DefaultSource")
+      .option("uri", url)
+      .option("database", mongoDatabase)
+      .option("collection", collection)
+      .load()
+    val filteredDf = df.filter(col("report") === filter)
+    val configAsString = filteredDf.select("config").first().getString(0)
+    println(s"Report config for $filter \n " + configAsString)
+    configAsString
   }
 
   def writeToCassandra(data: DataFrame, keyspace: String, table: String)(implicit spark: SparkSession): Unit = {
