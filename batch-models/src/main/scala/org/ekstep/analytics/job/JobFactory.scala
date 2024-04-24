@@ -15,6 +15,7 @@ import org.ekstep.analytics.dashboard.survey.nps.NpsJob
 import org.ekstep.analytics.dashboard.report.course.CourseReportJob
 import org.ekstep.analytics.dashboard.report.enrolment.UserEnrolmentJob
 import org.ekstep.analytics.dashboard.report.observation.question.ObservationQuestionReportJob
+import org.ekstep.analytics.dashboard.report.observation.status.ObservationStatusReportJob
 import org.ekstep.analytics.dashboard.report.survey.question.QuestionReportJob
 import org.ekstep.analytics.dashboard.report.survey.status.StatusReportJob
 import org.ekstep.analytics.dashboard.report.warehouse.DataWarehouseJob
@@ -107,6 +108,8 @@ object JobFactory {
         StatusReportJob
       case "observation-question-report" =>
         ObservationQuestionReportJob
+      case "observation-status-report" =>
+        ObservationStatusReportJob
       case _ =>
         reflectModule(jobType);
     }

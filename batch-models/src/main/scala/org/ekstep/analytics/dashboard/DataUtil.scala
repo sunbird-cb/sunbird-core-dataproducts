@@ -280,6 +280,16 @@ object DataUtil extends Serializable {
       StructField("endDate", DateType, nullable = true)
     ))
 
+    val observationStatusCompletedDataSchema: StructType = StructType(Seq(
+      StructField("completedAt", StringType, nullable = true),
+      StructField("observationSubmissionId", StringType, nullable = true)
+    ))
+
+    val observationStatusInProgressDataSchema: StructType = StructType(Seq(
+      StructField("inprogressAt", StringType, nullable = true),
+      StructField("observationSubmissionId", StringType, nullable = true)
+    ))
+
   }
 
   def elasticSearchCourseProgramDataFrame(primaryCategories: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
@@ -1752,6 +1762,36 @@ object DataUtil extends Serializable {
     new File(zipFilePath).renameTo(new File(destinationZipFilePath))
     /** Upload file to blob storage */
     syncReports(completePath, reportPath)
+  }
+
+  def getObservationStatusCompletedData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val modifiedSolutionDf = solutionDf
+      .withColumn("Status of Submission", lit(null).cast(StringType))
+      .withColumn("Submission Date", lit(null).cast(StringType))
+    val query = """SELECT completedAt, observationSubmissionId FROM \"sl-observation-status-completed\" """
+    val statusCompletedQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
+    if (statusCompletedQueryDf == null) return emptySchemaDataFrame(Schema.observationStatusCompletedDataSchema)
+    statusCompletedQueryDf.dropDuplicates()
+
+    val statusCompletedJoinDf = modifiedSolutionDf.join(statusCompletedQueryDf, modifiedSolutionDf("Observation Submission Id") === statusCompletedQueryDf("observationSubmissionId"), "left")
+    val statusCompletedFinalDf = statusCompletedJoinDf
+      .withColumn("Status of Submission", when(col("observationSubmissionId").isNotNull, lit("Completed")).otherwise(col("Status of Submission")))
+      .withColumn("Submission Date", when(col("observationSubmissionId").isNotNull, col("completedAt")).otherwise(col("Submission Date")))
+      .drop("completedAt", "observationSubmissionId")
+    statusCompletedFinalDf
+  }
+
+  def getObservationStatusInProgressData(solutionDf: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val query = """SELECT observationSubmissionId FROM \"sl-observation-status-inprogress\" """
+    val statusInProgressQueryDf = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
+    if (statusInProgressQueryDf == null) return emptySchemaDataFrame(Schema.observationStatusInProgressDataSchema)
+    statusInProgressQueryDf.dropDuplicates()
+
+    val statusInProgressJoinDf = solutionDf.join(statusInProgressQueryDf, solutionDf("Observation Submission Id") === statusInProgressQueryDf("observationSubmissionId"), "left")
+    val statusInProgressFinalDf = statusInProgressJoinDf
+      .withColumn("Status of Submission", when(col("observationSubmissionId").isNotNull, lit("In Progress")).otherwise(col("Status of Submission")))
+      .drop("observationSubmissionId")
+    statusInProgressFinalDf
   }
 
 }
