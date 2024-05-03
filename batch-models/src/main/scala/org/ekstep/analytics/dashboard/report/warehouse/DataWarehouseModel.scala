@@ -100,12 +100,6 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     truncateWarehouseTable(conf.dwOrgTable)
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
-
-    var content_resource_details = spark.read.option("header", "true")
-      .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-resource-warehouse")
-
-    truncateWarehouseTable(conf.dwCourseResourceTable)
-    saveDataframeToPostgresTable_With_Append(content_resource_details, dwPostgresUrl, conf.dwCourseResourceTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
   }
 
 }
