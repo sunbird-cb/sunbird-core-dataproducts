@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
 import org.ekstep.analytics.framework.FrameworkContext
 
@@ -26,7 +27,7 @@ object DataWarehouseModel extends AbsDashboardModel {
     var user_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
     user_details = user_details.withColumn("status", col("status").cast("int"))
-      .withColumn("total_kp", col("total_kp").cast("int"))
+      .withColumn("no_of_karma_points", col("no_of_karma_points").cast("int"))
     truncateWarehouseTable(conf.dwUserTable)
     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
@@ -99,6 +100,12 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     truncateWarehouseTable(conf.dwOrgTable)
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    var content_resource_details = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-resource-warehouse")
+
+    truncateWarehouseTable(conf.dwCourseResourceTable)
+    saveDataframeToPostgresTable_With_Append(content_resource_details, dwPostgresUrl, conf.dwCourseResourceTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
   }
 
 }

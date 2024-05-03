@@ -81,7 +81,7 @@ object UserReportModel extends AbsDashboardModel {
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),
         col("userStatus").alias("status"),
-        col("total_points").alias("total_kp"),
+        col("total_points").alias("no_of_karma_points"),
         col("fullName").alias("full_name"),
         col("professionalDetails.designation").alias("designation"),
         col("personalDetails.primaryEmail").alias("email"),
