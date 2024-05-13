@@ -100,6 +100,22 @@ object DataWarehouseModel extends AbsDashboardModel {
 
     truncateWarehouseTable(conf.dwOrgTable)
     saveDataframeToPostgresTable_With_Append(orgDwDf, dwPostgresUrl, conf.dwOrgTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    var kcmContentCompetencyMapping = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.kcmReportPath}/${today}/ContentCompetencyMapping-warehouse")
+    kcmContentCompetencyMapping = kcmContentCompetencyMapping.select(
+      col("course_id"), col("competency_area_id").cast("int"),col("competency_theme_id").cast("int"),col("competency_sub_theme_id").cast("int"))
+    truncateWarehouseTable(conf.dwKcmContentTable)
+    saveDataframeToPostgresTable_With_Append(kcmContentCompetencyMapping, dwPostgresUrl, conf.dwKcmContentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    var kcmHierarchy = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.kcmReportPath}/${today}/CompetencyHierarchy-warehouse")
+    kcmHierarchy = kcmHierarchy
+      .withColumn("competency_area_id", col("competency_area_id").cast("int"))
+      .withColumn("competency_theme_id", col("competency_theme_id").cast("int"))
+      .withColumn("competency_sub_theme_id", col("competency_sub_theme_id").cast("int"))
+    truncateWarehouseTable(conf.dwKcmDictionaryTable)
+    saveDataframeToPostgresTable_With_Append(kcmHierarchy, dwPostgresUrl, conf.dwKcmDictionaryTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
   }
 
 }
