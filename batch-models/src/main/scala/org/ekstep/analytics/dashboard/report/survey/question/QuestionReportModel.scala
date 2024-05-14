@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{Column, DataFrame, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{col, from_json, lit}
+import org.apache.spark.sql.functions.{col, from_json, lit, udf}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
@@ -143,7 +143,20 @@ object QuestionReportModel extends AbsDashboardModel {
 
       val resultDFs = surveySubmissionIds.grouped(batchSize).toList.map { batchSurveySubmissionIds =>
         val batchQuery = raw"""SELECT $columns FROM \"$dataSource\" WHERE solutionId='$solutionId' AND surveySubmissionId IN ('${batchSurveySubmissionIds.mkString("','")}')"""
-        val batchDF = druidDFOption(batchQuery, conf.mlSparkDruidRouterHost, limit = 1000000).getOrElse(spark.emptyDataFrame)
+        var batchDF = druidDFOption(batchQuery, conf.mlSparkDruidRouterHost, limit = 1000000).getOrElse(spark.emptyDataFrame)
+        if (batchDF.columns.contains("evidences")) {
+          val baseUrl = conf.baseUrlForEvidences
+          val addBaseUrl = udf((evidences: String) => {
+            if (evidences != null && evidences.trim.nonEmpty) {
+              evidences.split(", ")
+                .map(url => s"$baseUrl$url")
+                .mkString(",")
+            } else {
+              evidences
+            }
+          })
+          batchDF = batchDF.withColumn("evidences", addBaseUrl(col("evidences")))
+        }
         batchDF
       }
       val finalDF = resultDFs.reduceOption(_ union _).getOrElse(spark.emptyDataFrame)
