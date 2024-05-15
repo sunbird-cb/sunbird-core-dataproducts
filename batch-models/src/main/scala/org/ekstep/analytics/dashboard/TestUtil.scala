@@ -88,6 +88,7 @@ object TestUtil extends Serializable {
       "dwKcmDictionaryTable" -> "kcm_dictionary",
       "dwKcmContentTable" -> "kcm_content_mapping",
       "dwCBPlanTable" -> "cb_plan",
+      "dwContentResourceTable" -> "content_resource",
 
       "cassandraUserKeyspace" -> "sunbird",
       "cassandraCourseKeyspace" -> "sunbird_courses",

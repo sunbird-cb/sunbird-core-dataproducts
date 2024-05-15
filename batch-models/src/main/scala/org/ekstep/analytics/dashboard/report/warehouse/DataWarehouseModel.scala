@@ -1,5 +1,3 @@
-package org.ekstep.analytics.dashboard.report.warehouse
-
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -23,20 +21,20 @@ object DataWarehouseModel extends AbsDashboardModel {
     val today = getDate()
     val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
 
-    var user_details = spark.read.option("header", "true")
-      .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
-    user_details = user_details.withColumn("status", col("status").cast("int"))
-      .withColumn("total_kp", col("total_kp").cast("int"))
-    truncateWarehouseTable(conf.dwUserTable)
-    saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+     var user_details = spark.read.option("header", "true")
+       .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
+     user_details = user_details.withColumn("status", col("status").cast("int"))
+       .withColumn("no_of_karma_points", col("no_of_karma_points").cast("int"))
+     truncateWarehouseTable(conf.dwUserTable)
+     saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    var content_details = spark.read.option("header", "true")
+     var content_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-warehouse")
 
-    content_details = content_details
-      .withColumn("resource_count", col("resource_count").cast("int"))
-      .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
-      .withColumn("content_rating", col("content_rating").cast("float"))
+        content_details = content_details
+          .withColumn("resource_count", col("resource_count").cast("int"))
+          .withColumn("total_certificates_issued", col("total_certificates_issued").cast("int"))
+          .withColumn("content_rating", col("content_rating").cast("float"))
 
     content_details = content_details.dropDuplicates(Seq("content_id"))
 
@@ -46,20 +44,20 @@ object DataWarehouseModel extends AbsDashboardModel {
     var enrollment_details = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
 
-    enrollment_details = enrollment_details
-      .withColumn("content_progress_percentage", col("content_progress_percentage").cast("float"))
-      .withColumn("user_rating", col("user_rating").cast("float"))
-      .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
-      .withColumn("live_cbp_plan_mandate", col("live_cbp_plan_mandate").cast("boolean"))
-      .filter(col("content_id").isNotNull)
+     enrollment_details = enrollment_details
+     .withColumn("content_progress_percentage", col("content_progress_percentage").cast("float"))
+     .withColumn("user_rating", col("user_rating").cast("float"))
+     .withColumn("resource_count_consumed", col("resource_count_consumed").cast("int"))
+     .withColumn("live_cbp_plan_mandate", col("live_cbp_plan_mandate").cast("boolean"))
+     .filter(col("content_id").isNotNull)
 
-    truncateWarehouseTable(conf.dwEnrollmentsTable)
-    saveDataframeToPostgresTable_With_Append(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+     truncateWarehouseTable(conf.dwEnrollmentsTable)
+     saveDataframeToPostgresTable_With_Append(enrollment_details, dwPostgresUrl, conf.dwEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
-    var assessment_details = spark.read.option("header", "true")
-      .csv(s"${conf.localReportDir}/${conf.cbaReportPath}/${today}-warehouse")
+     var assessment_details = spark.read.option("header", "true")
+       .csv(s"${conf.localReportDir}/${conf.cbaReportPath}/${today}-warehouse")
 
-    assessment_details = assessment_details
+     assessment_details = assessment_details
       .withColumn("score_achieved", col("score_achieved").cast("float"))
       .withColumn("overall_score", col("overall_score").cast("float"))
       .withColumn("cut_off_percentage", col("cut_off_percentage").cast("float"))
@@ -68,8 +66,8 @@ object DataWarehouseModel extends AbsDashboardModel {
       .withColumn("number_of_retakes", col("number_of_retakes").cast("int"))
       .filter(col("content_id").isNotNull)
 
-    truncateWarehouseTable(conf.dwAssessmentTable)
-    saveDataframeToPostgresTable_With_Append(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+     truncateWarehouseTable(conf.dwAssessmentTable)
+     saveDataframeToPostgresTable_With_Append(assessment_details, dwPostgresUrl, conf.dwAssessmentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
 
      var bp_enrollments = spark.read.option("header", "true")
@@ -88,6 +86,13 @@ object DataWarehouseModel extends AbsDashboardModel {
      truncateWarehouseTable(conf.dwBPEnrollmentsTable)
      saveDataframeToPostgresTable_With_Append(bp_enrollments, dwPostgresUrl, conf.dwBPEnrollmentsTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 
+    val content_resource_details = spark.read.option("header", "true")
+      .csv(s"${conf.localReportDir}/${conf.courseReportPath}/${today}-resource-warehouse")
+
+    truncateWarehouseTable(conf.dwContentResourceTable)
+    saveDataframeToPostgresTable_With_Append(content_resource_details, dwPostgresUrl, conf.dwContentResourceTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+
     val cb_plan = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse")
     truncateWarehouseTable(conf.dwCBPlanTable)
@@ -102,4 +107,3 @@ object DataWarehouseModel extends AbsDashboardModel {
   }
 
 }
-
