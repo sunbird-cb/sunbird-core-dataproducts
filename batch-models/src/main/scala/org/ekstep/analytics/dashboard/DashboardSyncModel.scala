@@ -1,12 +1,13 @@
 package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import org.ekstep.analytics.framework._
-import DashboardUtil._
-import DataUtil._
 import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.framework._
 import org.joda.time.DateTime
 
 import java.text.SimpleDateFormat
@@ -66,12 +67,15 @@ object DashboardSyncModel extends AbsDashboardModel {
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
+
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
     // org user details redis dispatch
+
     val (orgRegisteredUserCountMap, orgTotalUserCountMap, orgNameMap) = getOrgUserMaps(orgUserCountDF)
     val activeOrgCount = orgDF.where(expr("orgStatus=1")).count()
     val activeUserCount = userDF.where(expr("userStatus=1")).count()
@@ -86,6 +90,9 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     // update redis data for dashboards
     dashboardRedisUpdates(orgRoleCount, userDF, allCourseProgramDetailsWithRatingDF, allCourseProgramCompletionWithDetailsDF)
+
+    // update cbp top 10 reviews
+    cbpTop10Reviews(allCourseProgramDetailsWithRatingDF)
 
     Redis.closeRedisConnect()
   }
@@ -621,6 +628,46 @@ object DashboardSyncModel extends AbsDashboardModel {
     // calculate and save trending data
     processTrending(cbpCompletionWithDetailsDF.where(expr("category != 'Program'")))
   }
+
+  def cbpTop10Reviews(allCourseProgramDetailsWithRatingDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    // get rating table DF
+    var ratingDf = getRatings()
+    // filter records by courseID and rating greater than 4.5
+    ratingDf = ratingDf
+      .join(allCourseProgramDetailsWithRatingDF, col("activityid").equalTo(col("courseID")), "inner")
+      .filter(col("review").isNotNull && col("rating").>=("4.5"))
+
+      ratingDf = ratingDf.select(
+        col("activityid").alias("courseID"),
+        col("courseOrgID"),
+        col("activitytype"),
+        col("rating"),
+        col("userid").alias("userID"),
+        col("review")
+    ).orderBy(col("courseOrgID"))
+
+    show(ratingDf)
+
+    // assign rank
+    val windowSpec = Window.partitionBy("courseOrgID").orderBy(col("rating").desc)
+    val resultDF = ratingDf.withColumn("rank", row_number().over(windowSpec))
+    val top10PerOrg = resultDF.filter(col("rank") <= 10) // Show the result top10PerOrg.show()
+
+    show(top10PerOrg, "top10PerOrg")
+
+    // create JSON data for top 10 reviews by orgID
+    val reviewDF = top10PerOrg
+      .groupByLimit(Seq("courseOrdID"), "rank", 10, desc = true)
+      .withColumn("jsonData", struct("courseOID", "userID", "rating", "review"))
+      .groupBy("courseOrdID")
+      .agg(to_json(collect_list("jsonData")).alias("jsonData"))
+
+    // write to redis
+    Redis.dispatchDataFrame[String]("cbp_top_10_users_reviews_by_org", reviewDF, "courseOrdID", "jsonData")
+
+  }
+
+
 
 
 }

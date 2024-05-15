@@ -1,17 +1,17 @@
 package org.ekstep.analytics.dashboard
 
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.{CompressionLevel, CompressionMethod}
+import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
+import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
-import DashboardUtil._
-import net.lingala.zip4j.ZipFile
-import net.lingala.zip4j.model.ZipParameters
-import net.lingala.zip4j.model.enums.{CompressionLevel, CompressionMethod}
-import org.apache.commons.io.FileUtils
 
 import java.io.{File, Serializable}
 import java.util
@@ -288,6 +288,13 @@ object DataUtil extends Serializable {
     val observationStatusInProgressDataSchema: StructType = StructType(Seq(
       StructField("inprogressAt", StringType, nullable = true),
       StructField("observationSubmissionId", StringType, nullable = true)
+    ))
+
+    val contentRatingSchema: StructType = StructType(Seq(
+      StructField("courseID", StringType, nullable = false),
+      StructField("userID", StringType, nullable = false),
+      StructField("rating", IntegerType, nullable = true),
+      StructField("review", StringType, nullable = true)
     ))
 
   }
@@ -1792,6 +1799,12 @@ object DataUtil extends Serializable {
       .withColumn("Status of Submission", when(col("observationSubmissionId").isNotNull, lit("In Progress")).otherwise(col("Status of Submission")))
       .drop("observationSubmissionId")
     statusInProgressFinalDf
+  }
+
+  def getRatings()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    val df = cache.load("rating")
+    show(df, "ratings")
+    df
   }
 
 }
