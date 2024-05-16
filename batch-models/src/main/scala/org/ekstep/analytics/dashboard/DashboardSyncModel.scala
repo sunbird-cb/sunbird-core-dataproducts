@@ -687,7 +687,7 @@ object DashboardSyncModel extends AbsDashboardModel {
       .agg(to_json(collect_list("jsonData")).alias("jsonData"))
 
     // write to redis
-    Redis.dispatchDataFrame[String]("cbp_top_10_users_reviews_by_org", reviewDF, "courseOrdID", "jsonData")
+    Redis.dispatchDataFrame[String]("cbp_top_10_users_reviews_by_org", reviewDF, "courseOrgID", "jsonData")
 
   }
 
