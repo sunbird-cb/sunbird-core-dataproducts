@@ -58,6 +58,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
       .durationFormat("courseDuration")
       .withColumn("completedOn", date_format(col("courseCompletedTimestamp"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("enrolledOn", date_format(col("courseEnrolledTimestamp"), "yyyy-MM-dd HH:mm:ss"))
+      .withColumn("firstCompletedOn", date_format(col("firstCompletedOn"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
@@ -72,12 +73,36 @@ object UserEnrolmentModel extends AbsDashboardModel {
     df = df.distinct().dropDuplicates("userID", "courseID")
 
     // read acbp report csv and filter the cbp plan based on status or date
+//    val CBPlanDetails = spark.read.option("header", "true")
+//      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
+//      .select(col("content_id").alias("courseID"))
+//      .withColumn("liveCBPlan", lit(true)).distinct()
+//    // join with acbp report for course ids,
+//    df = df.join(CBPlanDetails, Seq("courseID"), "left")
+//      .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
+
     val CBPlanDetails = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
-      .select(col("content_id").alias("courseID"))
+      .select(col("content_id").alias("courseID"),col("org_id").alias("userOrgID"),col("allotment_type"), col("allotment_to"))
       .withColumn("liveCBPlan", lit(true)).distinct()
+
+    val enrolmentData = df.select("userID","userOrgID", "courseID", "professionalDetails.designation")
+
+    var designationWiseCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "Designation")
+    designationWiseCBPlanDetails = enrolmentData.withColumn("allotment_to", col("designation"))
+      .join(designationWiseCBPlanDetails, Seq("courseID", "userOrgID", "allotment_to"), "inner")
+
+    var allUserCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "AllUser")
+    allUserCBPlanDetails = enrolmentData.join(allUserCBPlanDetails, Seq("userOrgID", "courseID"), "inner")
+
+    var customUserCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "CustomUser")
+    customUserCBPlanDetails = enrolmentData.withColumn("allotment_to", col("userID"))
+      .join(customUserCBPlanDetails, Seq("userOrgID", "courseID", "allotment_to"), "inner")
+
+    val allCBPDetails = designationWiseCBPlanDetails.union(allUserCBPlanDetails).union(customUserCBPlanDetails)
+
     // join with acbp report for course ids,
-    df = df.join(CBPlanDetails, Seq("courseID"), "left")
+    df = df.join(allCBPDetails, Seq("userID", "userOrgID", "courseID"), "left")
       .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
 
     val fullReportDF = df.select(
@@ -148,7 +173,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
         col("courseID").alias("content_id"),
         col("completionPercentage").alias("content_progress_percentage"),
         col("completedOn").alias("completed_on"),
-        date_format(col("firstCompletedOn"), "yyyy-MM-dd HH:mm:ss").alias("first_completed_on"),
+        col("firstCompletedOn").alias("first_completed_on"),
         col("Certificate_Generated").alias("certificate_generated"),
         col("certificate_generated_on").alias("certificate_generated_on"),
         col("userRating").alias("user_rating"),
