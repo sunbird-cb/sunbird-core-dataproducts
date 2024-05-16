@@ -681,9 +681,9 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     // create JSON data for top 10 reviews by orgID
     val reviewDF = top10PerOrg
-      .groupByLimit(Seq("courseOrdID"), "rank", 10, desc = true)
-      .withColumn("jsonData", struct("courseOID", "userID", "rating", "review"))
-      .groupBy("courseOrdID")
+      .groupByLimit(Seq("courseOrgID"), "rank", 10, desc = true)
+      .withColumn("jsonData", struct("courseID", "userID", "rating", "review"))
+      .groupBy("courseOrgID")
       .agg(to_json(collect_list("jsonData")).alias("jsonData"))
 
     // write to redis
