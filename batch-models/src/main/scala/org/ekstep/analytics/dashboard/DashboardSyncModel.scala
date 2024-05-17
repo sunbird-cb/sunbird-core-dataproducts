@@ -1,12 +1,13 @@
 package org.ekstep.analytics.dashboard
 
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import org.ekstep.analytics.framework._
-import DashboardUtil._
-import DataUtil._
 import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
+import org.ekstep.analytics.framework._
 import org.joda.time.DateTime
 
 import java.text.SimpleDateFormat
@@ -66,8 +67,10 @@ object DashboardSyncModel extends AbsDashboardModel {
     kafkaDispatch(withTimestamp(allCourseProgramCompetencyDF, timestamp), conf.courseCompetencyTopic)
 
     // get course completion data, dispatch to kafka to be ingested by druid data-source: dashboards-user-course-program-progress
+
     val userCourseProgramCompletionDF = userCourseProgramCompletionDataFrame(datesAsLong = true)
     val allCourseProgramCompletionWithDetailsDF = allCourseProgramCompletionWithDetailsDataFrame(userCourseProgramCompletionDF, allCourseProgramDetailsDF, userOrgDF)
+
     validate({userCourseProgramCompletionDF.count()}, {allCourseProgramCompletionWithDetailsDF.count()}, "userCourseProgramCompletionDF.count() should equal final course progress DF count")
     kafkaDispatch(withTimestamp(allCourseProgramCompletionWithDetailsDF, timestamp), conf.userCourseProgramProgressTopic)
 
@@ -85,13 +88,16 @@ object DashboardSyncModel extends AbsDashboardModel {
     updateLearnerHomePageData(orgDF, userOrgDF, userCourseProgramCompletionDF)
 
     // update redis data for dashboards
-    dashboardRedisUpdates(orgRoleCount, userDF, allCourseProgramDetailsWithRatingDF, allCourseProgramCompletionWithDetailsDF)
+    dashboardRedisUpdates(orgRoleCount, userDF, allCourseProgramDetailsWithRatingDF, allCourseProgramCompletionWithDetailsDF, allCourseProgramCompetencyDF)
+
+    // update cbp top 10 reviews
+    cbpTop10Reviews(allCourseProgramDetailsWithRatingDF)
 
     Redis.closeRedisConnect()
   }
 
   def dashboardRedisUpdates(orgRoleCount: DataFrame, userDF: DataFrame, allCourseProgramDetailsWithRatingDF: DataFrame,
-                            allCourseProgramCompletionWithDetailsDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+                            allCourseProgramCompletionWithDetailsDF: DataFrame, allCourseProgramCompetencyDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
     import spark.implicits._
     // new redis updates - start
     // MDO onboarded, with atleast one MDO_ADMIN/MDO_LEADER
@@ -153,6 +159,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category='Course' AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveRetiredCourseProgramEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveCourseProgramEnrolmentDF = liveRetiredCourseProgramEnrolmentDF.where(expr("courseStatus = 'Live'"))
+    val liveRetiredCourseProgramExcludingModeratedEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program', 'Blended Program', 'CuratedCollections', 'Standalone Assessment', 'Curated Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveCourseProgramExcludingModeratedEnrolmentDF = liveRetiredCourseProgramExcludingModeratedEnrolmentDF.where(expr("courseStatus = 'Live'"))
     val currentDate = LocalDate.now()
     // Calculate twenty four hours ago
     val twentyFourHoursAgo = currentDate.minusDays(1)
@@ -178,6 +186,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     val liveRetiredCourseCompletedDF = liveRetiredCourseStartedDF.where(expr("dbCompletionStatus=2"))
     // course program completed
     val liveRetiredCourseProgramCompletedDF = liveRetiredCourseProgramEnrolmentDF.where(expr("dbCompletionStatus=2"))
+    val liveCourseProgramExcludingModeratedCompletedDF= liveCourseProgramExcludingModeratedEnrolmentDF.where(expr("dbCompletionStatus=2"))
 
     // do both count(*) and countDistinct(userID) aggregates at once
     val enrolmentCountDF = liveRetiredCourseEnrolmentDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
@@ -271,6 +280,28 @@ object DashboardSyncModel extends AbsDashboardModel {
     val liveRetiredCourseCompletedByCBPDF = liveRetiredCourseCompletedDF.groupBy("courseOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     Redis.dispatchDataFrame[Long]("dashboard_completed_count_by_course_org", liveRetiredCourseCompletedByCBPDF, "courseOrgID", "count")
     Redis.dispatchDataFrame[Long]("dashboard_completed_unique_user_count_by_course_org", liveRetiredCourseCompletedByCBPDF, "courseOrgID", "uniqueUserCount")
+
+
+    // cbp wise total certificate generations, competencies and top 10 content by completions for ati cti web page
+    val certificateGeneratedDF = liveRetiredCourseCompletedDF.filter($"certificateGeneratedOn".isNotNull && $"certificateGeneratedOn" =!= "")
+    val certificateGeneratedByCBPDF = certificateGeneratedDF.groupBy("courseOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
+    Redis.dispatchDataFrame[Long]("dashboard_certificates_generated_count_by_course_org", certificateGeneratedByCBPDF, "courseOrgID", "count")
+    val competencyCountByCBPDF = allCourseProgramCompetencyDF.groupBy("courseOrgID").agg(countDistinct("competencyName").alias("uniqueCompetencyCount"))
+    Redis.dispatchDataFrame[Long]("dashboard_competencies_count_by_course_org", competencyCountByCBPDF, "courseOrgID", "uniqueCompetencyCount")
+
+    val liveCourseProgramExcludingModeratedBYCBPDF = liveCourseProgramExcludingModeratedCompletedDF.groupBy("courseOrgID")
+      .agg(count("*").alias("count"),
+        collect_list("courseID").alias("courseIDs")) // Collect all courseIDs for each courseOrgID
+
+    // Order the DataFrame by count of completed courses in descending order
+    val liveCourseProgramExcludingModeratedOrderedBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF.orderBy(col("count").desc)
+
+    // Concatenate the top ten courseIDs into a comma-separated list
+    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedOrderedBYCBPDF.withColumn("completion_counts", concat_ws(",", col("courseIDs"))) // Concatenate courseIDs into a comma-separated list
+
+    // Select only the required columns
+    val liveRetiredTop10CourseCompletedByCBPDF = liveCourseProgramExcludingModeratedFinalBYCBPDF.select("courseOrgID", "completion_counts")
+    Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", liveRetiredTop10CourseCompletedByCBPDF, "courseOrgID", "completion_counts")
 
     // courses enrolled/completed at-least once, only live courses
     val liveCourseEnrolmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
@@ -622,6 +653,45 @@ object DashboardSyncModel extends AbsDashboardModel {
     processTrending(cbpCompletionWithDetailsDF.where(expr("category != 'Program'")))
   }
 
+  def cbpTop10Reviews(allCourseProgramDetailsWithRatingDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
+    // get rating table DF
+    var ratingDf = getRatings()
+    // filter records by courseID and rating greater than 4.5
+    ratingDf = ratingDf
+      .join(allCourseProgramDetailsWithRatingDF, col("activityid").equalTo(col("courseID")), "inner")
+      .filter(col("review").isNotNull && col("rating").>=("4.5"))
+
+      ratingDf = ratingDf.select(
+        col("activityid").alias("courseID"),
+        col("courseOrgID"),
+        col("activitytype"),
+        col("rating"),
+        col("userid").alias("userID"),
+        col("review")
+    ).orderBy(col("courseOrgID"))
+
+    show(ratingDf)
+
+    // assign rank
+    val windowSpec = Window.partitionBy("courseOrgID").orderBy(col("rating").desc)
+    val resultDF = ratingDf.withColumn("rank", row_number().over(windowSpec))
+    val top10PerOrg = resultDF.filter(col("rank") <= 10) // Show the result top10PerOrg.show()
+
+    show(top10PerOrg, "top10PerOrg")
+
+    // create JSON data for top 10 reviews by orgID
+    val reviewDF = top10PerOrg
+      .groupByLimit(Seq("courseOrgID"), "rank", 10, desc = true)
+      .withColumn("jsonData", struct("courseID", "userID", "rating", "review"))
+      .groupBy("courseOrgID")
+      .agg(to_json(collect_list("jsonData")).alias("jsonData"))
+
+    // write to redis
+    Redis.dispatchDataFrame[String]("cbp_top_10_users_reviews_by_org", reviewDF, "courseOrgID", "jsonData")
+
+  }
+
+
+
 
 }
-

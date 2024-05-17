@@ -3,8 +3,8 @@ package org.ekstep.analytics.dashboard.report.survey.question
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SaveMode, SparkSession}
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.{Column, DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{col, from_json, lit, udf}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
@@ -31,7 +31,7 @@ object QuestionReportModel extends AbsDashboardModel {
     val reportColumnsMap = surveyQuestionReportColumnsConfigMap("reportColumns").asInstanceOf[Map[String, String]]
     val userProfileColumnsMap = surveyQuestionReportColumnsConfigMap("userProfileColumns").asInstanceOf[Map[String, String]]
     val sortingColumns = surveyQuestionReportColumnsConfigMap("sortingColumns")
-    val columnsToBeQueried = reportColumnsMap.keys.mkString(",") + ",userProfile"
+    val columnsToBeQueried = reportColumnsMap.keys.mkString(",") //+ ",userProfile"
     val userProfileSchema = StructType(userProfileColumnsMap.keys.toSeq.map(key => StructField(key, StringType, nullable = true)))
     val reportColumns = reportColumnsMap.keys.toList.map(key => col(key).as(reportColumnsMap(key)))
     val userProfileColumns = userProfileColumnsMap.keys.toList.map(key => col(s"parsedProfile.$key").as(userProfileColumnsMap(key)))
@@ -110,9 +110,9 @@ object QuestionReportModel extends AbsDashboardModel {
      */
     def generateSurveyQuestionReport(solutionId: String, solutionName: String) = {
       val dataSource = "sl-survey"
-      val originalSolutionDf = getSolutionIdData(columnsToBeQueried, dataSource, solutionId)
+      val originalSolutionDf = getSolutionIdData1(columnsToBeQueried, dataSource, solutionId)
       JobLogger.log(s"Successfully executed druid query for solutionId: $solutionId")
-      val finalSolutionDf = processProfileData(originalSolutionDf, userProfileSchema, requiredCsvColumns)
+      val finalSolutionDf = processProfileData1(originalSolutionDf, userProfileSchema, requiredCsvColumns)
       JobLogger.log(s"Successfully parsed userProfile key for solutionId: $solutionId")
       val columnsMatch = validateColumns(finalSolutionDf, sortingColumns.split(",").map(_.trim))
 
@@ -128,6 +128,57 @@ object QuestionReportModel extends AbsDashboardModel {
         JobLogger.log(s"Successfully generated survey question csv report for solutionId: $solutionId")
       } else {
         JobLogger.log(s"Error occurred while matching the data frame columns with config sort columns for solutionId: $solutionId")
+      }
+    }
+
+    def getSolutionIdData1(columns: String, dataSource: String, solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+      import spark.implicits._
+      val batchSize = 2500
+
+      val surveySubmissionIdQuery = raw"""SELECT DISTINCT(surveySubmissionId) FROM \"$dataSource\" WHERE solutionId='$solutionId'"""
+      val surveySubmissionIds = druidDFOption(surveySubmissionIdQuery, conf.mlSparkDruidRouterHost, limit = 1000000)
+        .getOrElse(spark.emptyDataFrame)
+        .as[String]
+        .collect()
+
+      val resultDFs = surveySubmissionIds.grouped(batchSize).toList.map { batchSurveySubmissionIds =>
+        val batchQuery = raw"""SELECT $columns FROM \"$dataSource\" WHERE solutionId='$solutionId' AND surveySubmissionId IN ('${batchSurveySubmissionIds.mkString("','")}')"""
+        var batchDF = druidDFOption(batchQuery, conf.mlSparkDruidRouterHost, limit = 1000000).getOrElse(spark.emptyDataFrame)
+        if (batchDF.columns.contains("evidences")) {
+          val baseUrl = conf.baseUrlForEvidences
+          val addBaseUrl = udf((evidences: String) => {
+            if (evidences != null && evidences.trim.nonEmpty) {
+              evidences.split(", ")
+                .map(url => s"$baseUrl$url")
+                .mkString(",")
+            } else {
+              evidences
+            }
+          })
+          batchDF = batchDF.withColumn("evidences", addBaseUrl(col("evidences")))
+        }
+        batchDF
+      }
+      val finalDF = resultDFs.reduceOption(_ union _).getOrElse(spark.emptyDataFrame)
+      finalDF.show()
+      finalDF.select(requiredCsvColumns: _*)
+      finalDF
+    }
+
+    def processProfileData1(originalDf: DataFrame, profileSchema: StructType, requiredCsvColumns: List[Column])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+      val hasUserProfileColumn = originalDf.columns.contains("userProfile")
+
+      if (hasUserProfileColumn) {
+        val parsedDf = originalDf.withColumn("parsedProfile", from_json(col("userProfile"), profileSchema))
+        val finalDF = parsedDf.select(requiredCsvColumns: _*)
+        finalDF.show()
+        finalDF
+      } else {
+        val emptyParsedProfileSchema = new StructType().add("parsedProfile", StringType)
+        val emptyParsedDf = originalDf.withColumn("parsedProfile", lit(null).cast(StringType))
+        val finalDF = emptyParsedDf.select(requiredCsvColumns: _*)
+        finalDF.show()
+        finalDF
       }
     }
 
