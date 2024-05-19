@@ -20,7 +20,8 @@ object NpsModel extends AbsDashboardModel {
     val druidData2 = npsTriggerC2DataFrame() // gives data from druid for users who have either completed 1 course or have more than 30 telemetry events
     val mongodbData = npsTriggerC3DataFrame() // gives the data from mongoDB for the users who have posted atleast 1 discussion
 
-    val df = druidData2.union(mongodbData)
+    var df = druidData2.union(mongodbData)
+    df = df.dropDuplicates("userid")
     val druidData1Count = druidData1.count()
     println(s"DataFrame Count for set of users who have submitted the form: $druidData1Count")
     val druidData2Count = druidData2.count()
@@ -38,7 +39,8 @@ object NpsModel extends AbsDashboardModel {
     val existingFeedCount = cassandraDF.count()
     println(s"DataFrame Count for users who have feed data: $existingFeedCount")
     val storeToCassandraDF = filteredDF.except(cassandraDF)
-    val filteredStoreToCassandraDF = storeToCassandraDF.filter(col("userid").isNotNull && col("userid") =!= "" && col("userid") =!= "''")
+    var filteredStoreToCassandraDF = storeToCassandraDF.filter(col("userid").isNotNull && col("userid") =!= "" && col("userid") =!= "''")
+    filteredStoreToCassandraDF = filteredStoreToCassandraDF.dropDuplicates("userid")
     val finalFeedCount = filteredStoreToCassandraDF.count()
     println(s"DataFrame Count for final set of users to create feed: $finalFeedCount")
     //create an additional dataframe that has columns of user_feed table as we have to insert thes userIDS to user_feed table
@@ -67,7 +69,7 @@ object NpsModel extends AbsDashboardModel {
     // write the dataframe to cassandra user_feed_backup table
     additionalDF.write
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("keyspace" -> "sunbird_notifications" , "table" -> "notification_feed_backup"))
+      .options(Map("keyspace" -> "sunbird_notifications" , "table" -> "notification_feed_history"))
       .mode("append")
       .save()
   }
