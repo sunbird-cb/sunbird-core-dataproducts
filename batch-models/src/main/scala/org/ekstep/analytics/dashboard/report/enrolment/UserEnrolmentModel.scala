@@ -28,6 +28,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
     val orgHierarchyData = orgHierarchyDataframe()
     val userDataDF = userOrgDF
       .join(orgHierarchyData, Seq("userOrgID"), "left")
+      .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
     show(userDataDF, "userDataDF")
 
     // Get course data first
@@ -71,13 +72,43 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     df = df.distinct().dropDuplicates("userID", "courseID")
 
-    // read acbp report csv and filter the cbp plan based on status or date
-    val CBPlanDetails = spark.read.option("header", "true")
-      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
-      .select(col("content_id").alias("courseID"))
-      .withColumn("liveCBPlan", lit(true)).distinct()
-    // join with acbp report for course ids,
-    df = df.join(CBPlanDetails, Seq("courseID"), "left")
+    // read acbp data and filter the cbp plan based on status
+    val acbpDF = acbpDetailsDF().where(col("acbpStatus") === "Live")
+
+    // CustomUser
+    val acbpCustomUserAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "CustomUser")
+      .withColumn("userID", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userID", "userOrgID"), "left")
+    show(acbpCustomUserAllotmentDF, "acbpCustomUserAllotmentDF")
+
+    // Designation
+    val acbpDesignationAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "Designation")
+      .withColumn("designation", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userOrgID", "designation"), "left")
+    show(acbpDesignationAllotmentDF, "acbpDesignationAllotmentDF")
+
+    // All User
+    val acbpAllUserAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "AllUser")
+      .join(userDataDF, Seq("userOrgID"), "left")
+    show(acbpAllUserAllotmentDF, "acbpAllUserAllotmentDF")
+
+    // union of all the response dfs
+    val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
+      df.select("userID", "designation", "userOrgID", "acbpID", "assignmentType", "acbpCourseIDList","acbpStatus")
+    }).reduce((a, b) => a.union(b))
+    show(acbpAllotmentDF, "acbpAllotmentDF")
+
+    // replace content list with names of the courses instead of ids
+    var acbpAllEnrolmentDF = acbpAllotmentDF
+      .withColumn("courseID", explode(col("acbpCourseIDList"))).withColumn("liveCBPlan", lit(true))
+
+    acbpAllEnrolmentDF = acbpAllEnrolmentDF.select(col("userOrgID"),col("courseID"),col("userID"),col("designation"),col("liveCBPlan"))
+    show(acbpAllEnrolmentDF, "acbpAllEnrolmentDF")
+
+    df = df.join(acbpAllEnrolmentDF, Seq("userID", "userOrgID", "courseID"), "left")
       .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
 
     val fullReportDF = df.select(
