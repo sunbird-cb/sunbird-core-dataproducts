@@ -825,7 +825,7 @@ object DataUtil extends Serializable {
     df
   }
 
-  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course", "Program"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course","Moderated Course","Program","Invite-Only Program","Moderated Program","Blended Program","Curated Program","Standalone Assessment","Moderated Assessment","CuratedCollections","Invite-Only Assessment"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     validatePrimaryCategories(primaryCategories)
 
     val hierarchyDF = contentHierarchyDataFrame()

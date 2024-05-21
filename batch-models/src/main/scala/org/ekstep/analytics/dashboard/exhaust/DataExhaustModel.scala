@@ -54,7 +54,7 @@ object DataExhaustModel extends AbsDashboardModel {
     cache.write(roleDF, "role")
 
     // ES content
-    val primaryCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment", "Curated Program")
+    val primaryCategories = Seq("Course","Moderated Course","Program","Invite-Only Program","Moderated Program","Blended Program","Curated Program","Standalone Assessment","Moderated Assessment","CuratedCollections","Invite-Only Assessment")
     val shouldClause = primaryCategories.map(pc => s"""{"match":{"primaryCategory.raw":"${pc}"}}""").mkString(",")
     val fields = Seq("identifier", "name", "primaryCategory", "status", "reviewStatus", "channel", "duration", "leafNodesCount", "lastPublishedOn", "lastStatusChangedOn", "createdFor", "competencies_v5", "programDirectorName")
     val arrayFields = Seq("createdFor")
