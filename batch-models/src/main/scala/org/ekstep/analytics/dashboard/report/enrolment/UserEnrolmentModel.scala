@@ -75,31 +75,8 @@ object UserEnrolmentModel extends AbsDashboardModel {
     // read acbp data and filter the cbp plan based on status
     val acbpDF = acbpDetailsDF().where(col("acbpStatus") === "Live")
 
-    // CustomUser
-    val acbpCustomUserAllotmentDF = acbpDF
-      .filter(col("assignmentType") === "CustomUser")
-      .withColumn("userID", explode(col("assignmentTypeInfo")))
-      .join(userDataDF, Seq("userID", "userOrgID"), "left")
-    show(acbpCustomUserAllotmentDF, "acbpCustomUserAllotmentDF")
-
-    // Designation
-    val acbpDesignationAllotmentDF = acbpDF
-      .filter(col("assignmentType") === "Designation")
-      .withColumn("designation", explode(col("assignmentTypeInfo")))
-      .join(userDataDF, Seq("userOrgID", "designation"), "left")
-    show(acbpDesignationAllotmentDF, "acbpDesignationAllotmentDF")
-
-    // All User
-    val acbpAllUserAllotmentDF = acbpDF
-      .filter(col("assignmentType") === "AllUser")
-      .join(userDataDF, Seq("userOrgID"), "left")
-    show(acbpAllUserAllotmentDF, "acbpAllUserAllotmentDF")
-
-    // union of all the response dfs
-    val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
-      df.select("userID", "designation", "userOrgID", "acbpID", "assignmentType", "acbpCourseIDList","acbpStatus")
-    }).reduce((a, b) => a.union(b))
-    show(acbpAllotmentDF, "acbpAllotmentDF")
+    val selectColumns = Seq("userID", "designation", "userOrgID", "acbpID", "assignmentType", "acbpCourseIDList","acbpStatus")
+    val acbpAllotmentDF = explodedACBPDetails(acbpDF, userDataDF, selectColumns)
 
     // replace content list with names of the courses instead of ids
     var acbpAllEnrolmentDF = acbpAllotmentDF
