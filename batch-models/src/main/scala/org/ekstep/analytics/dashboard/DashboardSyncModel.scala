@@ -129,7 +129,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     val retiredCourseDF = allCourseDF.where(expr("courseStatus='Retired'"))
     val pendingPublishCourseDF = reviewCourseDF.where(expr("courseReviewStatus='Reviewed'"))
 
-    val liveCourseCountByCBPDF = allCourseProgramDetailsWithRatingDF.groupBy("courseOrgID").agg(count("*").alias("count"))
+    val liveCourseCountByCBPDF = liveCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_live_course_count_by_course_org", liveCourseCountByCBPDF, "courseOrgID", "count")
     val draftCourseCountByCBPDF = draftCourseDF.groupBy("courseOrgID").agg(count("*").alias("count"))
     Redis.dispatchDataFrame[Long]("dashboard_draft_course_count_by_course_org", draftCourseCountByCBPDF, "courseOrgID", "count")
@@ -299,7 +299,7 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     val liveCourseProgramExcludingModeratedBYCBPDF = liveCourseProgramExcludingModeratedCompletedDF.groupBy("courseOrgID")
       .agg(count("*").alias("count"),
-        collect_list("courseID").alias("courseIDs")) // Collect all courseIDs for each courseOrgID
+        collect_set("courseID").alias("courseIDs")) // Collect all courseIDs for each courseOrgID
 
     // Order the DataFrame by count of completed courses in descending order
     val liveCourseProgramExcludingModeratedOrderedBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF.orderBy(col("count").desc)
