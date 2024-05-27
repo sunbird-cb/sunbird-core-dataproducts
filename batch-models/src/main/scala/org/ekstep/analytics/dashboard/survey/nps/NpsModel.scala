@@ -33,7 +33,7 @@ object NpsModel extends AbsDashboardModel {
     val filteredDF = df.except(druidData1)
     val filteredCount = filteredDF.count()
     println(s"DataFrame Count for set of users who are eligible and not filled form: $filteredCount")
-   // check if the feed for these users is alreday there
+   // check if the feed for these users is already there
     val cassandraDF = userFeedFromCassandraDataFrame()
 
     val existingFeedCount = cassandraDF.count()
