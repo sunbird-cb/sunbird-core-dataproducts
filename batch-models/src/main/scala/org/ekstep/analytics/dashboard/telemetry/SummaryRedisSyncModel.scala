@@ -45,7 +45,7 @@ object SummaryRedisSyncModel extends AbsDashboardModel {
     // (SELECT COUNT(DISTINCT(actor_id)) AS daily_count, TIME_FLOOR(__time + INTERVAL '05:30' HOUR TO MINUTE, 'P1D') AS day_start FROM \"telemetry-events-syncts\"
     // WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 2)
     val averageMonthlyActiveUsersDF = averageMonthlyActiveUsersDataFrame()
-    val averageMonthlyActiveUsersCount = averageMonthlyActiveUsersDF.groupBy().agg(expr("CASE WHEN COUNT(*) > 0 THEN CAST(AVG(DAUOutput) AS LONG) ELSE 0 END").alias("count")).first().getLong(0)
+    val averageMonthlyActiveUsersCount = averageMonthlyActiveUsersDF.select("activeCount").first().getLong(0)
     Redis.update("lp_monthly_active_users", averageMonthlyActiveUsersCount.toString)
     println(s"lp_monthly_active_users = ${averageMonthlyActiveUsersCount}")
 
@@ -88,11 +88,11 @@ object SummaryRedisSyncModel extends AbsDashboardModel {
   }
 
   def averageMonthlyActiveUsersDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : DataFrame = {
-    val query = """SELECT ROUND(AVG(daily_count * 1.0), 1)  as DAUOutput FROM (SELECT COUNT(DISTINCT(actor_id)) AS daily_count, TIME_FLOOR(__time + INTERVAL '05:30' HOUR TO MINUTE, 'P1D') AS day_start FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 2)"""
+    val query = """SELECT COUNT(DISTINCT(uid)) as activeCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY"""
     var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
     if (df == null) return emptySchemaDataFrame(Schema.monthlyActiveUsersSchema)
 
-    df = df.withColumn("DAUOutput", expr("CAST(DAUOutput as LONG)"))  // Important to cast as long otherwise a cast will fail later on
+    df = df.withColumn("activeCount", expr("CAST(activeCount as LONG)"))  // Important to cast as long otherwise a cast will fail later on
 
     show(df)
     df

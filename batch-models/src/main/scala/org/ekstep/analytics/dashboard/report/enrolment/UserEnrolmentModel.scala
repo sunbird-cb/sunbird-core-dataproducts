@@ -28,6 +28,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
     val orgHierarchyData = orgHierarchyDataframe()
     val userDataDF = userOrgDF
       .join(orgHierarchyData, Seq("userOrgID"), "left")
+      .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
     show(userDataDF, "userDataDF")
 
     // Get course data first
@@ -72,37 +73,20 @@ object UserEnrolmentModel extends AbsDashboardModel {
 
     df = df.distinct().dropDuplicates("userID", "courseID")
 
-    // read acbp report csv and filter the cbp plan based on status or date
-//    val CBPlanDetails = spark.read.option("header", "true")
-//      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
-//      .select(col("content_id").alias("courseID"))
-//      .withColumn("liveCBPlan", lit(true)).distinct()
-//    // join with acbp report for course ids,
-//    df = df.join(CBPlanDetails, Seq("courseID"), "left")
-//      .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
+    // read acbp data and filter the cbp plan based on status
+    val acbpDF = acbpDetailsDF().where(col("acbpStatus") === "Live")
 
-    val CBPlanDetails = spark.read.option("header", "true")
-      .csv(s"${conf.localReportDir}/${conf.acbpReportPath}/${today}-warehouse").where(col("status") === "Live")
-      .select(col("content_id").alias("courseID"),col("org_id").alias("userOrgID"),col("allotment_type"), col("allotment_to"))
-      .withColumn("liveCBPlan", lit(true)).distinct()
+    val selectColumns = Seq("userID", "designation", "userOrgID", "acbpID", "assignmentType", "acbpCourseIDList","acbpStatus")
+    val acbpAllotmentDF = explodedACBPDetails(acbpDF, userDataDF, selectColumns)
 
-    val enrolmentData = df.select("userID","userOrgID", "courseID", "professionalDetails.designation")
+    // replace content list with names of the courses instead of ids
+    var acbpAllEnrolmentDF = acbpAllotmentDF
+      .withColumn("courseID", explode(col("acbpCourseIDList"))).withColumn("liveCBPlan", lit(true))
 
-    var designationWiseCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "Designation")
-    designationWiseCBPlanDetails = enrolmentData.withColumn("allotment_to", col("designation"))
-      .join(designationWiseCBPlanDetails, Seq("courseID", "userOrgID", "allotment_to"), "inner")
+    acbpAllEnrolmentDF = acbpAllEnrolmentDF.select(col("userOrgID"),col("courseID"),col("userID"),col("designation"),col("liveCBPlan"))
+    show(acbpAllEnrolmentDF, "acbpAllEnrolmentDF")
 
-    var allUserCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "AllUser")
-    allUserCBPlanDetails = enrolmentData.join(allUserCBPlanDetails, Seq("userOrgID", "courseID"), "inner")
-
-    var customUserCBPlanDetails = CBPlanDetails.filter(col("allotment_type") === "CustomUser")
-    customUserCBPlanDetails = enrolmentData.withColumn("allotment_to", col("userID"))
-      .join(customUserCBPlanDetails, Seq("userOrgID", "courseID", "allotment_to"), "inner")
-
-    val allCBPDetails = designationWiseCBPlanDetails.union(allUserCBPlanDetails).union(customUserCBPlanDetails)
-
-    // join with acbp report for course ids,
-    df = df.join(allCBPDetails, Seq("userID", "userOrgID", "courseID"), "left")
+    df = df.join(acbpAllEnrolmentDF, Seq("userID", "userOrgID", "courseID"), "left")
       .withColumn("live_cbp_plan_mandate", when(col("liveCBPlan").isNull, false).otherwise(col("liveCBPlan")))
 
     val fullReportDF = df.select(
