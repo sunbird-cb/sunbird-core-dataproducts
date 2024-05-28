@@ -10,7 +10,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
-import org.ekstep.analytics.dashboard.DashboardUtil._
+import DashboardUtil._
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 
 import java.io.{File, Serializable}
@@ -1649,6 +1649,45 @@ object DataUtil extends Serializable {
     val result = nonDraftCBPData.union(draftCBPData)
     show(result, "allACBPDetails")
     result
+  }
+
+  /**
+   *
+   * @param acbpDF
+   * @param userDataDF
+   * @param columns
+   * @param spark
+   * @param conf
+   * @return This will return a dataframe which is exploded based on the assignment_type.
+   */
+  def explodedACBPDetails(acbpDF: DataFrame, userDataDF: DataFrame, columns: Seq[String])(implicit spark: SparkSession, conf: DashboardConfig):DataFrame = {
+    // CustomUser
+    val acbpCustomUserAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "CustomUser")
+      .withColumn("userID", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userID", "userOrgID"), "left")
+    show(acbpCustomUserAllotmentDF, "acbpCustomUserAllotmentDF")
+
+    // Designation
+    val acbpDesignationAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "Designation")
+      .withColumn("designation", explode(col("assignmentTypeInfo")))
+      .join(userDataDF, Seq("userOrgID", "designation"), "left")
+    show(acbpDesignationAllotmentDF, "acbpDesignationAllotmentDF")
+
+    // All User
+    val acbpAllUserAllotmentDF = acbpDF
+      .filter(col("assignmentType") === "AllUser")
+      .join(userDataDF, Seq("userOrgID"), "left")
+    show(acbpAllUserAllotmentDF, "acbpAllUserAllotmentDF")
+
+    // union of all the response dfs
+    val acbpAllotmentDF = Seq(acbpCustomUserAllotmentDF, acbpDesignationAllotmentDF, acbpAllUserAllotmentDF).map(df => {
+      df.select(columns.map(col): _*)
+    }).reduce((a, b) => a.union(b))
+    show(acbpAllotmentDF, "acbpAllotmentDF")
+
+    acbpAllotmentDF
   }
 
   /* report generation stuff
