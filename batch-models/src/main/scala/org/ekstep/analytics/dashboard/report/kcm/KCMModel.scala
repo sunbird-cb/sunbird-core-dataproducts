@@ -16,9 +16,9 @@ object KCMModel extends AbsDashboardModel {
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
     val appPostgresUrl = s"jdbc:postgresql://${conf.appPostgresHost}/${conf.appPostgresSchema}"
-    val dwPostgresUrl = s"jdbc:postgresql://${conf.dwPostgresHost}/${conf.dwPostgresSchema}"
     val today = getDate()
-    val reportPath = s"${conf.kcmReportPath}/${today}/ContentCompetencyMapping"
+    val reportPathContentCompetencyMapping = s"${conf.kcmReportPath}/${today}/ContentCompetencyMapping"
+    val reportPathCompetencyHierarchy = s"${conf.kcmReportPath}/${today}/CompetencyHierarchy"
     val fileName = "ContentCompetencyMapping"
 
     // Content - Competency Mapping data
@@ -39,8 +39,8 @@ object KCMModel extends AbsDashboardModel {
     val contentMappingDF = competencyContentMappingDF
       .select(col("courseID").alias("course_id"), col("competency_area_id"), col("competency_theme_id"), col("competency_sub_theme_id"))
     show(contentMappingDF, "competency content mapping df")
-    truncateWarehouseTable(conf.dwKcmContentTable)
-    saveDataframeToPostgresTable_With_Append(contentMappingDF, dwPostgresUrl, conf.dwKcmContentTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    generateReport(contentMappingDF.coalesce(1), s"${reportPathContentCompetencyMapping}-warehouse")
 
     // Competency details data with hierarchy
     val jsonSchema = MapType(StringType, StringType)
@@ -73,8 +73,8 @@ object KCMModel extends AbsDashboardModel {
       .select("competency_area_id", "competency_area", "competency_area_description", "competency_theme_type",
         "competency_theme_id", "competency_theme", "competency_theme_description", "competency_sub_theme_id", "competency_sub_theme", "competency_sub_theme_description")
     show(competencyDetailsDF, "Competency details dataframe")
-    truncateWarehouseTable(conf.dwKcmDictionaryTable)
-    saveDataframeToPostgresTable_With_Append(competencyDetailsDF, dwPostgresUrl, conf.dwKcmDictionaryTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
+
+    generateReport(competencyDetailsDF.coalesce(1), s"${reportPathCompetencyHierarchy}-warehouse")
 
     // competency reporting
     val competencyReporting = competencyContentMappingDF.join(competencyDetailsDF, Seq("competency_area_id","competency_theme_id","competency_sub_theme_id"))
@@ -91,10 +91,10 @@ object KCMModel extends AbsDashboardModel {
       ).orderBy("content_id")
     show(competencyReporting, "Competency reporting dataframe")
 
-    generateReport(competencyReporting, reportPath, fileName=fileName)
+    generateReport(competencyReporting, reportPathContentCompetencyMapping, fileName=fileName)
     // making report sync configurable
     if (conf.reportSyncEnable) {
-      syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
+      syncReports(s"${conf.localReportDir}/${reportPathContentCompetencyMapping}", reportPathContentCompetencyMapping)
     }
 
   }

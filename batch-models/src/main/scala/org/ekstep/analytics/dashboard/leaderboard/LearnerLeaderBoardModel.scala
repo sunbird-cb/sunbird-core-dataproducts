@@ -31,7 +31,7 @@ object LearnerLeaderBoardModel extends AbsDashboardModel {
     //get karma points data and filter for specific month
     val karmaPointsDataDF = userKarmaPointsDataFrame()
       .filter(col("credit_date") >= monthStart && col("credit_date") <= monthEnd)
-      .groupBy(col("userid")).agg(sum(col("points")).alias("total_points"))
+      .groupBy(col("userid")).agg(sum(col("points")).alias("total_points"), max(col("credit_date")).alias("last_credit_date"))
 
     show(karmaPointsDataDF, "this is the kp_data")
 
@@ -85,7 +85,8 @@ object LearnerLeaderBoardModel extends AbsDashboardModel {
         userOrgData("org_id"),
         userOrgData("fullname"),
         userOrgData("profile_image"),
-        karmaPointsDataDF("total_points"))
+        karmaPointsDataDF("total_points"),
+        karmaPointsDataDF("last_credit_date"))
       .withColumn("month", (month - 1).cast("int"))
       .withColumn("year", lit(year))
     show(userLeaderBoardDataDF, "finaluserdata")
@@ -97,7 +98,7 @@ object LearnerLeaderBoardModel extends AbsDashboardModel {
     userLeaderBoardDataDF.show(false)
 
     // sort them based on their fullNames for each rank group within each org
-    val windowSpecRow  = Window.partitionBy("org_id").orderBy(col("rank"), col("fullname"))
+    val windowSpecRow = Window.partitionBy("org_id").orderBy(col("rank"), col("last_credit_date").desc)
     userLeaderBoardDataDF = userLeaderBoardDataDF.withColumn("row_num", row_number.over(windowSpecRow))
     show(userLeaderBoardDataDF, "orderedData")
 
