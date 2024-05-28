@@ -69,7 +69,7 @@ object NpsModel extends AbsDashboardModel {
     // write the dataframe to cassandra user_feed_backup table
     additionalDF.write
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("keyspace" -> "sunbird_notifications" , "table" -> "notification_feed_history"))
+      .options(Map("keyspace" -> "sunbird_notifications" , "table" -> "notification_feed_backup"))
       .mode("append")
       .save()
   }
