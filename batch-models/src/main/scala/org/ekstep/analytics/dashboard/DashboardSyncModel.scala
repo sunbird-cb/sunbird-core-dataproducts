@@ -339,14 +339,20 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     val query = """SELECT dimension_channel AS userOrgID, COUNT(DISTINCT(uid)) as activeCount FROM \"summary-events\" WHERE dimensions_type='app' AND __time > CURRENT_TIMESTAMP - INTERVAL '24' HOUR GROUP BY 1"""
     var usersLoggedInLast24HrsByMDODF = druidDFOption(query, conf.sparkDruidRouterHost).orNull
-    if (usersLoggedInLast24HrsByMDODF == null) return emptySchemaDataFrame(Schema.activeUsersSchema)
-    usersLoggedInLast24HrsByMDODF = usersLoggedInLast24HrsByMDODF.withColumn("activeCount", expr("CAST(activeCount as LONG)"))
-    val loginPercentDF = usersLoggedInLast24HrsByMDODF.join(activeUsersByMDODF, Seq("userOrgID"))
-    // Calculating login percentage
-    val loginPercentbyMDODF = loginPercentDF.withColumn("loginPercentage", ((col("activeCount") / col("count")) * 100))
-    // Selecting required columns
-    val loginPercentLast24HrsbyMDODF = loginPercentbyMDODF.select("userOrgID", "loginPercentage")
-    Redis.dispatchDataFrame[Long]("dashboard_login_percent_last_24_hrs_by_user_org", loginPercentLast24HrsbyMDODF, "userOrgID", "loginPercentage")
+    if (usersLoggedInLast24HrsByMDODF == null)
+      {
+        print("Empty dataframe: usersLoggedInLast24HrsByMDODF")
+      }
+    else
+      {
+        usersLoggedInLast24HrsByMDODF = usersLoggedInLast24HrsByMDODF.withColumn("activeCount", expr("CAST(activeCount as LONG)"))
+        val loginPercentDF = usersLoggedInLast24HrsByMDODF.join(activeUsersByMDODF, Seq("userOrgID"))
+        // Calculating login percentage
+        val loginPercentbyMDODF = loginPercentDF.withColumn("loginPercentage", ((col("activeCount") / col("count")) * 100))
+        // Selecting required columns
+        val loginPercentLast24HrsbyMDODF = loginPercentbyMDODF.select("userOrgID", "loginPercentage")
+        Redis.dispatchDataFrame[Long]("dashboard_login_percent_last_24_hrs_by_user_org", loginPercentLast24HrsbyMDODF, "userOrgID", "loginPercentage")
+      }
 
     val certificateGeneratedByMDODF = certificateGeneratedDF.groupBy("userOrgID").agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     Redis.dispatchDataFrame[Long]("dashboard_certificates_generated_count_by_user_org", certificateGeneratedByMDODF, "userOrgID", "count")
