@@ -59,6 +59,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
       .durationFormat("courseDuration")
       .withColumn("completedOn", date_format(col("courseCompletedTimestamp"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("enrolledOn", date_format(col("courseEnrolledTimestamp"), "yyyy-MM-dd HH:mm:ss"))
+      .withColumn("firstCompletedOn", date_format(col("firstCompletedOn"), "yyyy-MM-dd HH:mm:ss"))
       .withColumn("courseLastPublishedOn", to_date(col("courseLastPublishedOn"), "dd/MM/yyyy"))
       .withColumn("courseBatchStartDate", to_date(col("courseBatchStartDate"), "dd/MM/yyyy"))
       .withColumn("courseBatchEndDate", to_date(col("courseBatchEndDate"), "dd/MM/yyyy"))
