@@ -190,7 +190,6 @@ object DashboardSyncModel extends AbsDashboardModel {
     val liveCourseProgramExcludingModeratedCompletedDF= liveCourseProgramExcludingModeratedEnrolmentDF.where(expr("dbCompletionStatus=2"))
 
     // do both count(*) and countDistinct(userID) aggregates at once
-    val
     val enrolmentCountDF = liveRetiredCourseEnrolmentDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     val notStartedCountDF = liveRetiredCourseNotStartedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
     val startedCountDF = liveRetiredCourseStartedDF.agg(count("*").alias("count"), countDistinct("userID").alias("uniqueUserCount"))
@@ -296,19 +295,23 @@ object DashboardSyncModel extends AbsDashboardModel {
     Redis.dispatchDataFrame[Long]("dashboard_certificates_generated_count_by_course_org", certificateGeneratedByCBPDF, "courseOrgID", "count")
     val competencyCountByCBPDF = allCourseProgramCompetencyDF.groupBy("courseOrgID").agg(countDistinct("competencyName").alias("uniqueCompetencyCount"))
     Redis.dispatchDataFrame[Long]("dashboard_competencies_count_by_course_org", competencyCountByCBPDF, "courseOrgID", "uniqueCompetencyCount")
-
     val liveCourseProgramExcludingModeratedBYCBPDF = liveCourseProgramExcludingModeratedCompletedDF.groupBy("courseOrgID")
       .agg(count("*").alias("count"),
         collect_set("courseID").alias("courseIDs")) // Collect all courseIDs for each courseOrgID
 
     // Order the DataFrame by count of completed courses in descending order
-    val liveCourseProgramExcludingModeratedOrderedBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF.orderBy(col("count").desc)
+    val liveCourseProgramExcludingModeratedSortedBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF
+      .orderBy(col("count").desc)
+      .withColumn("courseIDs_sorted", sort_array(col("courseIDs"), asc = false))
 
-    // Concatenate the top ten courseIDs into a comma-separated list
-    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedOrderedBYCBPDF.withColumn("completion_counts", concat_ws(",", col("courseIDs"))) // Concatenate courseIDs into a comma-separated list
+    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedSortedBYCBPDF
+      .withColumn("completion_counts", concat_ws(",", col("courseIDs_sorted"))) // Concatenate sorted courseIDs into a comma-separated list
 
     // Select only the required columns
-    val liveRetiredTop10CourseCompletedByCBPDF = liveCourseProgramExcludingModeratedFinalBYCBPDF.select("courseOrgID", "completion_counts")
+    val liveRetiredTop10CourseCompletedByCBPDF = liveCourseProgramExcludingModeratedFinalBYCBPDF
+      .select("courseOrgID", "completion_counts")
+
+    // Dispatch DataFrame to Redis
     Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", liveRetiredTop10CourseCompletedByCBPDF, "courseOrgID", "completion_counts")
 
     // courses enrolled/completed at-least once, only live courses
