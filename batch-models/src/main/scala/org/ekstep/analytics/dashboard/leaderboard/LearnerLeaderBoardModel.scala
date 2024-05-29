@@ -98,7 +98,7 @@ object LearnerLeaderBoardModel extends AbsDashboardModel {
     userLeaderBoardDataDF.show(false)
 
     // sort them based on their fullNames for each rank group within each org
-    val windowSpecRow = Window.partitionBy("org_id").orderBy(col("rank"), col("last_credit_date").desc)
+    val windowSpecRow = Window.partitionBy("org_id").orderBy(col("rank"), col("last_credit_date").asc)
     userLeaderBoardDataDF = userLeaderBoardDataDF.withColumn("row_num", row_number.over(windowSpecRow))
     show(userLeaderBoardDataDF, "orderedData")
 
