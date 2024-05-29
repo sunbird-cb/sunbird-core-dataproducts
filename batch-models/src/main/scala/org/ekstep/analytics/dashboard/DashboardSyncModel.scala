@@ -159,8 +159,8 @@ object DashboardSyncModel extends AbsDashboardModel {
     val liveRetiredCourseEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveRetiredCourseProgramEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
     val liveCourseProgramEnrolmentDF = liveRetiredCourseProgramEnrolmentDF.where(expr("courseStatus = 'Live'"))
-    val liveRetiredCourseProgramExcludingModeratedEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program', 'Blended Program', 'CuratedCollections', 'Standalone Assessment', 'Curated Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
-    val liveCourseProgramExcludingModeratedEnrolmentDF = liveRetiredCourseProgramExcludingModeratedEnrolmentDF.where(expr("courseStatus = 'Live'"))
+    //val liveRetiredCourseProgramExcludingModeratedEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("category IN ('Course', 'Program', 'Blended Program', 'CuratedCollections', 'Standalone Assessment', 'Curated Program') AND courseStatus IN ('Live', 'Retired') AND userStatus=1"))
+    val liveCourseProgramExcludingModeratedEnrolmentDF = allCourseProgramCompletionWithDetailsDF.where(expr("courseStatus = 'Live'"))
     val currentDate = LocalDate.now()
     // Calculate twenty four hours ago
     val twentyFourHoursAgo = currentDate.minusDays(1)
@@ -295,24 +295,19 @@ object DashboardSyncModel extends AbsDashboardModel {
     Redis.dispatchDataFrame[Long]("dashboard_certificates_generated_count_by_course_org", certificateGeneratedByCBPDF, "courseOrgID", "count")
     val competencyCountByCBPDF = allCourseProgramCompetencyDF.groupBy("courseOrgID").agg(countDistinct("competencyName").alias("uniqueCompetencyCount"))
     Redis.dispatchDataFrame[Long]("dashboard_competencies_count_by_course_org", competencyCountByCBPDF, "courseOrgID", "uniqueCompetencyCount")
-    val liveCourseProgramExcludingModeratedBYCBPDF = liveCourseProgramExcludingModeratedCompletedDF.groupBy("courseOrgID")
-      .agg(count("*").alias("count"),
-        collect_set("courseID").alias("courseIDs")) // Collect all courseIDs for each courseOrgID
+    val liveCourseProgramExcludingModeratedBYCBPDF = liveCourseProgramExcludingModeratedCompletedDF
+      .groupBy("courseOrgID", "courseID")
+      .agg(count("*").alias("count")) // Collect all courseIDs for each courseOrgID
+    val windowSpec = Window.partitionBy("courseOrgID").orderBy(col("count").desc)
+    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF.withColumn("ranked_courseID", collect_list(col("courseID")).over(windowSpec))
 
-    // Order the DataFrame by count of completed courses in descending order
-    val liveCourseProgramExcludingModeratedSortedBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF
-      .orderBy(col("count").desc)
-      .withColumn("courseIDs_sorted", sort_array(col("courseIDs"), asc = false))
-
-    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedSortedBYCBPDF
-      .withColumn("completion_counts", concat_ws(",", col("courseIDs_sorted"))) // Concatenate sorted courseIDs into a comma-separated list
-
-    // Select only the required columns
     val liveRetiredTop10CourseCompletedByCBPDF = liveCourseProgramExcludingModeratedFinalBYCBPDF
-      .select("courseOrgID", "completion_counts")
+      .groupBy("courseOrgID")
+      .agg(concat_ws(",", array_distinct(flatten(collect_list(col("ranked_courseID"))))).alias("sorted_courseIDs"))
+
 
     // Dispatch DataFrame to Redis
-    Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", liveRetiredTop10CourseCompletedByCBPDF, "courseOrgID", "completion_counts")
+    Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", liveRetiredTop10CourseCompletedByCBPDF, "courseOrgID", "sorted_courseIDs")
 
     // courses enrolled/completed at-least once, only live courses
     val liveCourseEnrolmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
