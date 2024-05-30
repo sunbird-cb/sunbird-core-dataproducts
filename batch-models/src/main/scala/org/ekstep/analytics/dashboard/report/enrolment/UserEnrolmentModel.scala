@@ -156,7 +156,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
         col("batchID").alias("batch_id"),
         col("courseID").alias("content_id"),
         col("completionPercentage").alias("content_progress_percentage"),
-        col("completedOn").alias("completed_on"),
+        col("completedOn").alias("last_accessed_on"),
         col("firstCompletedOn").alias("first_completed_on"),
         col("Certificate_Generated").alias("certificate_generated"),
         col("certificate_generated_on").alias("certificate_generated_on"),
