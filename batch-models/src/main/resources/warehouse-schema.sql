@@ -131,7 +131,30 @@ CREATE TABLE cb_plan(
    content_id VARCHAR(255),
    allocated_on VARCHAR(255),
    due_by VARCHAR(255),
-   status VARCHAR(255)
+   status VARCHAR(255),
+   data_last_generated_on VARCHAR(255)
+);
+
+CREATE TABLE kcm_content_mapping(
+   course_id VARCHAR(255) NOT NULL,
+   competency_area_id INTEGER,
+   competency_theme_id  INTEGER,
+   competency_sub_theme_id INTEGER,
+   data_last_generated_on VARCHAR(255)
+);
+
+CREATE TABLE kcm_dictionary(
+   competency_area_id INTEGER NOT NULL,
+   competency_area TEXT,
+   competency_area_description  TEXT,
+   competency_theme_type VARCHAR(255),
+   competency_theme_id INTEGER NOT NULL,
+   competency_theme TEXT,
+   competency_theme_description TEXT,
+   competency_sub_theme_id INTEGER NOT NULL,
+   competency_sub_theme TEXT,
+   competency_sub_theme_description TEXT,
+   data_last_generated_on VARCHAR(255)
 );
 
 -- Create PostgreSQL user and grant privileges

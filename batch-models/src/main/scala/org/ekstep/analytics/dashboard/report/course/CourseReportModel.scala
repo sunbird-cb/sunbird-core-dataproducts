@@ -96,6 +96,7 @@ object CourseReportModel extends AbsDashboardModel {
         val notNullDF = result1DF.filter(col("resource_id").isNotNull && col("resource_id") =!= "")
         // Remove completely identical rows, keeping only one
         val distinctDF = notNullDF.dropDuplicates(notNullDF.columns)
+          .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
         // Show the result DataFrame
         distinctDF.show()
         val reportPath = s"${conf.courseReportPath}/${today}"
