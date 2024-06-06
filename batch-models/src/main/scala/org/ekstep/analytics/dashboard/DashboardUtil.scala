@@ -150,6 +150,10 @@ case class DashboardConfig (
                              reportConfigCollection: String,
                              mlReportPath: String,
                              includeExpiredSolutionIDs: Boolean,
+                             SurveyQuestionReportBatchSize: String,
+                             SurveyStatusReportBatchSize: String,
+                             ObservationQuestionReportBatchSize: String,
+                             ObservationStatusReportBatchSize: String,
 
 
                              prefixDirectoryPath: String,
@@ -313,6 +317,10 @@ object DashboardConfigParser extends Serializable {
       reportConfigCollection = getConfigModelParam(config, "reportConfigCollection"),
       mlReportPath = getConfigModelParam(config, "mlReportPath"),
       includeExpiredSolutionIDs = getConfigModelParam(config, "includeExpiredSolutionIDs", "true").toBoolean,
+      SurveyQuestionReportBatchSize = getConfigModelParam(config, "SurveyQuestionReportBatchSize"),
+      SurveyStatusReportBatchSize = getConfigModelParam(config, "SurveyStatusReportBatchSize"),
+      ObservationQuestionReportBatchSize = getConfigModelParam(config, "ObservationQuestionReportBatchSize"),
+      ObservationStatusReportBatchSize = getConfigModelParam(config, "ObservationStatusReportBatchSize"),
 
 
       // comms-console
