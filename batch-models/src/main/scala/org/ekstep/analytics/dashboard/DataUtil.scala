@@ -1728,32 +1728,6 @@ object DataUtil extends Serializable {
     df
   }
 
-  def getSolutionIdData(columns: String, dataSource: String, solutionId: String)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val query = raw"""SELECT $columns FROM  \"$dataSource\" WHERE solutionId='$solutionId'"""
-    var df = druidDFOption(query, conf.mlSparkDruidRouterHost, limit = 1000000).orNull
-    if (df == null) return emptySchemaDataFrame(Schema.solutionIdDataSchema)
-    if (df.columns.contains("evidences")) {
-      val baseUrl = conf.baseUrlForEvidences
-      val addBaseUrl = udf((evidences: String) => {
-        if (evidences != null && evidences.trim.nonEmpty) {
-          evidences.split(", ")
-            .map(url => s"$baseUrl$url")
-            .mkString(",")
-        } else {
-          evidences
-        }
-      })
-      df = df.withColumn("evidences", addBaseUrl(col("evidences")))
-    }
-    df
-  }
-
-  def processProfileData(originalDf: DataFrame, profileSchema: StructType, requiredCsvColumns: List[Column])(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
-    val parsedDf = originalDf.withColumn("parsedProfile", from_json(col("userProfile"), profileSchema))
-    val finalDF = parsedDf.select(requiredCsvColumns: _*)
-    finalDF
-  }
-
   def validateColumns(df: DataFrame, columns: Seq[String]): Boolean = {
     val dfColumnsSet = df.columns.map(_.trim).toSet
     val columnsSet = columns.map(_.trim).toSet
