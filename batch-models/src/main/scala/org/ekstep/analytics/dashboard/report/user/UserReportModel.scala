@@ -22,22 +22,18 @@ object UserReportModel extends AbsDashboardModel {
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val orgHierarchyData = orgHierarchyDataframe()
-
-    // get the mdoids for which the report are requesting
-    // val mdoID = conf.mdoIDs
-    // val mdoIDDF = mdoIDsDF(mdoID)
-
-    // var df = mdoIDDF.join(orgDF, Seq("orgID"), "inner").select(col("orgID").alias("userOrgID"), col("orgName"))
-
+    var weeklyClapsDF = learnerStatsDataFrame()
     var karmaPointsDF = userKarmaPointsSummaryDataFrame()
     karmaPointsDF = karmaPointsDF.withColumnRenamed("userid", "userID")
-    val userData = userOrgDF
+    var userData = userOrgDF
       .join(userRolesDF, Seq("userID"), "left")
       .join(karmaPointsDF.select("userID","total_points"), Seq("userID"), "left")
       .join(orgHierarchyData, Seq("userOrgID"), "left")
       .dropDuplicates("userID")
       .withColumn("Tag", concat_ws(", ", col("additionalProperties.tag")))
-
+    userData = userData
+      .join(weeklyClapsDF, userData("userID") === weeklyClapsDF("userid"), "left")
+      .select(userData("*"), weeklyClapsDF("total_claps").alias("weekly_claps_day_before_yesterday"))
     val fullReportDF = userData
       .withColumn("Report_Last_Generated_On", date_format(current_timestamp(), "dd/MM/yyyy HH:mm:ss a"))
       .select(
@@ -62,7 +58,8 @@ object UserReportModel extends AbsDashboardModel {
         col("userOrgID").alias("mdoid"),
         col("Report_Last_Generated_On"),
         from_unixtime(col("userOrgCreatedDate"), "dd/MM/yyyy").alias("MDO_Created_On"),
-        col("userVerified").alias("Verified Karmayogi")
+        col("userVerified").alias("Verified Karmayogi"),
+        col("weekly_claps_day_before_yesterday")
       )
       .coalesce(1)
 
@@ -89,7 +86,6 @@ object UserReportModel extends AbsDashboardModel {
         col("professionalDetails.group").alias("groups"),
         col("Tag").alias("tag"),
         col("userVerified").alias("is_verified_karmayogi"),
-        //from_unixtime(col("userCreatedTimestamp"), "dd/MM/yyyy").alias("user_registration_date"),
         date_format(from_unixtime(col("userCreatedTimestamp")), "yyyy-MM-dd HH:mm:ss").alias("user_registration_date"),
         col("role").alias("roles"),
         col("personalDetails.gender").alias("gender"),
@@ -97,6 +93,7 @@ object UserReportModel extends AbsDashboardModel {
         col("userCreatedBy").alias("created_by_id"),
         col("additionalProperties.externalSystem").alias("external_system"),
         col("additionalProperties.externalSystemId").alias("external_system_id"),
+        col("weekly_claps_day_before_yesterday"),
         col("data_last_generated_on")
       )
 
