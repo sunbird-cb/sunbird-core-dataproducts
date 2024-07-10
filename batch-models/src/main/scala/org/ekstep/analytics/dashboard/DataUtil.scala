@@ -12,7 +12,7 @@ import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import DashboardUtil._
 import java.time.{Instant, ZoneOffset, ZonedDateTime, LocalDate}
-import.java.format.DateTimeFormatter
+import java.format.DateTimeFormatter
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 
 import java.io.{File, Serializable}
