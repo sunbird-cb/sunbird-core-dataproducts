@@ -805,7 +805,7 @@ object DataUtil extends Serializable {
   }
 
   def validatePrimaryCategories(primaryCategories: Seq[String]): Unit = {
-    val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Curated Program")
+    val allowedCategories = Seq("Course", "Program", "Blended Program", "CuratedCollections", "Standalone Assessment","Moderated Course","Curated Program")
     val notAllowed = primaryCategories.toSet.diff(allowedCategories.toSet)
     if (notAllowed.nonEmpty) {
       throw new Exception(s"Category not allowed: ${notAllowed.mkString(", ")}")
@@ -828,7 +828,7 @@ object DataUtil extends Serializable {
     df
   }
 
-  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course","Program","Blended Program","Curated Program","Standalone Assessment","CuratedCollections"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
+  def contentDataFrames(orgDF: DataFrame, primaryCategories: Seq[String] = Seq("Course","Program","Blended Program","Curated Program","Moderated Course","Standalone Assessment","CuratedCollections"), runValidation: Boolean = true)(implicit spark: SparkSession, conf: DashboardConfig): (DataFrame, DataFrame, DataFrame, DataFrame) = {
     validatePrimaryCategories(primaryCategories)
 
     val hierarchyDF = contentHierarchyDataFrame()
