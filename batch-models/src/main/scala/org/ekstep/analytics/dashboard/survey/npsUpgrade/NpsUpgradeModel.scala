@@ -4,8 +4,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, current_date, expr, lit}
 import org.apache.spark.sql.types.{DateType, StringType}
-import DashboardUtil._
-import DataUtil._
+import org.ekstep.analytics.dashboard.DashboardUtil._
+import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
 import org.ekstep.analytics.framework.FrameworkContext
 

@@ -11,12 +11,13 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 import DashboardUtil._
-import java.time.{Instant, ZoneOffset, ZonedDateTime, LocalDate}
-import java.format.DateTimeFormatter
+
+import java.time.{Instant, LocalDate, ZoneOffset, ZonedDateTime}
 import org.ekstep.analytics.framework.{FrameworkContext, StorageConfig}
 
 import java.io.{File, Serializable}
 import java.sql.Timestamp
+import java.util
 import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
