@@ -9,7 +9,7 @@ import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework._
 import org.joda.time.DateTime
-git import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.col
 
 import java.text.SimpleDateFormat
 import java.time.LocalDate
