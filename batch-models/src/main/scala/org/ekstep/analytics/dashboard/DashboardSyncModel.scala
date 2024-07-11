@@ -9,6 +9,7 @@ import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.framework._
 import org.joda.time.DateTime
+git import org.apache.spark.sql.functions.col
 
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -95,13 +96,13 @@ object DashboardSyncModel extends AbsDashboardModel {
     val toJsonStringUDF = udf((userID: String, fullName: String, userOrgName: String, designation: String, userProfileImgUrl: String, total_points: Long, rank: Int) => {
       s"""{"userID":"$userID","fullName":"$fullName","userOrgName":"$userOrgName","designation":"$designation","userProfileImgUrl":"$userProfileImgUrl","total_points":$total_points,"rank":$rank}"""
     })
-    val windowSpec = Window.partitionBy("userOrgID").orderBy($"total_points".desc)
+    val windowSpec = Window.partitionBy("userOrgID").orderBy(col("total_points").desc)
     val rankedDF = kPointsWithUserOrgDF.withColumn("rank", rank().over(windowSpec))
-    val top10LearnersByMDODF = rankedDF.filter($"rank" <= 10)
+    val top10LearnersByMDODF = rankedDF.filter(col("rank") <= 10)
     val jsonStringDF = top10LearnersByMDODF.withColumn("json_details", toJsonStringUDF(
-      $"userID", $"fullName", $"userOrgName", $"designation", $"userProfileImgUrl", $"total_points", $"rank"
-    )).groupBy("userOrgID").agg(collect_list($"json_details").as("top_learners"))
-    val resultDF = jsonStringDF.select($"userOrgID", to_json(struct($"top_learners")).alias("top_learners"))
+      col("userID"), col("fullName"), col("userOrgName"), col("designation"), col("userProfileImgUrl"), col("total_points"), col("rank")
+    )).groupBy("userOrgID").agg(collect_list(col("json_details")).as("top_learners"))
+    val resultDF = jsonStringDF.select(col("userOrgID"), to_json(struct(col("top_learners"))).alias("top_learners"))
 
     Redis.dispatchDataFrame[String]("dashboard_top_10_learners_on_kp_by_user_org", resultDF, "userOrgID", "top_learners")
 
