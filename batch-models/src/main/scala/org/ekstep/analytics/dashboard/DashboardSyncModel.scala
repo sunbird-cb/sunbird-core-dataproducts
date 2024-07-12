@@ -362,33 +362,47 @@ object DashboardSyncModel extends AbsDashboardModel {
 
     val topCoursesByCBPDF = liveCourseProgramExcludingModeratedCompletedWithCountDF
       .filter($"category" === "Course")
-      .withColumn("sorted_courseIDs", concat_ws(",", array_distinct(collect_list($"courseID").over(windowSpec))))
+      .withColumn("sorted_courseIDs", concat_ws(",", collect_set($"courseID").over(windowSpec)))
       .groupBy("courseOrgID")
-      .agg(concat($"courseOrgID", lit(":courses")).alias("courseOrgID:content"), first($"sorted_courseIDs").as("sorted_courseIDs"))
+      .agg(
+        concat_ws(",", collect_set($"sorted_courseIDs")).alias("sorted_courseIDs"),
+        concat(col("courseOrgID"), lit(":courses")).alias("courseOrgID:content"))
       .select("courseOrgID:content","sorted_courseIDs")
-    println("=================================")
     show(topCoursesByCBPDF, "coursesDF")
     val topProgramsByCBPDF = liveCourseProgramExcludingModeratedCompletedWithCountDF
       .filter($"category" === "Program")
-      .withColumn("sorted_courseIDs", concat_ws(",", array_distinct(collect_list($"courseID").over(windowSpec))))
+      .withColumn("sorted_courseIDs", concat_ws(",", collect_set($"courseID").over(windowSpec)))
       .groupBy("courseOrgID")
-      .agg(concat($"courseOrgID", lit(":programs")).alias("courseOrgID:content"), first($"sorted_courseIDs").as("sorted_courseIDs"))
+      .agg(
+        concat_ws(",", collect_set($"sorted_courseIDs")).alias("sorted_courseIDs"),
+        concat(col("courseOrgID"), lit(":programs")).alias("courseOrgID:content"))
       .select("courseOrgID:content","sorted_courseIDs")
 
     val topAssessmentsByCBPDF = liveCourseProgramExcludingModeratedCompletedWithCountDF
       .filter($"category" === "Standalone Assessment")
-      .withColumn("sorted_courseIDs", concat_ws(",", array_distinct(collect_list($"courseID").over(windowSpec))))
+      .withColumn("sorted_courseIDs", concat_ws(",", collect_set($"courseID").over(windowSpec)))
       .groupBy("courseOrgID")
-      .agg(concat($"courseOrgID", lit(":assessments")).alias("courseOrgID:content"), first($"sorted_courseIDs").as("sorted_courseIDs"))
+      .agg(concat_ws(",", collect_set($"sorted_courseIDs")).alias("sorted_courseIDs"),
+        concat(col("courseOrgID"), lit(":assessments")).alias("courseOrgID:content")
+      )
       .select("courseOrgID:content","sorted_courseIDs")
     val combinedDFByCBP = topCoursesByCBPDF.union(topProgramsByCBPDF).union(topAssessmentsByCBPDF)
 
     Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", combinedDFByCBP, "courseOrgID:content", "sorted_courseIDs")
 
+    // DSR new keys monthly active users and certificate issued yesterday
+    val averageMonthlyActiveUsersCount = averageMonthlyActiveUsersDataFrame()
+    Redis.update("dashboard_average_monthly_active_users_last_30_days", averageMonthlyActiveUsersCount.toString)
+    println(s"dashboard_average_monthly_active_users_last_30_days = ${averageMonthlyActiveUsersCount}")
 
-    //    val liveCourseProgramExcludingModeratedFinalBYCBPDF = liveCourseProgramExcludingModeratedBYCBPDF.withColumn("ranked_courseID", collect_list(col("courseID")).over(windowSpec))
-    //    val liveRetiredTop10CourseCompletedByCBPDF = liveCourseProgramExcludingModeratedFinalBYCBPDF.groupBy("courseOrgID").agg(concat_ws(",", array_distinct(flatten(collect_list(col("ranked_courseID"))))).alias("sorted_courseIDs"))
-    //    Redis.dispatchDataFrame[String]("dashboard_top_10_courses_by_completion_by_course_org", liveRetiredTop10CourseCompletedByCBPDF, "courseOrgID", "sorted_courseIDs")
+
+    println("This is the 24 hours ago start of the day =====")
+    println(twentyFourHoursAgoLocalDateTime)
+    val courseModeratedCourseCertificateGeneratedYesterdayDF = liveRetiredCourseModeratedCourseEnrolmentDF.filter($"certificateGeneratedOn".isNotNull && $"certificateGeneratedOn" =!= "" && $"certificateGeneratedOn" >= twentyFourHoursAgoLocalDateTime)
+    val courseModeratedCourseCertificateGeneratedYesterdayCountDF = courseModeratedCourseCertificateGeneratedYesterdayDF.agg(count("*").alias("count"))
+    val courseModeratedCourseCertificateGeneratedYesterdayCount = courseModeratedCourseCertificateGeneratedYesterdayCountDF.select("count").first().getLong(0)
+    Redis.update("dashboard_course_moderated_course_certificates_generated_yesterday_count", courseModeratedCourseCertificateGeneratedYesterdayCount.toString)
+
 
     // courses enrolled/completed at-least once, only live courses
     val liveCourseEnrolmentDF = liveRetiredCourseEnrolmentDF.where(expr("courseStatus='Live'"))
@@ -545,6 +559,21 @@ object DashboardSyncModel extends AbsDashboardModel {
     Redis.update("dashboard_top_5_mdo_by_live_courses", top5MdoByLiveCoursesJson)
 
     // new redis updates - end
+  }
+
+  def averageMonthlyActiveUsersDataFrame()(implicit spark: SparkSession, conf: DashboardConfig) : Long = {
+    val query = """SELECT ROUND(AVG(daily_count * 1.0), 0)  as DAUOutput FROM (SELECT COUNT(DISTINCT(actor_id)) AS daily_count, TIME_FLOOR(__time + INTERVAL '05:30' HOUR TO MINUTE, 'P1D') AS day_start FROM \"telemetry-events-syncts\" WHERE eid='IMPRESSION' AND actor_type='User' AND __time > CURRENT_TIMESTAMP - INTERVAL '30' DAY GROUP BY 2)"""
+    var df = druidDFOption(query, conf.sparkDruidRouterHost).orNull
+    var averageMonthlyActiveUsersCount = 0L
+    if (df == null || df.isEmpty) return averageMonthlyActiveUsersCount
+    else {
+      // Otherwise, transform the existing DataFrame as per your requirements
+      df = df.withColumn("DAUOutput", expr("CAST(DAUOutput as LONG)"))
+      df = df.withColumn("DAUOutput", col("DAUOutput").cast("long"))
+      averageMonthlyActiveUsersCount = df.select("DAUOutput").first().getLong(0)
+    }
+    println(averageMonthlyActiveUsersCount)
+    averageMonthlyActiveUsersCount
   }
 
   def updateLearnerHomePageData(orgDF: DataFrame, userOrgDF: DataFrame, userCourseProgramCompletionDF: DataFrame)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
