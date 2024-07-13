@@ -59,8 +59,7 @@ object DashboardSyncModel extends AbsDashboardModel {
     "orgUserCountDF.count() should equal distinct active org count in userOrgDF")
 
     //obtain and save total karma points of each user
-    // replacing user karma point table read from cassandra to read from avro
-    val karmaPointsDataDF = userKarmaPointsSummaryDataFrame()
+    val karmaPointsDataDF = userKarmaPointsDataFrame()
     .groupBy(col("userid").alias("userID")).agg(sum(col("points")).alias("total_points"))
 
     val kPointsWithUserOrgDF = karmaPointsDataDF.join(userOrgDF, karmaPointsDataDF("userID") === userOrgDF("userID"), "inner")
