@@ -95,7 +95,7 @@ object CommsReportModel extends AbsDashboardModel {
     generateReport(usersWithoutAnyEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedNotSignedUpAnyContent", fileName="UsersOnboardedNotSignedUpAnyContent")
 
     // users created in last 15 days, but not enrolled in any cbp
-    val usersCreatedInLastNDaysDF = userDF.filter(col("registrationDate").between(dateNDaysAgo, currentDate)).select("user_id").distinct()
+    val usersCreatedInLastNDaysDF = userDF.filter(col("user_registration_date").between(dateNDaysAgo, currentDate)).select("user_id").distinct()
     val usersCreatedInLastNDaysWithoutEnrollmentsDF = usersCreatedInLastNDaysDF.except(usersWithEnrollments)
     val usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF = usersCreatedInLastNDaysWithoutEnrollmentsDF.join(userDF, Seq("user_id"), "left")
       .withColumn("Last_Updated_On", lastUpdatedOn)
@@ -112,7 +112,7 @@ object CommsReportModel extends AbsDashboardModel {
     generateReport(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedLast15DaysNotSignedUpAnyContent", fileName="UsersOnboardedLast15DaysNotSignedUpAnyContent")
 
     //top 60 users ranked by cbp completion in last 15 days
-    val topXCompletionsInNDays = enrollmentsDF.filter(col("completionDate").between(dateNDaysAgo, currentDate))
+    val topXCompletionsInNDays = enrollmentsDF.filter(col("last_accessed_on").between(dateNDaysAgo, currentDate))
       .groupBy("user_id")
       .agg(
         count("*").alias("completionCount")
