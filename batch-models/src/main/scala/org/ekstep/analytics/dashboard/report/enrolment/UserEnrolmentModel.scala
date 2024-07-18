@@ -72,7 +72,7 @@ object UserEnrolmentModel extends AbsDashboardModel {
       .withColumn("ArchivedOn", to_date(col("ArchivedOn"), "dd/MM/yyyy"))
       .withColumn("Certificate_ID", col("certificateID"))
 
-    df = df.distinct().dropDuplicates("userID", "courseID")
+    df = df.distinct().dropDuplicates("userID", "courseID", "batchID")
 
     // read acbp data and filter the cbp plan based on status
     val acbpDF = acbpDetailsDF().where(col("acbpStatus") === "Live")
