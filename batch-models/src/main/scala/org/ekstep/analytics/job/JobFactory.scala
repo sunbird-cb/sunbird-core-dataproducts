@@ -110,6 +110,10 @@ object JobFactory {
         ObservationQuestionReportJob
       case "observation-status-report" =>
         ObservationStatusReportJob
+      case "ministry-metrics" =>
+        MinistryMetricsJob
+      case "ministry-learner-leaderboard" =>
+        MinistryLearnerLeaderboardJob
       case _ =>
         reflectModule(jobType);
     }

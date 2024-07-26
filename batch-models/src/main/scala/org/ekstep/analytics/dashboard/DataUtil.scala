@@ -455,6 +455,11 @@ object DataUtil extends Serializable {
     roleDF
   }
 
+  def orgCompleteHierarchyDataFrame()(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+     val orgCompleteHierarchyDF = cache.load("orgCompleteHierarchy")
+     orgCompleteHierarchyDF
+  }
+
   /**
    *
    * @param userOrgDF DataFrame(userID, firstName, lastName, maskedEmail, userStatus, userOrgID, userOrgName, userOrgStatus)
@@ -1026,7 +1031,6 @@ object DataUtil extends Serializable {
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
-      .withColumn("issuedCertificateCountPerContent", when(size(col("issued_certificates")) > 0, lit(1)).otherwise( lit(0)))
       .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("lastIssuedOn")))
       .withColumn("firstCompletedOn", when(col("issued_certificates").isNull, "").otherwise(when(size(col("issued_certificates")) > 0, col("issued_certificates")(0).getItem("lastIssuedOn")).otherwise("")))
       .withColumn("certificateID", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("identifier")))
@@ -1538,7 +1542,7 @@ object DataUtil extends Serializable {
    * Reading user_karma_points data
    */
   def userKarmaPointsDataFrame()(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): DataFrame = {
-    val df = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+    val df = cache.load("userKarmaPoints")
     show(df, "Karma Points data")
     df
   }

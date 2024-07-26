@@ -78,6 +78,7 @@ case class DashboardConfig (
                              cassandraKarmaPointsSummaryTable: String,
                              cassandraLearnerLeaderBoardTable: String,
                              cassandraLearnerLeaderBoardLookupTable: String,
+                             cassandraMDOLearnerLeaderboardTable: String,
 
                              //warehouse tables;
                              appPostgresHost: String,
@@ -267,6 +268,7 @@ object DashboardConfigParser extends Serializable {
       cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
       cassandraLearnerLeaderBoardTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardTable"),
       cassandraLearnerLeaderBoardLookupTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardLookupTable"),
+      cassandraMDOLearnerLeaderboardTable = getConfigModelParam(config, "cassandraMDOLearnerLeaderboardTable"),
 
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
