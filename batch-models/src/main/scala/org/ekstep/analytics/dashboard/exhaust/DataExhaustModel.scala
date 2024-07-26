@@ -99,6 +99,8 @@ object DataExhaustModel extends AbsDashboardModel {
       .repartition(16)
     show(orgHierarchyDF, "orgHierarchyDF")
     cache.write(orgHierarchyDF, "orgHierarchy")
+    show(orgPostgresDF, "orgCompleteHierarchyDF")
+    cache.write(orgPostgresDF, "orgCompleteHierarchy")
 
     val userDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraUserTable)
     show(userDF, "userDF")
@@ -108,8 +110,13 @@ object DataExhaustModel extends AbsDashboardModel {
     show(learnerLeaderboardDF, "learnerLeaderboardDF")
     cache.write(learnerLeaderboardDF, "learnerLeaderBoard")
 
+    val userKarmaPointsDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsTable)
+    show(userKarmaPointsDF, "Karma Points data")
+    cache.write(userKarmaPointsDF, "userKarmaPoints")
+
     val userKarmaPointsSummaryDF = cassandraTableAsDataFrame(conf.cassandraUserKeyspace, conf.cassandraKarmaPointsSummaryTable)
     show(userKarmaPointsSummaryDF, "userKarmaPointsSummaryDF")
     cache.write(userKarmaPointsSummaryDF, "userKarmaPointsSummary")
   }
 }
+
