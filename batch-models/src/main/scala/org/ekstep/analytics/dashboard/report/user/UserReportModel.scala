@@ -73,8 +73,8 @@ object UserReportModel extends AbsDashboardModel {
       syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
     }
     val df_warehouse = userData
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
       .withColumn("marked_as_not_my_user", when(col("userProfileStatus") === "NOT-MY-USER", true).otherwise(false))
+      .withColumn("data_last_generated_on", currentDateTime)
       .select(
         col("userID").alias("user_id"),
         col("userOrgID").alias("mdo_id"),

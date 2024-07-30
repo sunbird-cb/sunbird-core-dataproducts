@@ -92,7 +92,7 @@ object DataExhaustModel extends AbsDashboardModel {
       .withColumn("is_content_provider",
         when(col("orgType").cast("int") === 128 || col("orgType").cast("int") === 128, lit("Y")).otherwise(lit("N")))
       .withColumn("organization", when(col("ministry").isNotNull && col("department").isNotNull, col("mdo_name")).otherwise(null))
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+      .withColumn("data_last_generated_on", currentDateTime)
       .distinct()
       .drop("orgType")
       .dropDuplicates(Seq("mdo_id"))
