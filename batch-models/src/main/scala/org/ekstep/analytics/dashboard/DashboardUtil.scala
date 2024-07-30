@@ -586,6 +586,8 @@ object DashboardUtil extends Serializable {
     (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), formatter.print(endOfWeek), dateFormatter.print(dataTillDate))
   }
 
+  val currentDateTime = date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a")
+
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
     // spark 2.4.x has a bug where the csv does not get written with header row if the data frame is empty, this is a workaround
