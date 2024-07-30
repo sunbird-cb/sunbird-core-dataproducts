@@ -598,6 +598,7 @@ object DataUtil extends Serializable {
     // now that error handling is done, proceed with business as usual
     df = df
       .withColumn("courseOrgID", explode_outer(col("createdFor")))
+      .withColumn("contentLanguage", explode_outer(col("language")))
       .select(
         col("identifier").alias("courseID"),
         col("primaryCategory").alias("category"),
@@ -612,7 +613,8 @@ object DataUtil extends Serializable {
         col("courseOrgID"),
         col("competencies_v5.competencyAreaId"),
         col("competencies_v5.competencyThemeId"),
-        col("competencies_v5.competencySubThemeId")
+        col("competencies_v5.competencySubThemeId"),
+        col("contentLanguage")
 
       )
 
@@ -1031,6 +1033,7 @@ object DataUtil extends Serializable {
       .withColumn("courseEnrolledTimestamp", col("enrolled_date"))
       .withColumn("lastContentAccessTimestamp", col("lastcontentaccesstime"))
       .withColumn("issuedCertificateCount", size(col("issued_certificates")))
+      .withColumn("issuedCertificateCountPerContent", when(size(col("issued_certificates")) > 0, lit(1)).otherwise( lit(0)))
       .withColumn("certificateGeneratedOn", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("lastIssuedOn")))
       .withColumn("firstCompletedOn", when(col("issued_certificates").isNull, "").otherwise(when(size(col("issued_certificates")) > 0, col("issued_certificates")(0).getItem("lastIssuedOn")).otherwise("")))
       .withColumn("certificateID", when(col("issued_certificates").isNull, "").otherwise( col("issued_certificates")(size(col("issued_certificates")) - 1).getItem("identifier")))

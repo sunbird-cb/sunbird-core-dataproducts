@@ -175,3 +175,4 @@ ALTER TABLE user_detail ADD COLUMN weekly_claps_day_before_yesterday VARCHAR(255
 ALTER TABLE user_detail ADD COLUMN status INTEGER;
 ALTER TABLE user_detail ADD COLUMN no_of_karma_points INTEGER;
 ALTER TABLE org_hierarchy ADD COLUMN mdo_created_on DATE;
+ALTER TABLE content ADD COLUMN language VARCHAR(255);
