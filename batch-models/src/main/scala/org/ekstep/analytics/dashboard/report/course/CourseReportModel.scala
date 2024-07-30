@@ -209,6 +209,7 @@ object CourseReportModel extends AbsDashboardModel {
                 col("courseResourceCount").alias("resource_count"),
                 col("totalCertificatesIssued").alias("total_certificates_issued"),
                 col("courseReviewStatus").alias("content_substatus"),
+                col("contentLanguage").alias("language"),
                 col("data_last_generated_on")
               )
             generateReport(df_warehouse.coalesce(1), s"${reportPath}-warehouse")
