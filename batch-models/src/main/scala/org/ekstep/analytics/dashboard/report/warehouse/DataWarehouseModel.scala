@@ -27,6 +27,7 @@ object DataWarehouseModel extends AbsDashboardModel {
        .csv(s"${conf.localReportDir}/${conf.userReportPath}/${today}-warehouse")
      user_details = user_details.withColumn("status", col("status").cast("int"))
        .withColumn("no_of_karma_points", col("no_of_karma_points").cast("int"))
+       .withColumn("marked_as_not_my_user",col("marked_as_not_my_user").cast("boolean"))
      truncateWarehouseTable(conf.dwUserTable)
      saveDataframeToPostgresTable_With_Append(user_details, dwPostgresUrl, conf.dwUserTable, conf.dwPostgresUsername, conf.dwPostgresCredential)
 

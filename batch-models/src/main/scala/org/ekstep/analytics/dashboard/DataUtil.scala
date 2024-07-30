@@ -60,7 +60,8 @@ object DataUtil extends Serializable {
         StructField("verifiedKarmayogi", BooleanType, nullable = true),
         StructField("mandatoryFieldsExists", BooleanType, nullable = true),
         StructField("profileImageUrl", StringType, nullable = true),
-        StructField("personalDetails", personalDetailsSchema, nullable = true)
+        StructField("personalDetails", personalDetailsSchema, nullable = true),
+        StructField("profileStatus", StringType, nullable = true)
       )
       if (competencies) {
         fields.append(StructField("competencies", ArrayType(profileCompetencySchema), nullable = true))
@@ -396,6 +397,7 @@ object DataUtil extends Serializable {
       .withColumn("userVerified", when(col("profileDetails.verifiedKarmayogi").isNull, false).otherwise(col("profileDetails.verifiedKarmayogi")))
       .withColumn("userMandatoryFieldsExists", col("profileDetails.mandatoryFieldsExists"))
       .withColumn("userProfileImgUrl", col("profileDetails.profileImageUrl"))
+      .withColumn("userProfileStatus", col("profileDetails.profileStatus"))
       .withColumn("userPhoneVerified", expr("LOWER(personalDetails.phoneVerified) = 'true'"))
       .withColumn("fullName", concat_ws(" ", col("firstName"), col("lastName")))
 
