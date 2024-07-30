@@ -7,7 +7,8 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
 import org.ekstep.analytics.framework.FrameworkContext
 
 

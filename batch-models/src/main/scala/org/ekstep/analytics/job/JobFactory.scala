@@ -23,6 +23,8 @@ import org.ekstep.analytics.dashboard.report.zipreports.ZipReportsWithSecurityJo
 import org.ekstep.analytics.dashboard.survey.inappreview.InAppReviewJob
 import org.ekstep.analytics.dashboard.telemetry.SummaryRedisSyncJob
 import org.ekstep.analytics.dashboard.weekly.claps.WeeklyClapsJob
+import org.ekstep.analytics.dashboard.ministrymetrics.MinistryMetricsJob
+import org.ekstep.analytics.dashboard.ministryleaderboard.MinistryLearnerLeaderboardJob
 
 import scala.reflect.runtime.universe
 import org.ekstep.analytics.framework.IJob

@@ -4,10 +4,11 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.ekstep.analytics.dashboard.DataUtil._
 import org.ekstep.analytics.dashboard.DashboardUtil._
-import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig}
+import org.ekstep.analytics.dashboard.{AbsDashboardModel, DashboardConfig, Redis}
 import org.ekstep.analytics.framework.FrameworkContext
 
 
@@ -19,7 +20,7 @@ object MinistryMetricsModel extends AbsDashboardModel {
 
   def processData(timestamp: Long)(implicit spark: SparkSession, sc: SparkContext, fc: FrameworkContext, conf: DashboardConfig): Unit = {
 
-
+    import spark.implicits._
     //get user and user-org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     var orgHierarchyCompleteDF = orgCompleteHierarchyDataFrame()
@@ -42,27 +43,27 @@ object MinistryMetricsModel extends AbsDashboardModel {
       val organisationDF = df.dropDuplicates()
       val sumDF = organisationDF
 
-      val userJoinedDF = sumDF.join(userSumDF, $"userOrgID" === $"organisationID", "left_outer")
+      val userJoinedDF = sumDF.join(userSumDF, col("userOrgID") === col("organisationID"), "left_outer")
         .groupBy("organisationID")
-        .agg(sum($"totalLearningHours").alias("learningSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("learningSumValue"))
 
       val loginJoinedDF = userJoinedDF
-        .join(userLoginpercentDF, $"userOrgID" === $"organisationID", "left_outer")
+        .join(userLoginpercentDF, col("userOrgID") === col("organisationID"), "left_outer")
         .groupBy("organisationID", "learningSumValue")
-        .agg(sum($"totalLearningHours").alias("loginSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("loginSumValue"))
 
 
       // Join loginJoinedDF with certSumDF for certSumValue
       val certJoinedDF = loginJoinedDF
-        .join(certSumDF, $"userOrgID" === $"organisationID", "left_outer")
+        .join(certSumDF, col("userOrgID") === col("organisationID"), "left_outer")
         .groupBy("organisationID", "learningSumValue", "loginSumValue")
-        .agg(sum($"totalLearningHours").alias("certSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("certSumValue"))
 
       // Join certJoinedDF with enrolmentSumDF for enrolmentSumValue
       val finalResultDF = certJoinedDF
-        .join(enrolmentDF, $"userOrgID" === $"organisationID", "left_outer")
+        .join(enrolmentDF, col("userOrgID") === col("organisationID"), "left_outer")
         .groupBy("organisationID","learningSumValue", "loginSumValue", "certSumValue")
-        .agg(sum($"totalLearningHours").alias("enrolmentSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("enrolmentSumValue"))
         .withColumn("allIDs", lit(null).cast("string"))
         .select(col("organisationID").alias("ministryID"), col("allIDs"), col("learningSumValue"), col("loginSumValue"), col("certSumValue"), col("enrolmentSumValue"))
 
@@ -87,35 +88,35 @@ object MinistryMetricsModel extends AbsDashboardModel {
       val sumDF = organisationDF
         .groupBy("departmentID")
         .agg(
-          concat_ws(",", collect_set(when($"organisationID".isNotNull, $"organisationID"))).alias("orgIDs")
+          concat_ws(",", collect_set(when(col("organisationID").isNotNull, col("organisationID")))).alias("orgIDs")
         )
-        .withColumn("associatedIds", concat_ws(",", $"orgIDs"))
-        .withColumn("allIDs", concat_ws(",", $"departmentID", $"associatedIds"))
+        .withColumn("associatedIds", concat_ws(",", col("orgIDs")))
+        .withColumn("allIDs", concat_ws(",", col("departmentID"), col("associatedIds")))
 
-      val userJoinedDF = sumDF.withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(userSumDF, $"userOrgID" === $"orgID", "left_outer")
+      val userJoinedDF = sumDF.withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(userSumDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("departmentID", "allIDs")
-        .agg(sum($"totalLearningHours").alias("learningSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("learningSumValue"))
 
       val loginJoinedDF = userJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(userLoginpercentDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(userLoginpercentDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("departmentID", "allIDs", "learningSumValue")
-        .agg(sum($"totalLearningHours").alias("loginSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("loginSumValue"))
 
       // Join loginJoinedDF with certSumDF for certSumValue
       val certJoinedDF = loginJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(certSumDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(certSumDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("departmentID", "allIDs", "learningSumValue", "loginSumValue")
-        .agg(sum($"totalLearningHours").alias("certSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("certSumValue"))
 
       // Join certJoinedDF with enrolmentSumDF for enrolmentSumValue
       val finalResultDF = certJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(enrolmentDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(enrolmentDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("departmentID", "allIDs", "learningSumValue", "loginSumValue", "certSumValue")
-        .agg(sum($"totalLearningHours").alias("enrolmentSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("enrolmentSumValue"))
         .select(col("departmentID").alias("ministryID"), col("allIDs"), col("learningSumValue"), col("loginSumValue"), col("certSumValue"), col("enrolmentSumValue"))
       show(finalResultDF, "finalresult")
 
@@ -146,37 +147,37 @@ object MinistryMetricsModel extends AbsDashboardModel {
       val sumDF = organisationDF
         .groupBy("ministryID")
         .agg(
-          concat_ws(",", collect_set(when($"departmentID".isNotNull, $"departmentID"))).alias("departmentIDs"),
-          concat_ws(",", collect_set(when($"organisationID".isNotNull, $"organisationID"))).alias("orgIDs")
+          concat_ws(",", collect_set(when(col("departmentID").isNotNull, col("departmentID")))).alias("departmentIDs"),
+          concat_ws(",", collect_set(when(col("organisationID").isNotNull, col("organisationID")))).alias("orgIDs")
         )
-        .withColumn("associatedIds", concat_ws(",", $"departmentIDs", $"orgIDs"))
-        .withColumn("allIDs", concat_ws(",", $"ministryID", $"associatedIds"))
+        .withColumn("associatedIds", concat_ws(",", col("departmentIDs"), col("orgIDs")))
+        .withColumn("allIDs", concat_ws(",", col("ministryID"), col("associatedIds")))
 
 
-      val userJoinedDF = sumDF.withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(userSumDF, $"userOrgID" === $"orgID", "left_outer")
+      val userJoinedDF = sumDF.withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(userSumDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("ministryID", "allIDs")
-        .agg(sum($"totalLearningHours").alias("learningSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("learningSumValue"))
 
       val loginJoinedDF = userJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(userLoginpercentDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(userLoginpercentDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("ministryID", "allIDs", "learningSumValue")
-        .agg(sum($"totalLearningHours").alias("loginSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("loginSumValue"))
 
       // Join loginJoinedDF with certSumDF for certSumValue
       val certJoinedDF = loginJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(certSumDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(certSumDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("ministryID", "allIDs", "learningSumValue", "loginSumValue")
-        .agg(sum($"totalLearningHours").alias("certSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("certSumValue"))
 
       // Join certJoinedDF with enrolmentSumDF for enrolmentSumValue
       val finalResultDF = certJoinedDF
-        .withColumn("orgID", explode(split($"allIDs", ",")))
-        .join(enrolmentDF, $"userOrgID" === $"orgID", "left_outer")
+        .withColumn("orgID", explode(split(col("allIDs"), ",")))
+        .join(enrolmentDF, col("userOrgID") === col("orgID"), "left_outer")
         .groupBy("ministryID", "allIDs", "learningSumValue", "loginSumValue", "certSumValue")
-        .agg(sum($"totalLearningHours").alias("enrolmentSumValue"))
+        .agg(sum(col("totalLearningHours")).alias("enrolmentSumValue"))
         .select(col("ministryID"), col("allIDs"), col("learningSumValue"), col("loginSumValue"), col("certSumValue"), col("enrolmentSumValue"))
       show(finalResultDF, "finalresult")
 
