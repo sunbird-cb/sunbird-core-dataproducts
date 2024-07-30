@@ -120,7 +120,7 @@ object CourseBasedAssessmentModel extends AbsDashboardModel {
     }
 
     val warehouseDF = finalDF
-      .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+      .withColumn("data_last_generated_on", currentDateTime)
       .select(
         col("userID").alias("user_id"),
         col("course_id").alias("content_id"),

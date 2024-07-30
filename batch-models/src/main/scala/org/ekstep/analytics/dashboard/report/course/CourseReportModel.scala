@@ -95,7 +95,7 @@ object CourseReportModel extends AbsDashboardModel {
         var result1DF = resultDF.durationFormat("resource_duration")
         val notNullDF = result1DF.filter(col("resource_id").isNotNull && col("resource_id") =!= "")
         // Remove completely identical rows, keeping only one
-        val distinctDF = notNullDF.dropDuplicates(notNullDF.columns)
+        val distinctDF = notNullDF.dropDuplicates(notNullDF.columns).withColumn("data_last_generated_on", currentDateTime)
         // Show the result DataFrame
         distinctDF.show()
         val reportPath = s"${conf.courseReportPath}/${today}"
@@ -190,7 +190,7 @@ object CourseReportModel extends AbsDashboardModel {
             }
 
             val df_warehouse = fullDF
-              .withColumn("data_last_generated_on", date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a"))
+              .withColumn("data_last_generated_on", currentDateTime)
               .select(
                 col("courseID").alias("content_id"),
                 col("courseOrgID").alias("content_provider_id"),
@@ -209,6 +209,7 @@ object CourseReportModel extends AbsDashboardModel {
                 col("courseResourceCount").alias("resource_count"),
                 col("totalCertificatesIssued").alias("total_certificates_issued"),
                 col("courseReviewStatus").alias("content_substatus"),
+                col("contentLanguage").alias("language"),
                 col("data_last_generated_on")
               )
             generateReport(df_warehouse.coalesce(1), s"${reportPath}-warehouse")

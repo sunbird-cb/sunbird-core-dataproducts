@@ -78,6 +78,7 @@ case class DashboardConfig (
                              cassandraKarmaPointsSummaryTable: String,
                              cassandraLearnerLeaderBoardTable: String,
                              cassandraLearnerLeaderBoardLookupTable: String,
+                             cassandraMDOLearnerLeaderboardTable: String,
 
                              //warehouse tables;
                              appPostgresHost: String,
@@ -267,6 +268,7 @@ object DashboardConfigParser extends Serializable {
       cassandraKarmaPointsSummaryTable = getConfigModelParam(config, "cassandraKarmaPointsSummaryTable"),
       cassandraLearnerLeaderBoardTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardTable"),
       cassandraLearnerLeaderBoardLookupTable = getConfigModelParam(config, "cassandraLearnerLeaderBoardLookupTable"),
+      cassandraMDOLearnerLeaderboardTable = getConfigModelParam(config, "cassandraMDOLearnerLeaderboardTable"),
 
       // redis keys
       redisRegisteredOfficerCountKey = "mdo_registered_officer_count",
@@ -585,6 +587,8 @@ object DashboardUtil extends Serializable {
     val endOfWeek = startOfWeek.plusDays(6).withTime(23, 59, 59, 999)
     (formatter.print(startOfWeek), dateFormatter.print(endOfWeek), formatter.print(endOfWeek), dateFormatter.print(dataTillDate))
   }
+
+  val currentDateTime = date_format(current_timestamp(), "yyyy-MM-dd HH:mm:ss a")
 
   /* Util functions */
   def csvWrite(df: DataFrame, path: String, header: Boolean = true, saveMode: SaveMode = SaveMode.Overwrite): Unit = {
