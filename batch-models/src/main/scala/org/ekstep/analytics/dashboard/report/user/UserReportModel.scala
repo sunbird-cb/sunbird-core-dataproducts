@@ -22,6 +22,7 @@ object UserReportModel extends AbsDashboardModel {
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
 
     val orgHierarchyData = orgHierarchyDataframe()
+    val actualHierarchyDataFrame = getDetailedHierarchy(userOrgDF)
     var weeklyClapsDF = learnerStatsDataFrame()
     var karmaPointsDF = userKarmaPointsSummaryDataFrame()
     karmaPointsDF = karmaPointsDF.withColumnRenamed("userid", "userID")
@@ -64,10 +65,13 @@ object UserReportModel extends AbsDashboardModel {
       .coalesce(1)
 
     val reportPath = s"${conf.userReportPath}/${today}"
-    // generateReport(fullReportDF, s"${reportPath}-full")
+    //generateReport(fullReportDF, s"${reportPath}-full")
     val mdoWiseReportDF = fullReportDF.drop("userID", "userOrgID", "userCreatedBy")
-
-    generateReport(mdoWiseReportDF, reportPath,"mdoid", "UserReport")
+    val explodedDF = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
+    val combinedReportDF = mdoWiseReportDF.join(explodedDF, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
+    val filteredCombinedReportDF = combinedReportDF.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
+    // Repartition by mdo_id and write to CSV
+    generateReport(filteredCombinedReportDF, reportPath,"mdoid", "UserReport")
     // to be removed once new security job is created
     if (conf.reportSyncEnable) {
       syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)

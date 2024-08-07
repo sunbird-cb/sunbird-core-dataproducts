@@ -19,7 +19,8 @@ object CourseReportModel extends AbsDashboardModel {
         val today = getDate()
 
         val orgDF = orgDataFrame()
-
+        var (organisationDF, userDF, userOrgDF) = getOrgUserDataFrames()
+        val actualHierarchyDataFrame = getDetailedHierarchy(userOrgDF)
         // Get course data first
         val allCourseProgramDetailsDF = contentWithOrgDetailsDataFrame(orgDF, Seq("Course", "Program", "Blended Program", "CuratedCollections", "Curated Program"))
         // Get content resource hierarchy
@@ -183,7 +184,10 @@ object CourseReportModel extends AbsDashboardModel {
 
             // generateReport(fullReportDF, s"${reportPath}-full")
             val mdoReportDF = fullReportDF.drop("courseID", "courseOrgID")
-            generateReport(mdoReportDF,  reportPath,"mdoid", "ContentReport")
+            val explodedDF = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
+            val combinedReportDF = mdoReportDF.join(explodedDF, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
+            val filteredCombinedReportDF = combinedReportDF.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
+            generateReport(filteredCombinedReportDF,  reportPath,"mdoid", "ContentReport")
             // to be removed once new security job is created
             if (conf.reportSyncEnable) {
               syncReports(s"${conf.localReportDir}/${reportPath}", reportPath)
