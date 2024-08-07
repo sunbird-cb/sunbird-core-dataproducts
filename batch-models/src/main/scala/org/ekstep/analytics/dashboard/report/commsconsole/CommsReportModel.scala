@@ -43,7 +43,7 @@ object CommsReportModel extends AbsDashboardModel {
     val rawEnrollmentsDF = spark.read.option("header", "true")
       .csv(s"${conf.localReportDir}/${conf.userEnrolmentReportPath}/${today}-warehouse")
       //.withColumn("completionDate", to_date(col("completed_on"), dateFormat2))
-      .withColumn("completionDate",  date_format(col("last_accessed_on"), "dd/MM/yyyy HH:mm:ss a"))
+      .withColumn("completionDate",  date_format(col("content_last_accessed_on"), "dd/MM/yyyy HH:mm:ss a"))
     val enrollmentsDF = rawEnrollmentsDF
       .join(userDF, Seq("user_id"), "left")
 
@@ -112,7 +112,7 @@ object CommsReportModel extends AbsDashboardModel {
     generateReport(usersCreatedInLastNDaysWithoutEnrollmentsWithUserDetailsDF, s"${commsConsoleReportPath}/UsersOnboardedLast15DaysNotSignedUpAnyContent", fileName="UsersOnboardedLast15DaysNotSignedUpAnyContent")
 
     //top 60 users ranked by cbp completion in last 15 days
-    val topXCompletionsInNDays = enrollmentsDF.filter(col("last_accessed_on").between(dateNDaysAgo, currentDate))
+    val topXCompletionsInNDays = enrollmentsDF.filter(col("content_last_accessed_on").between(dateNDaysAgo, currentDate))
       .groupBy("user_id")
       .agg(
         count("*").alias("completionCount")
