@@ -26,6 +26,7 @@ object BlendedProgramReportModel extends AbsDashboardModel {
     // get user and user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
+    val actualHierarchyDataFrame = getDetailedHierarchy(userOrgDF)
 
     var userDataDF = userOrgDF
       .withColumn("userPrimaryEmail", col("personalDetails.primaryEmail"))
@@ -276,7 +277,10 @@ object BlendedProgramReportModel extends AbsDashboardModel {
       .withColumnRenamed("maskedPhone", "Phone_Number")
 
     show(cbpReportDF, "cbpReportDF")
-    generateAndSyncReports(cbpReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
+    val explodedDF = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
+    val combinedReportDF = cbpReportDF.join(explodedDF, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
+    val filteredCombinedReportDF = combinedReportDF.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
+    generateAndSyncReports(filteredCombinedReportDF, "mdoid", reportPathCBP, "BlendedProgramReport")
 
 
     val df_warehouse = fullDF

@@ -1883,5 +1883,67 @@ object DataUtil extends Serializable {
     show(df, "ratings")
     df
   }
+  def processOrgsL3(df: DataFrame, userOrgDF: DataFrame, orgHierarchyCompleteDF: DataFrame): DataFrame = {
+    val organisationDF = df.dropDuplicates()
+    val sumDF = organisationDF.withColumn("allIDs", lit(null).cast("string")).select(col("organisationID").alias("ministryID"), col("allIDs"))
+    sumDF
+
+  }
+
+  def processDepartmentL2(df: DataFrame, userOrgDF: DataFrame, orgHierarchyCompleteDF: DataFrame): DataFrame = {
+    val organisationDF = df
+      .join(orgHierarchyCompleteDF, df("departmentMapID") === orgHierarchyCompleteDF("l2mapid"), "left")
+      .select(df("departmentID"), col("sborgid").alias("organisationID")).dropDuplicates()
+    val sumDF = organisationDF
+      .groupBy("departmentID")
+      .agg(
+        concat_ws(",", collect_set(when(col("organisationID").isNotNull, col("organisationID")))).alias("orgIDs")
+      )
+      .withColumn("associatedIds", concat_ws(",", col("orgIDs")))
+      .withColumn("allIDs", concat_ws(",", col("departmentID"), col("associatedIds")))
+      .select(col("departmentID").alias("ministryID"), col("allIDs"))
+    sumDF
+
+  }
+
+  def processMinistryL1(df: DataFrame, userOrgDF: DataFrame, orgHierarchyCompleteDF: DataFrame): DataFrame = {
+    println("Processing Ministry L1 DataFrame:")
+    val departmentAndMapIDsDF = df
+      .join(orgHierarchyCompleteDF, df("ministryMapID") === orgHierarchyCompleteDF("l1mapid"), "left")
+      .select(df("ministryID"), col("sborgid").alias("departmentID"), col("mapid").alias("departmentMapID"))
+
+    // Join with orgHierarchyCompleteDF to get the organisationDF
+    val organisationDF = departmentAndMapIDsDF
+      .join(orgHierarchyCompleteDF, departmentAndMapIDsDF("departmentMapID") === orgHierarchyCompleteDF("l2mapid"), "left")
+      .select(departmentAndMapIDsDF("ministryID"), departmentAndMapIDsDF("departmentID"),col("sborgid").alias("organisationID")).dropDuplicates()
+    val sumDF = organisationDF
+      .groupBy("ministryID")
+      .agg(
+        concat_ws(",", collect_set(when(col("departmentID").isNotNull, col("departmentID")))).alias("departmentIDs"),
+        concat_ws(",", collect_set(when(col("organisationID").isNotNull, col("organisationID")))).alias("orgIDs")
+      )
+      .withColumn("associatedIds", concat_ws(",", col("departmentIDs"), col("orgIDs")))
+      .withColumn("allIDs", concat_ws(",", col("ministryID"), col("associatedIds")))
+      .select(col("ministryID"), col("allIDs"))
+    sumDF
+  }
+
+  def getDetailedHierarchy(userOrgDF: DataFrame)(implicit spark: SparkSession, conf: DashboardConfig): DataFrame = {
+    var orgHierarchyCompleteDF = orgCompleteHierarchyDataFrame()
+    var distinctMdoIDsDF = userOrgDF.select("userOrgID").distinct()
+    val joinedDF = orgHierarchyCompleteDF.join(distinctMdoIDsDF, orgHierarchyCompleteDF("sborgid") === distinctMdoIDsDF("userOrgID"), "inner")
+    println("The number of distinct orgs in orgHierarchy is: "+joinedDF.count())
+    val ministryL1DF = joinedDF.filter(col("l1mapid").isNull && col("l2mapid").isNull && col("l3mapid").isNull).select(col("sborgid").alias("ministryID"), col("mapid").alias("ministryMapID"))
+    val ministryOrgDF = processMinistryL1(ministryL1DF, userOrgDF, orgHierarchyCompleteDF)
+    val departmentL2DF = joinedDF.filter(col("l2mapid").isNull && col("l1mapid").isNotNull || col("l3mapid").isNotNull).select(col("sborgid").alias("departmentID"), col("mapid").alias("departmentMapID"))
+    val deptOrgDF =  processDepartmentL2(departmentL2DF, userOrgDF, orgHierarchyCompleteDF)
+    val orgsL3DF = joinedDF.filter((col("l3mapid").isNull) && col("l2mapid").isNotNull && col("l1mapid").isNotNull).select(col("sborgid").alias("organisationID"))
+    val orgsDF = processOrgsL3(orgsL3DF, userOrgDF, orgHierarchyCompleteDF)
+    val combinedMinistryMetricsDF = ministryOrgDF.union(deptOrgDF).union(orgsDF)
+    val updatedDF = combinedMinistryMetricsDF.withColumn("allIDs", when(col("allIDs").isNull || trim(col("allIDs")) === "", concat(lit("$"), col("ministryID"))).otherwise(col("allIDs")))
+    show(updatedDF, "This will be the final hierarchy")
+    updatedDF
+  }
+
 
 }
