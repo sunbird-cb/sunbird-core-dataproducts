@@ -236,7 +236,7 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           // Upload the zip file to blob storage
           val zipReporthPath = s"${conf.destinationDirectoryPath}/$mdoid"
           //sync reports
-          //syncReports(zipFilePath, zipReporthPath)
+          syncReports(zipFilePath, zipReporthPath)
         }
       }
     } else {
