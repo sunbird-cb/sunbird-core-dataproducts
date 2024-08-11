@@ -1940,10 +1940,11 @@ object DataUtil extends Serializable {
     val orgsL3DF = joinedDF.filter((col("l3mapid").isNull) && col("l2mapid").isNotNull && col("l1mapid").isNotNull).select(col("sborgid").alias("organisationID"))
     val orgsDF = processOrgsL3(orgsL3DF, userOrgDF, orgHierarchyCompleteDF)
     val combinedMinistryMetricsDF = ministryOrgDF.union(deptOrgDF).union(orgsDF)
-    val updatedDF = combinedMinistryMetricsDF.withColumn("allIDs", when(col("allIDs").isNull || trim(col("allIDs")) === "", concat(lit("$"), col("ministryID"))).otherwise(col("allIDs")))
+    val updatedDF = combinedMinistryMetricsDF.withColumn("allIDs", when(col("allIDs").isNull || trim(col("allIDs")) === "", col("ministryID")).otherwise(col("allIDs")))
     show(updatedDF, "This will be the final hierarchy")
     updatedDF
   }
+
 
 
 }

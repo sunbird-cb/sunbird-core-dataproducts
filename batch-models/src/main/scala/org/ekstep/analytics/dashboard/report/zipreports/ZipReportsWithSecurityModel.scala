@@ -133,9 +133,10 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           val folderName = mdoidFolder.getName
           val orgID = folderName.split("=")(1)
           val orgFileName = getOrgName(orgID, orgNamesDF)
+          val sanitizedOrgFileName = orgFileName.replaceAll("[/\\\\]", "_")
           val zipFilePath = s"${mdoidFolder}"
           // Create a password-protected zip file for the mdoid folder
-          val zipFile = new ZipFile(zipFilePath+"/"+orgFileName+".zip")
+          val zipFile = new ZipFile(zipFilePath+"/"+sanitizedOrgFileName+".zip")
           val parameters = new ZipParameters()
           parameters.setCompressionMethod(CompressionMethod.DEFLATE)
           // Add all files within the mdoid folder to the zip file
@@ -179,8 +180,9 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
         .filter(id => id != null && id.trim.nonEmpty)
         .foreach { id =>
           val orgFileName = getOrgName(id, orgNamesDF)
-          val sourceZipFilePath = s"$baseDir/mdoid=$id/$orgFileName.zip"
-          val destinationZipFilePath = s"$ministryDir/$orgFileName.zip"
+          val sanitizedOrgFileName = orgFileName.replaceAll("[/\\\\]", "_")
+          val sourceZipFilePath = s"$baseDir/mdoid=$id/$sanitizedOrgFileName.zip"
+          val destinationZipFilePath = s"$ministryDir/$sanitizedOrgFileName.zip"
 
           // Copy the zip file
           val sourceFile = new File(sourceZipFilePath)
