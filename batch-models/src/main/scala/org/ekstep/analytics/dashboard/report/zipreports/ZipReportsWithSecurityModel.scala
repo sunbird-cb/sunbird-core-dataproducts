@@ -1,7 +1,10 @@
 package org.ekstep.analytics.dashboard.report.zipreports
 
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SparkSession}
+import org.apache.spark.sql.{Column, DataFrame, Row, SparkSession}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
 import org.ekstep.analytics.framework._
 import org.ekstep.analytics.dashboard.DashboardUtil._
 import org.ekstep.analytics.dashboard.DataUtil._
