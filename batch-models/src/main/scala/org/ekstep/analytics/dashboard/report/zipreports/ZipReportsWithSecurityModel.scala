@@ -37,8 +37,6 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
     //fetch the org hierarchy
     var (orgNamesDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyDF = getDetailedHierarchy(userOrgDF)
-    orgHierarchyDF.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("/home/analytics/varsha/hierarchyDF")
-    orgNamesDF.select("orgID", "orgName").repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("/home/analytics/varsha/orgDF")
     // Start of merging folders
 
     // Define variables for source, destination directories and date.
@@ -153,7 +151,7 @@ object ZipReportsWithSecurityModel extends AbsDashboardModel {
           }
           // Upload the zip file to blob storage
           val mdoid = mdoidFolder.getName
-          println(s"Password-protected ZIP file created and uploaded for $mdoid: $zipFilePath")
+          println(s"Individual ZIP file created for $mdoid: $zipFilePath")
         }
       }
     } else {
