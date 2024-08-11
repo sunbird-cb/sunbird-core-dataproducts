@@ -20,7 +20,6 @@ object UserACBPReportModel extends AbsDashboardModel {
     // get user and org data frames
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
     val orgHierarchyData = orgHierarchyDataframe()
-    val actualHierarchyDataFrame = getDetailedHierarchy(userOrgDF)
     val userDataDF = userOrgDF
       .join(orgHierarchyData, Seq("userOrgID"), "left")
       .withColumn("designation", coalesce(col("professionalDetails.designation"), lit("")))
@@ -113,10 +112,7 @@ object UserACBPReportModel extends AbsDashboardModel {
 
     val reportPath = s"${conf.acbpReportPath}/${today}"
     generateReport(enrolmentReportDF.drop("mdoid"), s"${reportPath}/CBPEnrollmentReport", fileName="CBPEnrollmentReport")
-    val explodedDF = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
-    val combinedReportDF = enrolmentReportDF.join(explodedDF, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
-    val filteredCombinedReportDF = combinedReportDF.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
-    generateReport(filteredCombinedReportDF,  s"${conf.acbpMdoEnrolmentReportPath}/${today}","mdoid", "CBPEnrollmentReport")
+    generateReport(enrolmentReportDF,  s"${conf.acbpMdoEnrolmentReportPath}/${today}","mdoid", "CBPEnrollmentReport")
     // to be removed once new security job is created
     if (conf.reportSyncEnable) {
       syncReports(s"${conf.localReportDir}/${reportPath}", s"${conf.acbpMdoEnrolmentReportPath}/${today}")
@@ -153,10 +149,7 @@ object UserACBPReportModel extends AbsDashboardModel {
       )
     show(userSummaryReportDF, "userSummaryReportDF")
     generateReport(userSummaryReportDF.drop("mdoid"), s"${reportPath}/CBPUserSummaryReport", fileName="CBPUserSummaryReport")
-    val explodedDF1 = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
-    val combinedReportDF1 = userSummaryReportDF.join(explodedDF1, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
-    val filteredCombinedReportDF1 = combinedReportDF1.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
-    generateReport(filteredCombinedReportDF1.coalesce(1),  s"${conf.acbpMdoSummaryReportPath}/${today}","mdoid", "CBPUserSummaryReport")
+    generateReport(userSummaryReportDF.coalesce(1),  s"${conf.acbpMdoSummaryReportPath}/${today}","mdoid", "CBPUserSummaryReport")
     // to be removed once new security job is created
     if(conf.reportSyncEnable) {
       syncReports(s"${conf.localReportDir}/${reportPath}", s"${conf.acbpMdoSummaryReportPath}/${today}")

@@ -25,7 +25,6 @@ object UserAssessmentModel extends AbsDashboardModel {
 
     // obtain user org data
     var (orgDF, userDF, userOrgDF) = getOrgUserDataFrames()
-    val actualHierarchyDataFrame = getDetailedHierarchy(userOrgDF)
     // get course details, with rating info
     val (hierarchyDF, allCourseProgramDetailsWithCompDF, allCourseProgramDetailsDF,
       allCourseProgramDetailsWithRatingDF) = contentDataFrames(orgDF)
@@ -94,10 +93,7 @@ object UserAssessmentModel extends AbsDashboardModel {
     val reportPath = s"${conf.standaloneAssessmentReportPath}/${today}"
     // generateReport(df, s"${reportPath}-full")
     df = df.drop("assessID", "assessOrgID")
-    val explodedDF = actualHierarchyDataFrame.withColumn("mdoid", explode(split(col("allIDs"), ","))).filter(trim(col("mdoid")) =!= "" && col("mdoid").isNotNull).drop("allIDs").dropDuplicates("mdoid")
-    val combinedReportDF = df.join(explodedDF, Seq("mdoid"), "left").withColumn("ministryID", coalesce(col("ministryID"), col("mdoid")))
-    val filteredCombinedReportDF = combinedReportDF.drop("mdoid").withColumnRenamed("ministryID", "mdoid").coalesce(1)
-    generateAndSyncReports(filteredCombinedReportDF, "mdoid", reportPath, "StandaloneAssessmentReport")
+    generateAndSyncReports(df, "mdoid", reportPath, "StandaloneAssessmentReport")
 
     Redis.closeRedisConnect()
 
